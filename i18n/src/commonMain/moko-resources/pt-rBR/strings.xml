@@ -73,6 +73,100 @@
     <string name="move_to_categories">Mover para categorias</string>
     <string name="category_with_name_exists">Já existe uma categoria com este nome!</string>
     <string name="category_deleted">Categoria excluída</string>
+    <!-- Broken sources -->
+    <string name="broken_sources">Fontes quebradas</string>
+    <string name="broken_sources_explainer">Fontes de que sua biblioteca depende e que pararam de
+        funcionar. Migrar leva os itens para uma fonte que ainda os tem.</string>
+    <string name="broken_sources_none">Nada quebrado. Fontes que sumirem, saírem do repositório ou
+        continuarem falhando ao atualizar vão aparecer aqui.</string>
+    <string name="broken_source_missing">Extensão não instalada</string>
+    <string name="broken_source_obsolete">Não está mais no repositório</string>
+    <string name="broken_source_failing">Atualizações falhando</string>
+    <string name="broken_sources_migrate_all">Migrar estes</string>
+    <string name="broken_sources_and_more">e mais %1$d</string>
+
+    <!-- KOReader shelf -->
+    <string name="koreader">KOReader</string>
+    <string name="koreader_summary">Envia capítulos para um servidor próprio e recebe o progresso de leitura</string>
+    <string name="koreader_server_url">Endereço do servidor</string>
+    <string name="koreader_server_url_hint">http://192.168.1.10:3000</string>
+    <string name="koreader_api_key">Chave de API</string>
+    <string name="koreader_api_key_summary">Deixe em branco se o contêiner não usa chave</string>
+    <string name="koreader_test_connection">Testar conexão</string>
+    <string name="koreader_connection_ok">Servidor respondeu</string>
+    <string name="koreader_connection_failed">Não foi possível acessar o servidor: %1$s</string>
+    <string name="koreader_set_url_first">Informe o endereço do servidor primeiro</string>
+    <string name="koreader_what_to_send">O que enviar</string>
+    <string name="koreader_categories_summary">Só mangás nestas categorias são enviados</string>
+    <string name="koreader_chapters_per_manga">Capítulos por mangá</string>
+    <string name="koreader_max_manga">Mangás no servidor</string>
+    <string name="koreader_needs_cbz">Os capítulos são enviados a partir dos seus downloads, então
+        "Salvar capítulos como CBZ" precisa estar ligado. O que ainda não estiver baixado entra na
+        fila e é enviado na próxima sincronização.</string>
+    <string name="koreader_reading">Progresso de volta</string>
+    <string name="koreader_mark_read">Marcar como lido pelo KOReader</string>
+    <string name="koreader_mark_read_summary">Capítulo terminado no dispositivo é marcado como lido aqui</string>
+    <string name="koreader_sync_now">Sincronizar agora</string>
+    <string name="koreader_sync_started">Sincronizando</string>
+    <string name="koreader_sync_section">Sincronização</string>
+    <string name="koreader_sync_interval">Sincronizar automaticamente</string>
+    <string name="koreader_only_over_wifi">Sincronizar só no Wi-Fi</string>
+
+    <!-- Category rules -->
+    <string name="category_rules">Regras</string>
+    <string name="category_rules_explainer">As entradas nesta categoria são verificadas pelas regras abaixo, de cima para baixo, e a primeira que corresponder as move.</string>
+    <string name="category_rules_empty">Nenhuma regra ainda, então nada sai desta categoria por conta própria.</string>
+    <string name="category_rules_export">Exportar regras</string>
+    <string name="category_rules_export_summary">Salva suas regras de categoria num arquivo que você pode compartilhar</string>
+    <string name="category_rules_import">Importar regras</string>
+    <string name="category_rules_import_summary">Aplica as regras de um arquivo às categorias de mesmo nome</string>
+    <string name="category_rules_exported">Regras exportadas</string>
+    <string name="category_rules_imported">%1$d regras importadas</string>
+    <string name="category_rules_imported_partial">%1$d regras importadas. Nenhuma categoria aqui se chama: %2$s</string>
+    <string name="category_rules_transfer_failed">Não foi possível transferir as regras: %1$s</string>
+    <string name="category_rule_if">SE</string>
+    <string name="category_rule_and">E</string>
+    <string name="category_rule_then">ENTÃO MOVER PARA</string>
+    <string name="category_rule_add">Adicionar regra</string>
+    <string name="category_rule_add_condition">Adicionar condição</string>
+    <string name="category_rule_delete">Excluir regra</string>
+    <string name="category_rule_enabled">Ativar regra</string>
+    <string name="category_rule_move_up">Mover para cima</string>
+    <string name="category_rule_move_down">Mover para baixo</string>
+    <string name="category_rule_number">Regra %1$d</string>
+    <string name="category_rule_needs_condition">Adicione ao menos uma condição, ou esta regra nunca será executada.</string>
+    <string name="category_rule_field">Condição</string>
+    <string name="category_rule_value">Valor</string>
+    <string name="rule_field_tracked">Tem rastreador</string>
+    <string name="rule_field_tracker_status">Status no rastreador</string>
+    <string name="rule_field_tracker_score">Nota no rastreador (0-10)</string>
+    <string name="rule_tracker_reading">Lendo</string>
+    <string name="rule_tracker_completed">Concluído</string>
+    <string name="rule_tracker_planning">Planejo ler</string>
+    <string name="rule_tracker_other">Outro</string>
+    <string name="category_rule_deleted">Regra excluída</string>
+    <string name="rule_field_unread">Capítulos não lidos</string>
+    <string name="rule_field_read">Capítulos lidos</string>
+    <string name="rule_field_total_chapters">Total de capítulos</string>
+    <string name="rule_field_days_since_read">Dias desde a última leitura</string>
+    <string name="rule_field_days_since_update">Dias desde o último lançamento</string>
+    <string name="rule_field_status">Status de publicação</string>
+    <string name="rule_field_source_missing">Fonte ausente</string>
+    <string name="rule_field_source_obsolete">Extensão obsoleta</string>
+    <string name="rule_field_update_failures">Falhas de atualização seguidas</string>
+    <string name="rule_field_never_read">Nunca lido</string>
+    <string name="rule_field_update_failures_note">Problemas de conexão nunca contam aqui, então isso não dispara quando você está offline.</string>
+    <string name="rule_field_days_since_read_note">Entradas que você nunca abriu não são contadas aqui — use \"Nunca lido\" para esses casos.</string>
+    <string name="rule_operator_greater">é maior que</string>
+    <string name="rule_operator_less">é menor que</string>
+    <string name="rule_operator_equal">é</string>
+    <string name="rule_value_yes">Sim</string>
+    <string name="rule_value_no">Não</string>
+    <!-- Merged sources -->
+    <string name="merged_sources">Fontes mescladas</string>
+    <string name="no_merged_sources">Nenhuma fonte mesclada ainda</string>
+    <string name="merged_source_summary">%1$d capítulos novos, %2$d já cobertos</string>
+    <string name="merged_sources_hint">Arraste pela alça para mudar qual fonte prevalece em um capítulo compartilhado.</string>
     <string name="long_press_category">Pressione e segure para editar uma categoria</string>
     <!-- Updates -->
     <string name="update">Atualizar</string>

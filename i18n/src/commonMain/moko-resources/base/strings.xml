@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">Yōkai</string>
-    <string name="app_short_name" translatable="false">Yōkai</string>
-    <string name="app_normalized_name" translatable="false">Yokai</string>
+    <string name="app_name" translatable="false">Karasu</string>
+    <string name="app_short_name" translatable="false">Karasu</string>
+    <string name="app_normalized_name" translatable="false">Karasu</string>
 
     <string name="action_menu_overflow_description">More options</string>
     <string name="action_bar_up_description">Navigate up</string>
@@ -663,6 +663,105 @@
     <string name="copy_now">Copy now</string>
     <string name="migrate">Migrate</string>
     <string name="migrate_">Migrate %1$s</string>
+    <!-- Broken sources -->
+    <string name="broken_sources">Broken sources</string>
+    <string name="broken_sources_explainer">Sources your library depends on that stopped working.
+        Migrating moves the entries to a source that still has them.</string>
+    <string name="broken_sources_none">Nothing is broken. Sources that go missing, fall out of
+        their repository, or keep failing to update will show up here.</string>
+    <string name="broken_source_missing">Extension not installed</string>
+    <string name="broken_source_obsolete">No longer in its repository</string>
+    <string name="broken_source_failing">Updates keep failing</string>
+    <string name="broken_sources_migrate_all">Migrate these</string>
+    <string name="broken_sources_and_more">and %1$d more</string>
+
+    <!-- KOReader shelf -->
+    <string name="koreader">KOReader</string>
+    <string name="koreader_summary">Send chapters to a self-hosted shelf and read progress back</string>
+    <string name="koreader_server_url">Shelf address</string>
+    <string name="koreader_server_url_hint">http://192.168.1.10:3000</string>
+    <string name="koreader_api_key">API key</string>
+    <string name="koreader_api_key_summary">Leave blank if the container has no key set</string>
+    <string name="koreader_test_connection">Test connection</string>
+    <string name="koreader_connection_ok">Shelf reached</string>
+    <string name="koreader_connection_failed">Could not reach the shelf: %1$s</string>
+    <string name="koreader_set_url_first">Enter the shelf address first</string>
+    <string name="koreader_what_to_send">What to send</string>
+    <string name="koreader_categories_summary">Only manga in these categories are sent</string>
+    <string name="koreader_chapters_per_manga">Chapters per manga</string>
+    <string name="koreader_max_manga">Manga on the shelf</string>
+    <string name="koreader_needs_cbz">Chapters are sent from your downloads, so "Save chapters as
+        CBZ" must be on. Anything not downloaded yet is queued and sent on the next sync.</string>
+    <string name="koreader_reading">Reading back</string>
+    <string name="koreader_mark_read">Mark chapters read from KOReader</string>
+    <string name="koreader_mark_read_summary">A chapter finished on the device is marked read here</string>
+    <string name="koreader_sync_now">Sync now</string>
+    <string name="koreader_sync_started">Syncing the shelf</string>
+    <string name="koreader_sync_section">Sync</string>
+    <string name="koreader_sync_interval">Sync automatically</string>
+    <string name="koreader_only_over_wifi">Only sync over Wi-Fi</string>
+
+    <!-- Category rules -->
+    <string name="category_rules">Rules</string>
+    <string name="category_rules_explainer">Entries in this category are checked against the
+        rules below, top to bottom, and the first one that matches moves them.</string>
+    <string name="category_rules_empty">No rules yet, so nothing ever leaves this category on
+        its own.</string>
+    <string name="category_rules_export">Export rules</string>
+    <string name="category_rules_export_summary">Save your category rules to a file you can share</string>
+    <string name="category_rules_import">Import rules</string>
+    <string name="category_rules_import_summary">Apply rules from a file to categories with the same names</string>
+    <string name="category_rules_exported">Rules exported</string>
+    <string name="category_rules_imported">%1$d rules imported</string>
+    <string name="category_rules_imported_partial">%1$d rules imported. No category here is called: %2$s</string>
+    <string name="category_rules_transfer_failed">Could not transfer the rules: %1$s</string>
+    <string name="category_rule_if">IF</string>
+    <string name="category_rule_and">AND</string>
+    <string name="category_rule_then">THEN MOVE TO</string>
+    <string name="category_rule_add">Add rule</string>
+    <string name="category_rule_add_condition">Add condition</string>
+    <string name="category_rule_delete">Delete rule</string>
+    <string name="category_rule_enabled">Enable rule</string>
+    <string name="category_rule_move_up">Move up</string>
+    <string name="category_rule_move_down">Move down</string>
+    <string name="category_rule_number">Rule %1$d</string>
+    <string name="category_rule_needs_condition">Add at least one condition, or this rule
+        never runs.</string>
+    <string name="category_rule_field">Condition</string>
+    <string name="category_rule_value">Value</string>
+    <string name="rule_field_tracked">Is tracked</string>
+    <string name="rule_field_tracker_status">Tracker status</string>
+    <string name="rule_field_tracker_score">Tracker score (0-10)</string>
+    <string name="rule_tracker_reading">Reading</string>
+    <string name="rule_tracker_completed">Completed</string>
+    <string name="rule_tracker_planning">Plan to read</string>
+    <string name="rule_tracker_other">Something else</string>
+    <string name="category_rule_deleted">Rule deleted</string>
+    <string name="rule_field_unread">Unread chapters</string>
+    <string name="rule_field_read">Read chapters</string>
+    <string name="rule_field_total_chapters">Total chapters</string>
+    <string name="rule_field_days_since_read">Days since I last read it</string>
+    <string name="rule_field_days_since_update">Days since the last release</string>
+    <string name="rule_field_status">Publication status</string>
+    <string name="rule_field_source_missing">Source is missing</string>
+    <string name="rule_field_source_obsolete">Extension is obsolete</string>
+    <string name="rule_field_update_failures">Failed updates in a row</string>
+    <string name="rule_field_never_read">Never read</string>
+    <string name="rule_field_update_failures_note">Connection problems never count here, so this
+        does not spike when you are offline.</string>
+    <string name="rule_field_days_since_read_note">Entries you have never opened are not
+        counted here — use \"Never read\" for those.</string>
+    <string name="rule_operator_greater">is more than</string>
+    <string name="rule_operator_less">is less than</string>
+    <string name="rule_operator_equal">is</string>
+    <string name="rule_value_yes">Yes</string>
+    <string name="rule_value_no">No</string>
+
+    <string name="merged_sources">Merged sources</string>
+    <string name="no_merged_sources">No merged sources yet</string>
+    <string name="merged_source_summary">%1$d new chapters, %2$d already covered</string>
+    <string name="merged_sources_hint">Drag the handle to change which source wins for a shared
+        chapter.</string>
     <string name="copy_value">Copy</string>
     <string name="no_chapters_found_for_migration">No chapters found, this series cannot be used for
         migration</string>
@@ -819,6 +918,9 @@
     <string name="doh">DNS over HTTPS</string>
     <string name="user_agent_string">Default user agent string</string>
     <string name="error_user_agent_string_invalid">Invalid user agent string</string>
+    <string name="flaresolverr_url">FlareSolverr URL</string>
+    <string name="flaresolverr_url_summary">Used only when the WebView fails to solve a Cloudflare challenge. Leave empty to disable.</string>
+    <string name="error_flaresolverr_url_invalid">Invalid FlareSolverr URL</string>
     <string name="disabled">Disabled</string>
     <string name="cloudflare" translatable="false">Cloudflare</string>
     <string name="google" translatable="false">Google</string>

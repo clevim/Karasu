@@ -38,10 +38,18 @@ data class RuleInput(
  */
 fun CategoryRule.evaluate(input: RuleInput, now: Long): Long? =
     transitions.firstOrNull { transition ->
-        transition.enabled &&
-            transition.conditions.isNotEmpty() &&
-            transition.conditions.all { it.matches(input, now) }
+        transition.enabled && transition.conditions.matches(input, now)
     }?.target
+
+/**
+ * Whether every condition holds, as a predicate with no destination attached.
+ *
+ * Conditions are ANDed. An empty list is deliberately false: in a transition it would fire on
+ * everything, and anywhere else it means "not configured yet" — neither should select the whole
+ * library. Callers that want "no filter" must check for empty themselves.
+ */
+fun List<RuleCondition>.matches(input: RuleInput, now: Long): Boolean =
+    isNotEmpty() && all { it.matches(input, now) }
 
 private fun RuleCondition.matches(input: RuleInput, now: Long): Boolean = when (field) {
     RuleField.UNREAD -> compare(input.unread.toLong())

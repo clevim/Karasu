@@ -123,4 +123,14 @@
         <item quantity="many">%d estados</item>
         <item quantity="other">%d outros estados</item>
     </plurals>
+
+    <plurals name="category_rule_preview">
+        <item quantity="one">%d item sairia desta categoria agora</item>
+        <item quantity="other">%d itens sairiam desta categoria agora</item>
+    </plurals>
+
+    <plurals name="broken_sources_entries">
+        <item quantity="one">%d item afetado</item>
+        <item quantity="other">%d itens afetados</item>
+    </plurals>
 </resources>

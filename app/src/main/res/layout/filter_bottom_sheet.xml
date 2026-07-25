@@ -133,6 +133,18 @@
                     app:icon="@drawable/ic_tune_24dp"
                     app:iconTint="?attr/colorOnBackground" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/new_category"
+                    style="@style/Theme.Widget.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:maxLines="2"
+                    android:text="@string/new_category"
+                    android:textColor="?attr/colorOnBackground"
+                    app:icon="@drawable/ic_add_24dp"
+                    app:iconTint="?attr/colorOnBackground" />
+
             </LinearLayout>
         </LinearLayout>
 

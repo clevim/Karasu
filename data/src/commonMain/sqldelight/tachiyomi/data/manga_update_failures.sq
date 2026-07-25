@@ -1,0 +1,31 @@
+-- Consecutive failed update attempts, for the "the source is broken" category rule.
+--
+-- A row only exists while a manga is failing: succeeding deletes it rather than storing a
+-- zero. The table is therefore empty in normal use, and "no row" is what healthy looks like.
+CREATE TABLE manga_update_failures(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    failures INTEGER NOT NULL,
+    last_message TEXT,
+    last_attempt INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+findAll:
+SELECT manga_id, failures FROM manga_update_failures;
+
+-- Everything the broken-sources screen shows. Kept separate from findAll because the rule
+-- engine runs this table over the whole library and only ever needs the count.
+findAllDetailed:
+SELECT manga_id, failures, last_message, last_attempt FROM manga_update_failures;
+
+recordFailure:
+INSERT INTO manga_update_failures(manga_id, failures, last_message, last_attempt)
+VALUES (:manga_id, 1, :last_message, :last_attempt)
+ON CONFLICT(manga_id) DO UPDATE SET
+    failures = manga_update_failures.failures + 1,
+    last_message = :last_message,
+    last_attempt = :last_attempt;
+
+clear:
+DELETE FROM manga_update_failures WHERE manga_id = :manga_id;

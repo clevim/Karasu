@@ -22,6 +22,12 @@ SELECT *
 FROM manga_sync
 WHERE manga_id = :mangaId;
 
+-- One read for a whole-library pass. Category rules evaluate every manga at once, and asking
+-- per manga would be a query each.
+getAll:
+SELECT *
+FROM manga_sync;
+
 deleteForManga:
 DELETE FROM manga_sync
 WHERE manga_id = :mangaId AND sync_id = :syncId;

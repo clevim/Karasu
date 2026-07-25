@@ -81,4 +81,10 @@
         android:title="@string/migrate"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_merged_sources"
+        android:icon="@drawable/ic_swap_calls_24dp"
+        android:title="@string/merged_sources"
+        app:showAsAction="never" />
+
 </menu>

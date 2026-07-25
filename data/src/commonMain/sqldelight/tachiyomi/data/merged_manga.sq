@@ -1,0 +1,39 @@
+CREATE TABLE merged_manga(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    manga_id INTEGER NOT NULL,
+    source INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    priority INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX merged_manga_manga_id_index ON merged_manga(manga_id);
+CREATE UNIQUE INDEX merged_manga_manga_id_source_index ON merged_manga(manga_id, source);
+
+findByMangaId:
+SELECT *
+FROM merged_manga
+WHERE manga_id = :manga_id
+ORDER BY priority;
+
+findMangaIdsWithMerges:
+SELECT DISTINCT manga_id
+FROM merged_manga;
+
+insert:
+INSERT INTO merged_manga(manga_id, source, url, priority)
+VALUES (:manga_id, :source, :url, :priority);
+
+updatePriority:
+UPDATE merged_manga
+SET priority = :priority
+WHERE manga_id = :manga_id AND source = :source;
+
+deleteByMangaIdAndSource:
+DELETE FROM merged_manga
+WHERE manga_id = :manga_id AND source = :source;
+
+deleteByMangaId:
+DELETE FROM merged_manga
+WHERE manga_id = :manga_id;

@@ -3,7 +3,8 @@ CREATE TABLE categories(
     name TEXT NOT NULL,
     sort INTEGER NOT NULL,
     flags INTEGER NOT NULL,
-    manga_order TEXT NOT NULL
+    manga_order TEXT NOT NULL,
+    rule TEXT
 );
 
 findAll:
@@ -17,8 +18,8 @@ JOIN mangas_categories ON categories._id = mangas_categories.category_id
 WHERE mangas_categories.manga_id = :mangaId;
 
 insert:
-INSERT INTO categories (name, sort, flags, manga_order)
-VALUES (:name, :sort, :flags, :mangaOrder);
+INSERT INTO categories (name, sort, flags, manga_order, rule)
+VALUES (:name, :sort, :flags, :mangaOrder, :rule);
 
 selectLastInsertedRowId:
 SELECT last_insert_rowid();
@@ -30,6 +31,11 @@ UPDATE categories SET
     flags = coalesce(:flags, flags),
     manga_order = coalesce(:mangaOrder, manga_order)
 WHERE _id = :id;
+
+-- Separate from `update` because that one coalesces, which can never clear a value, and
+-- clearing the rule is how a category goes back to being a plain manual one.
+updateRule:
+UPDATE categories SET rule = :rule WHERE _id = :id;
 
 delete:
 DELETE FROM categories

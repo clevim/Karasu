@@ -1,0 +1,2 @@
+-- Rule that moves manga out of this category, as JSON. NULL means a plain manual category.
+ALTER TABLE categories ADD COLUMN rule TEXT;

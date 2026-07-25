@@ -112,4 +112,14 @@
         <item quantity="one">After %1$s minute</item>
         <item quantity="other">After %1$s minutes</item>
     </plurals>
+
+    <plurals name="category_rule_preview">
+        <item quantity="one">%d entry would move right now</item>
+        <item quantity="other">%d entries would move right now</item>
+    </plurals>
+
+    <plurals name="broken_sources_entries">
+        <item quantity="one">%d entry affected</item>
+        <item quantity="other">%d entries affected</item>
+    </plurals>
 </resources>

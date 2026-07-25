@@ -1,0 +1,8 @@
+CREATE TABLE manga_update_failures(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    failures INTEGER NOT NULL,
+    last_message TEXT,
+    last_attempt INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);

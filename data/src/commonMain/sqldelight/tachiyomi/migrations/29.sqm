@@ -1,0 +1,12 @@
+CREATE TABLE merged_manga(
+    _id INTEGER NOT NULL PRIMARY KEY,
+    manga_id INTEGER NOT NULL,
+    source INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    priority INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX merged_manga_manga_id_index ON merged_manga(manga_id);
+CREATE UNIQUE INDEX merged_manga_manga_id_source_index ON merged_manga(manga_id, source);
