@@ -1,4 +1,4 @@
-package yokai.data
+package karasu.data
 
 import app.cash.sqldelight.ExecutableQuery
 import app.cash.sqldelight.Query
@@ -11,8 +11,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import yokai.data.util.executeAsFirstOrNull
-import yokai.data.util.mapToFirstOrNull
+import karasu.data.util.executeAsFirstOrNull
+import karasu.data.util.mapToFirstOrNull
 
 class AndroidDatabaseHandler(
     val db: Database,

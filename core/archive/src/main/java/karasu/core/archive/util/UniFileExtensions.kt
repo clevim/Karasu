@@ -1,10 +1,10 @@
-package yokai.core.archive.util
+package karasu.core.archive.util
 
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import com.hippo.unifile.UniFile
-import yokai.core.archive.ArchiveReader
-import yokai.core.archive.EpubReader
+import karasu.core.archive.ArchiveReader
+import karasu.core.archive.EpubReader
 
 fun UniFile.openFileDescriptor(context: Context, mode: String): ParcelFileDescriptor =
     context.contentResolver.openFileDescriptor(uri, mode) ?: error("Failed to open file descriptor: ${filePath ?: uri.toString()}")

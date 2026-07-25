@@ -1,4 +1,4 @@
-package yokai.presentation.extension.repo.component
+package karasu.presentation.extension.repo.component
 
 import android.content.res.Configuration
 import androidx.compose.foundation.basicMarquee
@@ -31,9 +31,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.tachiyomi.util.compose.textHint
-import yokai.domain.extension.repo.model.ExtensionRepo
-import yokai.presentation.component.Gap
-import yokai.presentation.theme.Size
+import karasu.domain.extension.repo.model.ExtensionRepo
+import karasu.presentation.component.Gap
+import karasu.presentation.theme.Size
 
 // TODO: Redesign
 // - Edit

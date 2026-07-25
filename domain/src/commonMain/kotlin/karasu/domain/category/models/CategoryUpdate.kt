@@ -1,4 +1,4 @@
-package yokai.domain.category.models
+package karasu.domain.category.models
 
 data class CategoryUpdate(
     val id: Long,

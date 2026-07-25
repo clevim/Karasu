@@ -1,7 +1,7 @@
-package yokai.domain.source.browse.filter
+package karasu.domain.source.browse.filter
 
 import kotlinx.coroutines.flow.Flow
-import yokai.domain.source.browse.filter.models.RawSavedSearch
+import karasu.domain.source.browse.filter.models.RawSavedSearch
 
 interface SavedSearchRepository {
     suspend fun findAll(): List<RawSavedSearch>

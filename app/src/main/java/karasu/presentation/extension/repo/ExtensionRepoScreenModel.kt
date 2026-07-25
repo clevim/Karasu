@@ -1,4 +1,4 @@
-package yokai.presentation.extension.repo
+package karasu.presentation.extension.repo
 
 import androidx.compose.runtime.Immutable
 import cafe.adriel.voyager.core.model.StateScreenModel
@@ -14,13 +14,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.extension.repo.interactor.CreateExtensionRepo
-import yokai.domain.extension.repo.interactor.DeleteExtensionRepo
-import yokai.domain.extension.repo.interactor.GetExtensionRepo
-import yokai.domain.extension.repo.interactor.ReplaceExtensionRepo
-import yokai.domain.extension.repo.interactor.UpdateExtensionRepo
-import yokai.domain.extension.repo.model.ExtensionRepo
-import yokai.i18n.MR
+import karasu.domain.extension.repo.interactor.CreateExtensionRepo
+import karasu.domain.extension.repo.interactor.DeleteExtensionRepo
+import karasu.domain.extension.repo.interactor.GetExtensionRepo
+import karasu.domain.extension.repo.interactor.ReplaceExtensionRepo
+import karasu.domain.extension.repo.interactor.UpdateExtensionRepo
+import karasu.domain.extension.repo.model.ExtensionRepo
+import karasu.i18n.MR
 
 class ExtensionRepoScreenModel : StateScreenModel<ExtensionRepoScreenModel.State>(State.Loading) {
 
@@ -51,7 +51,9 @@ class ExtensionRepoScreenModel : StateScreenModel<ExtensionRepoScreenModel.State
                     internalEvent.value = ExtensionRepoEvent.Success
                     extensionManager.findAvailableExtensions()
                 }
-                is CreateExtensionRepo.Result.Error -> internalEvent.value = ExtensionRepoEvent.InvalidUrl
+                is CreateExtensionRepo.Result.Error,
+                is CreateExtensionRepo.Result.InvalidUrl,
+                -> internalEvent.value = ExtensionRepoEvent.InvalidUrl
                 is CreateExtensionRepo.Result.RepoAlreadyExists -> internalEvent.value = ExtensionRepoEvent.RepoAlreadyExists
                 is CreateExtensionRepo.Result.DuplicateFingerprint -> {
                     internalEvent.value = ExtensionRepoEvent.ShowDialog(RepoDialog.Conflict(result.oldRepo, result.newRepo))

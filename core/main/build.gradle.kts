@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("yokai.android.library")
+    id("karasu.android.library")
     kotlin("multiplatform")
     alias(kotlinx.plugins.serialization)
 }
@@ -60,7 +60,7 @@ kotlin {
 }
 
 android {
-    namespace = "yokai.core.main"
+    namespace = "karasu.core.main"
 }
 
 tasks {

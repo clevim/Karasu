@@ -2,10 +2,10 @@ package eu.kanade.tachiyomi.domain.manga.models
 
 import eu.kanade.tachiyomi.source.model.SManga
 import java.util.Locale
-import yokai.domain.manga.models.MangaUpdate
+import karasu.domain.manga.models.MangaUpdate
 
 // TODO: Transform into data class
-@Deprecated("Use data class version", ReplaceWith("yokai.domain.manga.models.Manga"))
+@Deprecated("Use data class version", ReplaceWith("karasu.domain.manga.models.Manga"))
 interface Manga : SManga {
 
     var id: Long?

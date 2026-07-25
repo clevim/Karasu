@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,7 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.data.track.TrackService
-import yokai.util.clickableNoIndication
+import karasu.util.clickableNoIndication
 
 @Composable
 fun TrackLogoIcon(

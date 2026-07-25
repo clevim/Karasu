@@ -1,2 +1,2 @@
-package yokai.presentation.settings.screen.advanced
+package karasu.presentation.settings.screen.advanced
 

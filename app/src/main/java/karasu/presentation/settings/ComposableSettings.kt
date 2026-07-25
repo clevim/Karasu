@@ -1,12 +1,12 @@
-package yokai.presentation.settings
+package karasu.presentation.settings
 
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import dev.icerock.moko.resources.StringResource
 import dev.icerock.moko.resources.compose.stringResource
-import yokai.presentation.component.preference.Preference
-import yokai.util.Screen
+import karasu.presentation.component.preference.Preference
+import karasu.util.Screen
 
 abstract class ComposableSettings : Screen() {
 

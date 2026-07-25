@@ -1,4 +1,4 @@
-package yokai.presentation.manga.components
+package karasu.presentation.manga.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

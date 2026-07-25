@@ -1,4 +1,4 @@
-package yokai.presentation.onboarding.steps
+package karasu.presentation.onboarding.steps
 
 import android.app.Activity
 import android.content.Context
@@ -25,16 +25,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.app.ActivityCompat
 import com.google.android.material.color.DynamicColors
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.core.storage.preference.collectAsState
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.util.system.Themes
 import eu.kanade.tachiyomi.util.system.appDelegateNightMode
 import uy.kohesive.injekt.injectLazy
-import yokai.presentation.component.ThemeItem
-import yokai.presentation.theme.Size
+import karasu.presentation.component.ThemeItem
+import karasu.presentation.theme.Size
 
 internal class ThemeStep : OnboardingStep {
     override val isComplete: Boolean = true

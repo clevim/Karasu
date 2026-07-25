@@ -1,4 +1,4 @@
-package yokai.core.migration
+package karasu.core.migration
 
 import io.kotest.assertions.nondeterministic.eventually
 import io.mockk.slot

@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference
+package karasu.presentation.component.preference
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -17,14 +17,14 @@ import eu.kanade.tachiyomi.data.track.TrackPreferences
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.presentation.component.preference.widget.EditTextPreferenceWidget
-import yokai.presentation.component.preference.widget.InfoWidget
-import yokai.presentation.component.preference.widget.ListPreferenceWidget
-import yokai.presentation.component.preference.widget.MultiSelectListPreferenceWidget
-import yokai.presentation.component.preference.widget.SliderPreferenceWidget
-import yokai.presentation.component.preference.widget.SwitchPreferenceWidget
-import yokai.presentation.component.preference.widget.TextPreferenceWidget
-import yokai.presentation.component.preference.widget.TrackingPreferenceWidget
+import karasu.presentation.component.preference.widget.EditTextPreferenceWidget
+import karasu.presentation.component.preference.widget.InfoWidget
+import karasu.presentation.component.preference.widget.ListPreferenceWidget
+import karasu.presentation.component.preference.widget.MultiSelectListPreferenceWidget
+import karasu.presentation.component.preference.widget.SliderPreferenceWidget
+import karasu.presentation.component.preference.widget.SwitchPreferenceWidget
+import karasu.presentation.component.preference.widget.TextPreferenceWidget
+import karasu.presentation.component.preference.widget.TrackingPreferenceWidget
 
 val LocalPreferenceHighlighted = compositionLocalOf(structuralEqualityPolicy()) { false }
 val LocalPreferenceMinHeight = compositionLocalOf(structuralEqualityPolicy()) { 56.dp }

@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.data
+package karasu.presentation.settings.screen.data
 
 import android.content.Context
 import android.net.Uri
@@ -20,9 +20,9 @@ import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.Backup
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.util.system.toast
-import yokai.domain.DialogHostState
-import yokai.i18n.MR
-import yokai.presentation.component.LabeledCheckbox
+import karasu.domain.DialogHostState
+import karasu.i18n.MR
+import karasu.presentation.component.LabeledCheckbox
 import android.R as AR
 
 suspend fun DialogHostState.awaitRestoreBackup(

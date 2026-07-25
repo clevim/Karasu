@@ -1,4 +1,4 @@
-package yokai.domain.source.browse.filter.models
+package karasu.domain.source.browse.filter.models
 
 import eu.kanade.tachiyomi.source.model.FilterList
 

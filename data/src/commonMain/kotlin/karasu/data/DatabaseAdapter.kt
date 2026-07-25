@@ -1,10 +1,10 @@
-package yokai.data
+package karasu.data
 
 import app.cash.sqldelight.ColumnAdapter
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import java.util.*
 
-// TODO: Move to yokai.data.DatabaseAdapter
+// TODO: Move to karasu.data.DatabaseAdapter
 
 val updateStrategyAdapter = object : ColumnAdapter<UpdateStrategy, Long> {
     private val enumValues by lazy { UpdateStrategy.entries }

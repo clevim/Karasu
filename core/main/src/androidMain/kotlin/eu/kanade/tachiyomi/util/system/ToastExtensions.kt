@@ -4,7 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.annotation.StringRes
 import dev.icerock.moko.resources.StringResource
-import yokai.util.lang.getString
+import karasu.util.lang.getString
 
 /**
  * Display a toast in this context.

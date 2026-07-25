@@ -1,4 +1,4 @@
-package yokai.util
+package karasu.util
 
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.core.screen.ScreenKey

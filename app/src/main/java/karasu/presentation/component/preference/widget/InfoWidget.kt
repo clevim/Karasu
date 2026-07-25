@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference.widget
+package karasu.presentation.component.preference.widget
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,8 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import yokai.presentation.theme.Size
-import yokai.util.secondaryItemAlpha
+import karasu.presentation.theme.Size
+import karasu.util.secondaryItemAlpha
 
 @Composable
 internal fun InfoWidget(text: String) {

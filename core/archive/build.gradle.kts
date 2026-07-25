@@ -1,11 +1,11 @@
 plugins {
-    id("yokai.android.library")
+    id("karasu.android.library")
     kotlin("android")
     alias(kotlinx.plugins.serialization)
 }
 
 android {
-    namespace = "yokai.core.archive"
+    namespace = "karasu.core.archive"
 }
 
 dependencies {

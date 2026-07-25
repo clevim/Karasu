@@ -1,4 +1,4 @@
-package yokai.util.coil
+package karasu.util.coil
 
 import android.view.View
 import android.widget.ImageView
@@ -14,8 +14,8 @@ import coil3.target.ImageViewTarget
 import eu.kanade.tachiyomi.data.coil.CoverViewTarget
 import eu.kanade.tachiyomi.data.coil.LibraryMangaImageTarget
 import eu.kanade.tachiyomi.domain.manga.models.Manga
-import yokai.domain.manga.models.MangaCover
-import yokai.domain.manga.models.cover
+import karasu.domain.manga.models.MangaCover
+import karasu.domain.manga.models.cover
 
 private const val MAX_BITMAP_SIZE = 2048
 

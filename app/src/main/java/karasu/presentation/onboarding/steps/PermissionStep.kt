@@ -1,4 +1,4 @@
-package yokai.presentation.onboarding.steps
+package karasu.presentation.onboarding.steps
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -32,9 +32,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.util.system.isShizukuInstalled
-import yokai.i18n.MR
-import yokai.presentation.component.Gap
-import yokai.presentation.theme.Size
+import karasu.i18n.MR
+import karasu.presentation.component.Gap
+import karasu.presentation.theme.Size
 
 internal class PermissionStep : OnboardingStep {
 

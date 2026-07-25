@@ -1,4 +1,4 @@
-package yokai.core.archive
+package karasu.core.archive
 
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -55,7 +55,7 @@ internal class ArchiveInputStream(buffer: Long, size: Long) : InputStream() {
         Archive.readFree(archive)
     }
 
-    fun getNextEntry(): yokai.core.archive.ArchiveEntry? = Archive.readNextHeader(archive).takeUnless { it == 0L }?.let { entry ->
+    fun getNextEntry(): karasu.core.archive.ArchiveEntry? = Archive.readNextHeader(archive).takeUnless { it == 0L }?.let { entry ->
         val name = ArchiveEntry.pathnameUtf8(entry) ?: ArchiveEntry.pathname(entry)?.decodeToString() ?: return null
         val isFile = ArchiveEntry.filetype(entry) == ArchiveEntry.AE_IFREG
         ArchiveEntry(name, isFile)

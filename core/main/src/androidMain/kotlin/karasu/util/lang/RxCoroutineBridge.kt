@@ -1,4 +1,4 @@
-package yokai.util.lang
+package karasu.util.lang
 
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume

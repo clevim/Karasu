@@ -1,4 +1,4 @@
-package yokai.presentation.manga.components
+package karasu.presentation.manga.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -48,9 +48,9 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImagePainter
 import dev.icerock.moko.resources.compose.stringResource
 import dev.icerock.moko.resources.desc.Utils
-import yokai.i18n.MR
-import yokai.presentation.library.components.LazyLibraryStaggeredGrid
-import yokai.domain.manga.models.MangaCover as MangaCoverModel
+import karasu.i18n.MR
+import karasu.presentation.library.components.LazyLibraryStaggeredGrid
+import karasu.domain.manga.models.MangaCover as MangaCoverModel
 
 // TODO:
 // - custom cover ratio support for staggered grid

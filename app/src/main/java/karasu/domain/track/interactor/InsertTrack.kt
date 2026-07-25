@@ -1,7 +1,7 @@
-package yokai.domain.track.interactor
+package karasu.domain.track.interactor
 
 import eu.kanade.tachiyomi.data.database.models.Track
-import yokai.domain.track.TrackRepository
+import karasu.domain.track.TrackRepository
 
 class InsertTrack(
     private val trackRepository: TrackRepository,

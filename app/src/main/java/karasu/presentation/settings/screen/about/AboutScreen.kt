@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.about
+package karasu.presentation.settings.screen.about
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -59,18 +59,18 @@ import java.util.TimeZone
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.DialogHostState
-import yokai.i18n.MR
-import yokai.presentation.AppBarType
-import yokai.presentation.component.preference.widget.TextPreferenceWidget
-import yokai.presentation.core.components.LinkIcon
-import yokai.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
-import yokai.presentation.core.icons.CustomIcons
-import yokai.presentation.core.icons.Discord
-import yokai.presentation.core.icons.GitHub
-import yokai.presentation.settings.SettingsScaffold
-import yokai.util.Screen
-import yokai.util.lang.getString
+import karasu.domain.DialogHostState
+import karasu.i18n.MR
+import karasu.presentation.AppBarType
+import karasu.presentation.component.preference.widget.TextPreferenceWidget
+import karasu.presentation.core.components.LinkIcon
+import karasu.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
+import karasu.presentation.core.icons.CustomIcons
+import karasu.presentation.core.icons.Discord
+import karasu.presentation.core.icons.GitHub
+import karasu.presentation.settings.SettingsScaffold
+import karasu.util.Screen
+import karasu.util.lang.getString
 
 class AboutScreen : Screen() {
 
@@ -185,7 +185,7 @@ class AboutScreen : Screen() {
 
                             TextPreferenceWidget(
                                 title = stringResource(MR.strings.help_translate),
-                                onPreferenceClick = { context.openInBrowser("https://hosted.weblate.org/engage/yokai/") },
+                                onPreferenceClick = { context.openInBrowser("https://hosted.weblate.org/engage/karasu/") },
                             )
                         }
                     }
@@ -225,7 +225,7 @@ class AboutScreen : Screen() {
                             LinkIcon(
                                 label = "GitHub",
                                 icon = CustomIcons.GitHub,
-                                url = "https://github.com/null2264/yokai",
+                                url = "https://github.com/clevim/Karasu",
                             )
                         }
                     }
@@ -297,4 +297,4 @@ fun getFormattedBuildTime(dateFormat: DateFormat): String {
     }
 }
 
-private const val SOURCE_URL = "https://github.com/null2264/yokai/commits/master"
+private const val SOURCE_URL = "https://github.com/clevim/Karasu/commits/master"

@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference.widget
+package karasu.presentation.component.preference.widget
 
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable

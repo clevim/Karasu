@@ -1,4 +1,4 @@
-package yokai.util.lang
+package karasu.util.lang
 
 import android.content.Context
 import dev.icerock.moko.resources.PluralsResource

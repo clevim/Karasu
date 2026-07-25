@@ -1,5 +1,5 @@
-import yokai.build.configureAndroid
-import yokai.build.configureTest
+import karasu.build.configureAndroid
+import karasu.build.configureTest
 
 plugins {
     id("com.android.library")

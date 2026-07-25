@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen
+package karasu.presentation.settings.screen
 
 import android.content.Context
 import android.content.Intent
@@ -24,6 +24,7 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.extension.installer.ShizukuInstaller
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.NetworkPreferences
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import eu.kanade.tachiyomi.network.PREF_DOH_360
 import eu.kanade.tachiyomi.network.PREF_DOH_ADGUARD
 import eu.kanade.tachiyomi.network.PREF_DOH_ALIDNS
@@ -56,12 +57,12 @@ import kotlinx.coroutines.launch
 import okhttp3.Headers
 import rikka.sui.Sui
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.base.BasePreferences
-import yokai.domain.simple
-import yokai.i18n.MR
-import yokai.presentation.component.preference.Preference
-import yokai.presentation.settings.ComposableSettings
-import yokai.presentation.settings.screen.advanced.StoryBookScreen
+import karasu.domain.base.BasePreferences
+import karasu.domain.simple
+import karasu.i18n.MR
+import karasu.presentation.component.preference.Preference
+import karasu.presentation.settings.ComposableSettings
+import karasu.presentation.settings.screen.advanced.StoryBookScreen
 
 object SettingsAdvancedScreen : ComposableSettings() {
 
@@ -263,7 +264,21 @@ object SettingsAdvancedScreen : ComposableSettings() {
                 title = stringResource(MR.strings.clear_cookies),
                 onClick = {
                     network.cookieJar.removeAll()
+                    // The stored agents only mean something paired with the cookies just dropped.
+                    network.flareSolverr.userAgents.clear()
                     context.toast(MR.strings.cookies_cleared)
+                },
+            ))
+            add(Preference.PreferenceItem.EditTextPreference(
+                pref = networkPreferences.flareSolverrUrl(),
+                title = stringResource(MR.strings.flaresolverr_url),
+                subtitle = stringResource(MR.strings.flaresolverr_url_summary),
+                onValueChanged = onChange@{
+                    if (it.isNotBlank() && it.trim().toHttpUrlOrNull() == null) {
+                        context.toast(MR.strings.error_flaresolverr_url_invalid)
+                        return@onChange false
+                    }
+                    true
                 },
             ))
             add(Preference.PreferenceItem.ListPreference(

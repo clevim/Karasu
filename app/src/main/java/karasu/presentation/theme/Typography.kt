@@ -1,4 +1,4 @@
-package yokai.presentation.theme
+package karasu.presentation.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography

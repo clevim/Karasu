@@ -1,4 +1,4 @@
-package yokai.presentation.extension.repo
+package karasu.presentation.extension.repo
 
 import androidx.compose.runtime.Composable
 import cafe.adriel.voyager.navigator.Navigator

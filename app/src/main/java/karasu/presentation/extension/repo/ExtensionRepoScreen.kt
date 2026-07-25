@@ -1,4 +1,4 @@
-package yokai.presentation.extension.repo
+package karasu.presentation.extension.repo
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
@@ -32,17 +32,17 @@ import eu.kanade.tachiyomi.util.isTablet
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import yokai.domain.DialogHostState
-import yokai.domain.extension.repo.model.ExtensionRepo
-import yokai.i18n.MR
-import yokai.presentation.AppBarType
-import yokai.presentation.YokaiScaffold
-import yokai.presentation.component.EmptyScreen
-import yokai.presentation.component.ToolTipButton
-import yokai.presentation.core.enterAlwaysAppBarScrollBehavior
-import yokai.presentation.extension.repo.component.ExtensionRepoInput
-import yokai.presentation.extension.repo.component.ExtensionRepoItem
-import yokai.util.Screen
+import karasu.domain.DialogHostState
+import karasu.domain.extension.repo.model.ExtensionRepo
+import karasu.i18n.MR
+import karasu.presentation.AppBarType
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.component.EmptyScreen
+import karasu.presentation.component.ToolTipButton
+import karasu.presentation.core.enterAlwaysAppBarScrollBehavior
+import karasu.presentation.extension.repo.component.ExtensionRepoInput
+import karasu.presentation.extension.repo.component.ExtensionRepoItem
+import karasu.util.Screen
 import android.R as AR
 
 class ExtensionRepoScreen(
@@ -62,7 +62,7 @@ class ExtensionRepoScreen(
         var inputText by remember { mutableStateOf("") }
         val listState = rememberLazyListState()
 
-        YokaiScaffold(
+        KarasuScaffold(
             onNavigationIconClicked = onBackPress,
             title = title,
             appBarType = AppBarType.SMALL,
@@ -80,7 +80,7 @@ class ExtensionRepoScreen(
                 )
             },
         ) { innerPadding ->
-            if (state is ExtensionRepoScreenModel.State.Loading) return@YokaiScaffold
+            if (state is ExtensionRepoScreenModel.State.Loading) return@KarasuScaffold
 
             val repos = (state as ExtensionRepoScreenModel.State.Success).repos
 

@@ -17,7 +17,7 @@ import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
-import yokai.i18n.MR
+import karasu.i18n.MR
 
 abstract class WebViewInterceptor(
     private val context: Context,

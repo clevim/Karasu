@@ -1,4 +1,4 @@
-package yokai.util
+package karasu.util
 
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.SourceManager

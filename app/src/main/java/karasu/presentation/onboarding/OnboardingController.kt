@@ -1,4 +1,4 @@
-package yokai.presentation.onboarding
+package karasu.presentation.onboarding
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import eu.kanade.tachiyomi.core.storage.preference.collectAsState
 import eu.kanade.tachiyomi.ui.base.controller.BaseComposeController
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.base.BasePreferences
+import karasu.domain.base.BasePreferences
 
 class OnboardingController :
     BaseComposeController() {

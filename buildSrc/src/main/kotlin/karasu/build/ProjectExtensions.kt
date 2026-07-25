@@ -1,4 +1,4 @@
-package yokai.build
+package karasu.build
 
 import com.android.build.api.dsl.CommonExtension
 import org.gradle.accessors.dm.LibrariesForAndroidx
@@ -24,7 +24,7 @@ val Project.compose get() = the<LibrariesForCompose>()
 val Project.kotlinx get() = the<LibrariesForKotlinx>()
 val Project.libs get() = the<LibrariesForLibs>()
 
-val Project.generatedBuildDir: File get() = project.layout.buildDirectory.asFile.get().resolve("generated/yokai")
+val Project.generatedBuildDir: File get() = project.layout.buildDirectory.asFile.get().resolve("generated/karasu")
 
 internal fun Project.configureAndroid(commonExtension: CommonExtension<*, *, *, *, *, *>) {
     commonExtension.apply {

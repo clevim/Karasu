@@ -6,6 +6,7 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import eu.kanade.tachiyomi.network.AndroidCookieJar
+import eu.kanade.tachiyomi.network.FlareSolverr
 import eu.kanade.tachiyomi.util.system.WebViewClientCompat
 import eu.kanade.tachiyomi.util.system.isOutdated
 import eu.kanade.tachiyomi.util.system.toast
@@ -17,12 +18,13 @@ import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.Jsoup
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class CloudflareInterceptor(
     private val context: Context,
     private val cookieManager: AndroidCookieJar,
+    private val flareSolverr: FlareSolverr,
     defaultUserAgentProvider: () -> String,
 ) : WebViewInterceptor(context, defaultUserAgentProvider) {
 
@@ -61,7 +63,18 @@ class CloudflareInterceptor(
         // Because OkHttp's enqueue only handles IOExceptions, wrap the exception so that
         // we don't crash the entire app
         catch (e: CloudflareBypassException) {
-            throw IOException(context.getString(MR.strings.failed_to_bypass_cloudflare), e)
+            // The WebView lost. FlareSolverr drives a real desktop browser, so it clears challenges
+            // the WebView cannot — but only if the user actually runs an instance. The agent it
+            // answers with has to replace ours on the retry, or the fresh cf_clearance is rejected.
+            val userAgent = flareSolverr.solve(request.url)
+                ?: throw IOException(context.getString(MR.strings.failed_to_bypass_cloudflare), e)
+
+            return chain.proceed(
+                request.newBuilder()
+                    .removeHeader("User-Agent")
+                    .addHeader("User-Agent", userAgent)
+                    .build(),
+            )
         } catch (e: Exception) {
             throw IOException(e)
         }

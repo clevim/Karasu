@@ -1,4 +1,4 @@
-package yokai.core.archive
+package karasu.core.archive
 
 import android.content.Context
 import android.system.Os
@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 import me.zhanghai.android.libarchive.Archive
 import me.zhanghai.android.libarchive.ArchiveEntry
 import me.zhanghai.android.libarchive.ArchiveException
-import yokai.core.archive.util.openFileDescriptor
+import karasu.core.archive.util.openFileDescriptor
 
 class ZipWriter(val context: Context, file: UniFile) : Closeable {
     private val pfd = file.openFileDescriptor(context, "wt")

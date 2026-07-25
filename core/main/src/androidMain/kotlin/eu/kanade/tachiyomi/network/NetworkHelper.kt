@@ -19,6 +19,12 @@ class NetworkHelper(
 
     val cookieJar = AndroidCookieJar()
 
+    val flareSolverr = FlareSolverr(
+        cookieJar = cookieJar,
+        endpointProvider = { preferences.flareSolverrUrl().get() },
+        userAgents = HostUserAgentStore(preferences.flareSolverrUserAgents()),
+    )
+
     val client: OkHttpClient = run {
         val builder = OkHttpClient.Builder()
             .cookieJar(cookieJar)
@@ -32,14 +38,21 @@ class NetworkHelper(
                 )
             )
             .addInterceptor(UncaughtExceptionInterceptor())
-            .addInterceptor(UserAgentInterceptor(::defaultUserAgent))
+            // Pinning a host to the agent that solved it only makes sense while the fallback is on:
+            // clearing the URL has to release those hosts, or they stay pinned to a desktop agent
+            // forever. Dropping it just 403s once and lets the WebView re-solve normally.
+            .addInterceptor(
+                UserAgentInterceptor(::defaultUserAgent) { host ->
+                    if (flareSolverr.isEnabled) flareSolverr.userAgents[host] else null
+                },
+            )
             .addNetworkInterceptor(IgnoreGzipInterceptor())
             .addNetworkInterceptor(BrotliInterceptor)
 
         block(builder)
 
         builder.addInterceptor(
-            CloudflareInterceptor(context, cookieJar, ::defaultUserAgent),
+            CloudflareInterceptor(context, cookieJar, flareSolverr, ::defaultUserAgent),
         )
 
         when (preferences.dohProvider().get()) {

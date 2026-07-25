@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.about
+package karasu.presentation.settings.screen.about
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -17,12 +17,12 @@ import com.google.android.material.textview.MaterialTextView
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.util.compose.LocalBackPress
 import eu.kanade.tachiyomi.util.compose.currentOrThrow
-import yokai.i18n.MR
-import yokai.presentation.AppBarType
-import yokai.presentation.YokaiScaffold
-import yokai.presentation.component.ToolTipButton
-import yokai.presentation.core.enterAlwaysAppBarScrollBehavior
-import yokai.util.Screen
+import karasu.i18n.MR
+import karasu.presentation.AppBarType
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.component.ToolTipButton
+import karasu.presentation.core.enterAlwaysAppBarScrollBehavior
+import karasu.util.Screen
 
 class AboutLibraryLicenseScreen(
     private val name: String,
@@ -35,7 +35,7 @@ class AboutLibraryLicenseScreen(
         val backPress = LocalBackPress.currentOrThrow
         val uriHandler = LocalUriHandler.current
 
-        YokaiScaffold(
+        KarasuScaffold(
             onNavigationIconClicked = {
                 when {
                     navigator.canPop -> navigator.pop()

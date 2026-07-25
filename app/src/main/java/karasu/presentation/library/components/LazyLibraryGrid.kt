@@ -1,4 +1,4 @@
-package yokai.presentation.library.components
+package karasu.presentation.library.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,9 +9,9 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import yokai.presentation.core.components.FastScrollLazyVerticalGrid
-import yokai.presentation.core.components.FastScrollLazyVerticalStaggeredGrid
-import yokai.presentation.core.util.plus
+import karasu.presentation.core.components.FastScrollLazyVerticalGrid
+import karasu.presentation.core.components.FastScrollLazyVerticalStaggeredGrid
+import karasu.presentation.core.util.plus
 
 @Composable
 internal fun LazyLibraryGrid(

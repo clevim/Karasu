@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth

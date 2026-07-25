@@ -1,4 +1,4 @@
-package yokai.presentation.reader
+package karasu.presentation.reader
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,8 +41,8 @@ import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.viewer.missingChapterCount
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil.Companion.preferredChapterName
 import kotlinx.collections.immutable.persistentMapOf
-import yokai.i18n.MR
-import yokai.util.secondaryItemAlpha
+import karasu.i18n.MR
+import karasu.util.secondaryItemAlpha
 
 @Composable
 fun ChapterTransition(

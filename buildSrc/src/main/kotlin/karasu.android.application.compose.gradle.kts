@@ -1,4 +1,4 @@
-import yokai.build.configureCompose
+import karasu.build.configureCompose
 
 plugins {
     id("com.android.application")

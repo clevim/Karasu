@@ -1,4 +1,4 @@
-package yokai.presentation.settings
+package karasu.presentation.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -23,15 +23,15 @@ import eu.kanade.tachiyomi.util.compose.currentOrThrow
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import uy.kohesive.injekt.injectLazy
-import yokai.presentation.AppBarType
-import yokai.presentation.YokaiScaffold
-import yokai.presentation.component.Gap
-import yokai.presentation.component.preference.Preference
-import yokai.presentation.component.preference.PreferenceItem
-import yokai.presentation.component.preference.widget.PreferenceGroupHeader
-import yokai.presentation.core.JayAppBarScrollBehavior
-import yokai.presentation.core.drawVerticalScrollbar
-import yokai.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
+import karasu.presentation.AppBarType
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.component.Gap
+import karasu.presentation.component.preference.Preference
+import karasu.presentation.component.preference.PreferenceItem
+import karasu.presentation.component.preference.widget.PreferenceGroupHeader
+import karasu.presentation.core.JayAppBarScrollBehavior
+import karasu.presentation.core.drawVerticalScrollbar
+import karasu.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
 
 @Composable
 fun SettingsScaffold(
@@ -47,7 +47,7 @@ fun SettingsScaffold(
     val onBackPress = LocalBackPress.currentOrThrow
     val alertDialog = LocalDialogHostState.currentOrThrow
 
-    YokaiScaffold(
+    KarasuScaffold(
         onNavigationIconClicked = onBackPress,
         title = title,
         appBarType = appBarType,

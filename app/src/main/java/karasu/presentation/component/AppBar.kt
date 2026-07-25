@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Column
@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import dev.icerock.moko.resources.compose.stringResource
 import kotlinx.collections.immutable.ImmutableList
-import yokai.i18n.MR
+import karasu.i18n.MR
 
 @Composable
 fun AppBarTitle(

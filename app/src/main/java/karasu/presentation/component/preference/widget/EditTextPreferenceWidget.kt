@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference.widget
+package karasu.presentation.component.preference.widget
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons

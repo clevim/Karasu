@@ -1,4 +1,4 @@
-package yokai.presentation.component.recyclerview
+package karasu.presentation.component.recyclerview
 
 import android.graphics.Rect
 import android.view.View

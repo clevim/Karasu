@@ -1,4 +1,4 @@
-package yokai.presentation
+package karasu.presentation
 
 import androidx.compose.runtime.Immutable
 

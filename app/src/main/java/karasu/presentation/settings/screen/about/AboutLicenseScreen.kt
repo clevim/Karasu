@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.about
+package karasu.presentation.settings.screen.about
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -12,11 +12,11 @@ import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.util.compose.LocalBackPress
 import eu.kanade.tachiyomi.util.compose.currentOrThrow
-import yokai.i18n.MR
-import yokai.presentation.AppBarType
-import yokai.presentation.YokaiScaffold
-import yokai.presentation.core.pinnedAppBarScrollBehavior
-import yokai.util.Screen
+import karasu.i18n.MR
+import karasu.presentation.AppBarType
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.core.pinnedAppBarScrollBehavior
+import karasu.util.Screen
 
 class AboutLicenseScreen : Screen() {
     @Composable
@@ -25,7 +25,7 @@ class AboutLicenseScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val backPress = LocalBackPress.currentOrThrow
 
-        YokaiScaffold(
+        KarasuScaffold(
             onNavigationIconClicked = backPress,
             title = stringResource(MR.strings.open_source_licenses),
             appBarType = AppBarType.SMALL,

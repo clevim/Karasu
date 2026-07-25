@@ -1,4 +1,4 @@
-package yokai.presentation.webview
+package karasu.presentation.webview
 
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
@@ -57,12 +57,12 @@ import eu.kanade.tachiyomi.util.system.getHtml
 import eu.kanade.tachiyomi.util.system.setDefaultSettings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.launch
-import yokai.i18n.MR
-import yokai.presentation.component.AppBar
-import yokai.presentation.component.AppBarActions
-import yokai.presentation.component.AppBarTitle
-import yokai.presentation.component.UpIcon
-import yokai.presentation.component.WarningBanner
+import karasu.i18n.MR
+import karasu.presentation.component.AppBar
+import karasu.presentation.component.AppBarActions
+import karasu.presentation.component.AppBarTitle
+import karasu.presentation.component.UpIcon
+import karasu.presentation.component.WarningBanner
 
 class WebViewWindow(webContent: WebContent, val navigator: WebViewNavigator) {
     var state by mutableStateOf(WebViewState(webContent))

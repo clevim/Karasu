@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import android.R as AR
 import android.content.Context
@@ -39,14 +39,14 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.themeadapter.material3.createMdc3Theme
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.util.system.Themes
 import eu.kanade.tachiyomi.util.system.isInNightMode
-import yokai.presentation.theme.HalfAlpha
-import yokai.presentation.theme.SecondaryItemAlpha
-import yokai.presentation.theme.Size
+import karasu.presentation.theme.HalfAlpha
+import karasu.presentation.theme.SecondaryItemAlpha
+import karasu.presentation.theme.Size
 
 private data class ContextTheme(
     val colorScheme: ColorScheme,

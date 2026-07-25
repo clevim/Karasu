@@ -1,4 +1,4 @@
-package yokai.util
+package karasu.util
 
 import android.content.res.Resources
 import androidx.annotation.DrawableRes

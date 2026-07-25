@@ -1,4 +1,4 @@
-package yokai.presentation
+package karasu.presentation
 
 import android.app.Activity
 import android.os.Build
@@ -23,15 +23,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsControllerCompat
 import dev.icerock.moko.resources.compose.stringResource
-import yokai.i18n.MR
-import yokai.presentation.component.ToolTipButton
-import yokai.presentation.core.JayAppBarScrollBehavior
-import yokai.presentation.core.JayExpandedTopAppBar
-import yokai.presentation.core.JayTopAppBar
-import yokai.presentation.core.enterAlwaysAppBarScrollBehavior
+import karasu.i18n.MR
+import karasu.presentation.component.ToolTipButton
+import karasu.presentation.core.JayAppBarScrollBehavior
+import karasu.presentation.core.JayExpandedTopAppBar
+import karasu.presentation.core.JayTopAppBar
+import karasu.presentation.core.enterAlwaysAppBarScrollBehavior
 
 @Composable
-fun YokaiScaffold(
+fun KarasuScaffold(
     onNavigationIconClicked: () -> Unit,
     modifier: Modifier = Modifier,
     title: String = "",

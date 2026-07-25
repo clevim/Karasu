@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference.widget
+package karasu.presentation.component.preference.widget
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -31,8 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import yokai.presentation.component.preference.LocalPreferenceHighlighted
-import yokai.presentation.component.preference.LocalPreferenceMinHeight
+import karasu.presentation.component.preference.LocalPreferenceHighlighted
+import karasu.presentation.component.preference.LocalPreferenceMinHeight
 import kotlin.time.Duration.Companion.seconds
 
 @Composable

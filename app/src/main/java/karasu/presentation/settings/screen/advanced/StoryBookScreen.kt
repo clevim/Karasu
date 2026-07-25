@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.advanced
+package karasu.presentation.settings.screen.advanced
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -11,12 +11,12 @@ import eu.kanade.tachiyomi.core.storage.preference.collectAsState
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.i18n.MR
-import yokai.presentation.AppBarType
-import yokai.presentation.component.preference.widget.TextPreferenceWidget
-import yokai.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
-import yokai.presentation.settings.SettingsScaffold
-import yokai.util.Screen
+import karasu.i18n.MR
+import karasu.presentation.AppBarType
+import karasu.presentation.component.preference.widget.TextPreferenceWidget
+import karasu.presentation.core.enterAlwaysCollapsedAppBarScrollBehavior
+import karasu.presentation.settings.SettingsScaffold
+import karasu.util.Screen
 
 class StoryBookScreen : Screen() {
 

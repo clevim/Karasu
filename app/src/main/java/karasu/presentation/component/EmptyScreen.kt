@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import android.content.res.Configuration
 import androidx.compose.foundation.Image
@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.sp
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.util.compose.textHint
 import eu.kanade.tachiyomi.widget.EmptyView
-import yokai.i18n.MR
+import karasu.i18n.MR
 
 private val defaultIconModifier =
     Modifier.size(128.dp)

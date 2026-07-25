@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen
+package karasu.presentation.settings.screen
 
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.util.compose.LocalDialogHostState
 import eu.kanade.tachiyomi.util.compose.currentOrThrow
 import eu.kanade.tachiyomi.util.relativeTimeSpanString
 import eu.kanade.tachiyomi.util.system.DeviceUtil
+import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchNonCancellableIO
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
@@ -51,21 +52,22 @@ import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.backup.BackupPreferences
-import yokai.domain.storage.StorageManager
-import yokai.domain.storage.StoragePreferences
-import yokai.i18n.MR
-import yokai.presentation.component.ToolTipButton
-import yokai.presentation.component.preference.Preference
-import yokai.presentation.component.preference.storageLocationText
-import yokai.presentation.component.preference.widget.BasePreferenceWidget
-import yokai.presentation.component.preference.widget.PrefsHorizontalPadding
-import yokai.presentation.settings.ComposableSettings
-import yokai.presentation.settings.screen.data.StorageInfo
-import yokai.presentation.settings.screen.data.awaitCreateBackup
-import yokai.presentation.settings.screen.data.awaitRestoreBackup
-import yokai.presentation.settings.screen.data.storageLocationPicker
-import yokai.util.lang.getString
+import karasu.domain.backup.BackupPreferences
+import karasu.domain.category.interactor.TransferCategoryRules
+import karasu.domain.storage.StorageManager
+import karasu.domain.storage.StoragePreferences
+import karasu.i18n.MR
+import karasu.presentation.component.ToolTipButton
+import karasu.presentation.component.preference.Preference
+import karasu.presentation.component.preference.storageLocationText
+import karasu.presentation.component.preference.widget.BasePreferenceWidget
+import karasu.presentation.component.preference.widget.PrefsHorizontalPadding
+import karasu.presentation.settings.ComposableSettings
+import karasu.presentation.settings.screen.data.StorageInfo
+import karasu.presentation.settings.screen.data.awaitCreateBackup
+import karasu.presentation.settings.screen.data.awaitRestoreBackup
+import karasu.presentation.settings.screen.data.storageLocationPicker
+import karasu.util.lang.getString
 
 object SettingsDataScreen : ComposableSettings() {
 
@@ -93,9 +95,98 @@ object SettingsDataScreen : ComposableSettings() {
         return persistentListOf(
             getStorageLocationPreference(storagePreferences = storagePreferences),
             getBackupAndRestoreGroup(backupPreferences = backupPreferences),
+            getCategoryRulesGroup(),
             getDataGroup(),
         )
     }
+
+    /**
+     * Rules on their own, separate from a full backup.
+     *
+     * A backup carries a whole library and is useless to anyone else; a rule set is the one part
+     * worth sending to another person, or keeping while starting a library over.
+     */
+    @Composable
+    private fun getCategoryRulesGroup(): Preference.PreferenceGroup {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val transfer = remember { Injekt.get<TransferCategoryRules>() }
+
+        val exportRules = rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("application/json"),
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launchIO {
+                val message = try {
+                    val payload = transfer.export()
+                    context.contentResolver.openOutputStream(uri)?.use {
+                        it.write(payload.toByteArray())
+                    } ?: error("Could not open the chosen file")
+                    MR.strings.category_rules_exported.getString(context)
+                } catch (e: Exception) {
+                    context.getString(MR.strings.category_rules_transfer_failed, e.messageOrType())
+                }
+                withUIContext { context.toast(message) }
+            }
+        }
+
+        val importRules = rememberLauncherForActivityResult(
+            ActivityResultContracts.GetContent(),
+        ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launchIO {
+                val message = try {
+                    val raw = context.contentResolver.openInputStream(uri)?.use {
+                        it.readBytes().decodeToString()
+                    } ?: error("Could not read the chosen file")
+                    val result = transfer.import(raw)
+                    if (result.unknownCategories.isEmpty()) {
+                        context.getString(MR.strings.category_rules_imported, result.applied)
+                    } else {
+                        context.getString(
+                            MR.strings.category_rules_imported_partial,
+                            result.applied,
+                            result.unknownCategories.joinToString(", "),
+                        )
+                    }
+                } catch (e: Exception) {
+                    context.getString(MR.strings.category_rules_transfer_failed, e.messageOrType())
+                }
+                withUIContext { context.toast(message) }
+            }
+        }
+
+        return Preference.PreferenceGroup(
+            title = stringResource(MR.strings.category_rules),
+            preferenceItems = persistentListOf(
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.category_rules_export),
+                    subtitle = stringResource(MR.strings.category_rules_export_summary),
+                    onClick = {
+                        try {
+                            exportRules.launch(RULES_FILENAME)
+                        } catch (e: ActivityNotFoundException) {
+                            context.toast(MR.strings.file_picker_error)
+                        }
+                    },
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.category_rules_import),
+                    subtitle = stringResource(MR.strings.category_rules_import_summary),
+                    onClick = {
+                        try {
+                            importRules.launch("*/*")
+                        } catch (e: ActivityNotFoundException) {
+                            context.toast(MR.strings.file_picker_error)
+                        }
+                    },
+                ),
+            ),
+        )
+    }
+
+    /** Exceptions from a file picker are routinely message-less, and "null" helps nobody. */
+    private fun Throwable.messageOrType() = message ?: this::class.simpleName.orEmpty()
 
     @Composable
     private fun getStorageLocationPreference(storagePreferences: StoragePreferences): Preference.PreferenceItem.TextPreference {
@@ -337,3 +428,5 @@ object SettingsDataScreen : ComposableSettings() {
 }
 
 const val BACKUPS_HELP_URL = "https://mihon.app/docs/guides/backups"
+
+private const val RULES_FILENAME = "karasu_category_rules.json"

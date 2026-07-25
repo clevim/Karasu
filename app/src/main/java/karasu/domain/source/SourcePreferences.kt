@@ -1,4 +1,4 @@
-package yokai.domain.source
+package karasu.domain.source
 
 import eu.kanade.tachiyomi.core.preference.PreferenceStore
 

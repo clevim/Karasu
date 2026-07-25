@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.data
+package karasu.presentation.settings.screen.data
 
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
@@ -14,13 +14,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.util.storage.DiskUtil
-import yokai.presentation.theme.Size
-import yokai.presentation.theme.header
-import yokai.util.secondaryItemAlpha
+import karasu.presentation.theme.Size
+import karasu.presentation.theme.header
+import karasu.util.secondaryItemAlpha
 import java.io.File
 
 @Composable

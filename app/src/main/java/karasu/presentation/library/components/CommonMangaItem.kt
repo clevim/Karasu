@@ -1,4 +1,4 @@
-package yokai.presentation.library.components
+package karasu.presentation.library.components
 
 import androidx.compose.ui.unit.dp
 

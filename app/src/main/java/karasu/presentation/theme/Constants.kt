@@ -1,4 +1,4 @@
-package yokai.presentation.theme
+package karasu.presentation.theme
 
 import androidx.compose.ui.unit.dp
 

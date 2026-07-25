@@ -1,4 +1,4 @@
-package yokai.presentation.manga.components
+package karasu.presentation.manga.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import eu.kanade.tachiyomi.R
-import yokai.util.rememberResourceBitmapPainter
+import karasu.util.rememberResourceBitmapPainter
 
 @Composable
 fun MangaCover(

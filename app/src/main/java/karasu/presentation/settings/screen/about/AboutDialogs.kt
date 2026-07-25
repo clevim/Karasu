@@ -1,4 +1,4 @@
-package yokai.presentation.settings.screen.about
+package karasu.presentation.settings.screen.about
 
 import android.os.Build
 import androidx.compose.foundation.layout.Column
@@ -18,8 +18,8 @@ import eu.kanade.tachiyomi.data.updater.AppDownloadInstallJob
 import eu.kanade.tachiyomi.ui.more.parseReleaseNotes
 import java.io.Serializable
 import kotlin.coroutines.resume
-import yokai.domain.DialogHostState
-import yokai.i18n.MR
+import karasu.domain.DialogHostState
+import karasu.i18n.MR
 import android.R as AR
 
 data class NewUpdateData(

@@ -1,8 +1,8 @@
-package yokai.data.source.browse.filter
+package karasu.data.source.browse.filter
 
-import yokai.data.DatabaseHandler
-import yokai.domain.source.browse.filter.SavedSearchRepository
-import yokai.domain.source.browse.filter.models.RawSavedSearch
+import karasu.data.DatabaseHandler
+import karasu.domain.source.browse.filter.SavedSearchRepository
+import karasu.domain.source.browse.filter.models.RawSavedSearch
 
 class SavedSearchRepositoryImpl(private val handler: DatabaseHandler) : SavedSearchRepository {
     override suspend fun findAll(): List<RawSavedSearch> = handler.awaitList {

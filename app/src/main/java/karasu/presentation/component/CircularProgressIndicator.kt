@@ -1,4 +1,4 @@
-package yokai.presentation.component
+package karasu.presentation.component
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn

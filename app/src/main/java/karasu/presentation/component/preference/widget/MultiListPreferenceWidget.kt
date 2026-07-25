@@ -1,4 +1,4 @@
-package yokai.presentation.component.preference.widget
+package karasu.presentation.component.preference.widget
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
@@ -12,8 +12,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.DialogProperties
-import yokai.presentation.component.LabeledCheckbox
-import yokai.presentation.component.preference.Preference
+import karasu.presentation.component.LabeledCheckbox
+import karasu.presentation.component.preference.Preference
 import android.R as AR
 
 @Composable

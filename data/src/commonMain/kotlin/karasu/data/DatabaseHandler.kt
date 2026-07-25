@@ -1,4 +1,4 @@
-package yokai.data
+package karasu.data
 
 import app.cash.sqldelight.ExecutableQuery
 import app.cash.sqldelight.Query

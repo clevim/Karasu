@@ -1,13 +1,13 @@
-package yokai.presentation.library
+package karasu.presentation.library
 
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.models.LibraryItem
-import yokai.presentation.AppBarType
-import yokai.presentation.YokaiScaffold
-import yokai.presentation.library.components.LazyLibraryGrid
+import karasu.presentation.AppBarType
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.library.components.LazyLibraryGrid
 
 @Composable
 fun LibraryContent(
@@ -15,7 +15,7 @@ fun LibraryContent(
     items: List<LibraryItem>,
     columns: Int,
 ) {
-    YokaiScaffold(
+    KarasuScaffold(
         onNavigationIconClicked = {},
         appBarType = AppBarType.NONE,
     ) { contentPadding ->
