@@ -1,4 +1,4 @@
-package yokai.presentation.core.components
+package karasu.presentation.core.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues

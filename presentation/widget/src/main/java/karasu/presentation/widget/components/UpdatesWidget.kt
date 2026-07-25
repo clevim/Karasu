@@ -1,4 +1,4 @@
-package yokai.presentation.widget.components
+package karasu.presentation.widget.components
 
 import android.content.Intent
 import android.graphics.Bitmap
@@ -17,12 +17,12 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
 import androidx.glance.text.Text
-import yokai.i18n.MR
-import yokai.presentation.core.Constants
-import yokai.presentation.core.util.IntentCommon
-import yokai.presentation.widget.ContainerModifier
-import yokai.presentation.widget.util.calculateRowAndColumnCount
-import yokai.presentation.widget.util.stringResource
+import karasu.i18n.MR
+import karasu.presentation.core.Constants
+import karasu.presentation.core.util.IntentCommon
+import karasu.presentation.widget.ContainerModifier
+import karasu.presentation.widget.util.calculateRowAndColumnCount
+import karasu.presentation.widget.util.stringResource
 
 @Composable
 fun UpdatesWidget(data: List<Pair<Long, Bitmap?>>?) {

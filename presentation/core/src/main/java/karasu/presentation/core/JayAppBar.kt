@@ -1,4 +1,4 @@
-package yokai.presentation.core
+package karasu.presentation.core
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.layout.Arrangement

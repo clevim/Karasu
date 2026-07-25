@@ -1,13 +1,13 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("yokai.android.library")
-    id("yokai.android.library.compose")
+    id("karasu.android.library")
+    id("karasu.android.library.compose")
     kotlin("android")
 }
 
 android {
-    namespace = "yokai.presentation.widget"
+    namespace = "karasu.presentation.widget"
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -1,3 +1,3 @@
-package yokai.presentation.core.icons
+package karasu.presentation.core.icons
 
 object CustomIcons

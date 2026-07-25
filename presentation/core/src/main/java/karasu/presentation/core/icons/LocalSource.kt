@@ -1,4 +1,4 @@
-package yokai.presentation.core.icons
+package karasu.presentation.core.icons
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType.Companion.NonZero

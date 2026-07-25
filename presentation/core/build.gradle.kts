@@ -1,11 +1,11 @@
 plugins {
-    id("yokai.android.library")
-    id("yokai.android.library.compose")
+    id("karasu.android.library")
+    id("karasu.android.library.compose")
     kotlin("android")
 }
 
 android {
-    namespace = "yokai.presentation.core"
+    namespace = "karasu.presentation.core"
 
     defaultConfig {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

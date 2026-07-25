@@ -1,8 +1,8 @@
-package yokai.presentation.core.util
+package karasu.presentation.core.util
 
 import android.content.Context
 import android.content.Intent
-import yokai.presentation.core.Constants
+import karasu.presentation.core.Constants
 
 object IntentCommon {
     fun openManga(context: Context, id: Long?, canReturnToMain: Boolean = false) =

@@ -1,4 +1,4 @@
-package yokai.presentation.core.components
+package karasu.presentation.core.components
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon

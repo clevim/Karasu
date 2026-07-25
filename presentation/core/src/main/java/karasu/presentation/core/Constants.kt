@@ -1,4 +1,4 @@
-package yokai.presentation.core
+package karasu.presentation.core
 
 object Constants {
     const val MAIN_ACTIVITY = "eu.kanade.tachiyomi.ui.main.MainActivity"

@@ -1,4 +1,4 @@
-package yokai.presentation.widget
+package karasu.presentation.widget
 
 import android.app.Application
 import android.content.Context
@@ -32,13 +32,13 @@ import eu.kanade.tachiyomi.util.system.launchIO
 import kotlinx.coroutines.MainScope
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.manga.models.cover
-import yokai.presentation.widget.components.CoverHeight
-import yokai.presentation.widget.components.CoverWidth
-import yokai.presentation.widget.components.LockedWidget
-import yokai.presentation.widget.components.UpdatesWidget
-import yokai.presentation.widget.util.appWidgetBackgroundRadius
-import yokai.presentation.widget.util.calculateRowAndColumnCount
+import karasu.domain.manga.models.cover
+import karasu.presentation.widget.components.CoverHeight
+import karasu.presentation.widget.components.CoverWidth
+import karasu.presentation.widget.components.LockedWidget
+import karasu.presentation.widget.components.UpdatesWidget
+import karasu.presentation.widget.util.appWidgetBackgroundRadius
+import karasu.presentation.widget.util.calculateRowAndColumnCount
 import java.util.*
 import kotlin.math.min
 

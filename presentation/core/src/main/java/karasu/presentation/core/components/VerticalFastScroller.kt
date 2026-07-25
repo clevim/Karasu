@@ -1,4 +1,4 @@
-package yokai.presentation.core.components
+package karasu.presentation.core.components
 
 import android.view.ViewConfiguration
 import androidx.compose.animation.core.Animatable
@@ -56,7 +56,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.sample
-import yokai.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
+import karasu.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
 
 /**
  * Draws vertical fast scroller to a lazy list

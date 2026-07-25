@@ -1,4 +1,4 @@
-package yokai.presentation.core
+package karasu.presentation.core
 
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationState

@@ -1,4 +1,4 @@
-package yokai.presentation.core
+package karasu.presentation.core
 
 /*
  * MIT License
@@ -68,7 +68,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.sample
-import yokai.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
+import karasu.presentation.core.components.Scroller.STICKY_HEADER_KEY_PREFIX
 
 // FIXME: Scrollbar won't show up when TopAppBar is expanding/collapsing
 
