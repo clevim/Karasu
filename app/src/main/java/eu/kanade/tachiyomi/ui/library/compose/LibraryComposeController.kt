@@ -21,11 +21,11 @@ import eu.kanade.tachiyomi.ui.main.RootSearchInterface
 import java.util.Locale
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.ui.UiPreferences
-import yokai.i18n.MR
-import yokai.presentation.library.LibraryContent
-import yokai.presentation.theme.YokaiTheme
-import yokai.util.lang.getString
+import karasu.domain.ui.UiPreferences
+import karasu.i18n.MR
+import karasu.presentation.library.LibraryContent
+import karasu.presentation.theme.KarasuTheme
+import karasu.util.lang.getString
 
 class LibraryComposeController(
     bundle: Bundle? = null,
@@ -64,7 +64,7 @@ class LibraryComposeController(
         binding.fastScroller.isGone = true
 
         binding.composeView.setContent {
-            YokaiTheme {
+            KarasuTheme {
                 ScreenContent()
             }
         }

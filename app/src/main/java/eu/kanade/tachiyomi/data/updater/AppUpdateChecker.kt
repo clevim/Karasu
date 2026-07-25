@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.base.models.Version
+import karasu.domain.base.models.Version
 
 class AppUpdateChecker(
     private val json: Json = Injekt.get(),
@@ -104,9 +104,9 @@ val RELEASE_TAG: String by lazy {
 
 val GITHUB_REPO: String by lazy {
     if (BuildConfig.NIGHTLY) {
-        "null2264/yokai-nightly"
+        "clevim/Karasu-nightly"
     } else {
-        "null2264/yokai"
+        "clevim/Karasu"
     }
 }
 

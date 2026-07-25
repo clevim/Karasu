@@ -6,16 +6,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.DeleteCategories
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.InsertCategories
-import yokai.domain.category.interactor.UpdateCategories
-import yokai.domain.category.models.CategoryUpdate
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.DeleteCategories
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.InsertCategories
+import karasu.domain.category.interactor.UpdateCategories
+import karasu.domain.category.models.CategoryUpdate
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * Presenter of [CategoryController]. Used to manage the categories of the library.
@@ -28,12 +27,22 @@ class CategoryPresenter(
     private val insertCategories: InsertCategories by injectLazy()
     private val updateCategories: UpdateCategories by injectLazy()
 
-    private var scope = CoroutineScope(Job() + Dispatchers.Default)
+    /**
+     * Main, deliberately.
+     *
+     * [categories] is read by the UI and rewritten by every action here, and a drag to reorder
+     * fires one of those per drop. Running the coroutines on a background dispatcher meant a
+     * reorder landing while the list was being read could throw, or quietly lose a category when
+     * two of them rewrote the field at once. Confining the state to one thread and hopping to
+     * [Dispatchers.IO] for the database is what makes that impossible rather than unlikely.
+     */
+    private var scope = CoroutineScope(Job() + Dispatchers.Main)
 
     /**
-     * List containing categories.
+     * Categories as the screen currently shows them. Replaced, never mutated in place, and only
+     * ever from the main thread.
      */
-    private var categories: MutableList<Category> = mutableListOf()
+    private var categories: List<Category> = emptyList()
 
     /**
      * Called when the presenter is created.
@@ -42,14 +51,10 @@ class CategoryPresenter(
         if (categories.isNotEmpty()) {
             controller.setCategories(categories.map(::CategoryItem))
         }
-        scope.launch(Dispatchers.IO) {
-            categories.clear()
-            categories.add(newCategory())
-            categories.addAll(getCategories.await())
-            val catItems = categories.map(::CategoryItem)
-            withContext(Dispatchers.Main) {
-                controller.setCategories(catItems)
-            }
+        scope.launch {
+            val loaded = withContext(Dispatchers.IO) { getCategories.await() }
+            categories = listOf(newCategory()) + loaded
+            controller.setCategories(categories.map(::CategoryItem))
         }
     }
 
@@ -79,14 +84,17 @@ class CategoryPresenter(
         // Set the new item in the last position.
         cat.order = (categories.maxOfOrNull { it.order } ?: 0) + 1
 
-        // Insert into database.
         cat.mangaSort = LibrarySort.Title.categoryValue
-        // FIXME: Don't do blocking
-        runBlocking { insertCategories.awaitOne(cat) }
-        val cats = runBlocking { getCategories.await() }
-        val newCat = cats.find { it.name == name } ?: return false
-        categories.add(1, newCat)
-        reorderCategories(categories)
+        // The duplicate-name check above is what decides the return value, so the write itself
+        // doesn't have to block the caller. The insert hands back the new id, which saves
+        // re-reading the whole category table just to find the row we just wrote.
+        scope.launch {
+            val id = withContext(Dispatchers.IO) { insertCategories.awaitOne(cat) } ?: return@launch
+            cat.id = id.toInt()
+            // Straight after the "create new category" row, unless the list hasn't loaded yet.
+            categories = categories.toMutableList().apply { add(minOf(1, size), cat) }
+            reorderCategories(categories)
+        }
         return true
     }
 
@@ -98,11 +106,9 @@ class CategoryPresenter(
     fun deleteCategory(category: Category?) {
         val safeCategory = category?.id ?: return
         scope.launch {
-            deleteCategories.awaitOne(safeCategory.toLong())
-            categories.remove(category)
-            withContext(Dispatchers.Main) {
-                controller.setCategories(categories.map(::CategoryItem))
-            }
+            withContext(Dispatchers.IO) { deleteCategories.awaitOne(safeCategory.toLong()) }
+            categories = categories - category
+            controller.setCategories(categories.map(::CategoryItem))
         }
     }
 
@@ -113,23 +119,19 @@ class CategoryPresenter(
      */
     fun reorderCategories(categories: List<Category>) {
         scope.launch {
-            val updates: MutableList<CategoryUpdate> = mutableListOf()
-            categories
+            // A category still waiting on its insert has no id yet; renumber it in memory anyway
+            // and let the next reorder persist it, rather than throwing the whole drag away.
+            val updates = categories
                 .filter { it.order != CREATE_CATEGORY_ORDER }
-                .forEachIndexed { i, category ->
+                .mapIndexedNotNull { i, category ->
                     category.order = i - 1
-                    updates.add(
-                        CategoryUpdate(
-                            id = category.id!!.toLong(),
-                            order = category.order.toLong(),
-                        )
-                    )
+                    category.id?.let {
+                        CategoryUpdate(id = it.toLong(), order = category.order.toLong())
+                    }
                 }
-            updateCategories.await(updates)
-            this@CategoryPresenter.categories = categories.sortedBy { it.order }.toMutableList()
-            withContext(Dispatchers.Main) {
-                controller.setCategories(this@CategoryPresenter.categories.map(::CategoryItem))
-            }
+            withContext(Dispatchers.IO) { updateCategories.await(updates) }
+            this@CategoryPresenter.categories = categories.sortedBy { it.order }
+            controller.setCategories(this@CategoryPresenter.categories.map(::CategoryItem))
         }
     }
 
@@ -148,18 +150,18 @@ class CategoryPresenter(
         if (name.isBlank()) {
             return false
         }
+        val id = category.id ?: return false
 
         category.name = name
-        runBlocking {
-            updateCategories.awaitOne(
-                CategoryUpdate(
-                    id = category.id!!.toLong(),
-                    name = category.name,
-                )
-            )
-        }
         categories.find { it.id == category.id }?.name = name
+        // Renaming can't fail once the name is known to be free, so the list redraws from memory
+        // straight away and the database catches up behind it.
         controller.setCategories(categories.map(::CategoryItem))
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                updateCategories.awaitOne(CategoryUpdate(id = id.toLong(), name = name))
+            }
+        }
         return true
     }
 

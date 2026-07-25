@@ -33,5 +33,6 @@ class CategoryAdapter(controller: CategoryController) :
         fun onItemReleased(position: Int)
         fun onCategoryRename(position: Int, newName: String): Boolean
         fun onItemDelete(position: Int)
+        fun onCategoryRules(position: Int)
     }
 }

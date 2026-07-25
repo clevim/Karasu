@@ -21,21 +21,22 @@ import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import eu.kanade.tachiyomi.widget.TriStateCheckBox
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.InsertCategories
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.InsertCategories
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 class ManageCategoryDialog(bundle: Bundle? = null) :
     DialogController(bundle) {
 
-    constructor(category: Category?, updateLibrary: ((Int?) -> Unit)) : this() {
+    /** [updateLibrary] receives the saved category, so a caller can follow up on the new one. */
+    constructor(category: Category?, updateLibrary: ((Category?) -> Unit)) : this() {
         this.updateLibrary = updateLibrary
         this.category = category
     }
 
-    private var updateLibrary: ((Int?) -> Unit)? = null
+    private var updateLibrary: ((Category?) -> Unit)? = null
     private var category: Category? = null
 
     private val preferences by injectLazy<PreferencesHelper>()
@@ -82,7 +83,13 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
 
     private fun onPositiveButtonClick(): Boolean {
         val text = binding.title.text.toString()
-        val categoryExists = categoryExists(text)
+        // ponytail: still blocking, but once per OK press instead of twice — the duplicate check
+        // and the order of a new category now come from the same read. Going async here would mean
+        // reworking how the dialog decides whether to dismiss, for a single small select.
+        val existingCategories = runBlocking { getCategories.await() }
+        val categoryExists = existingCategories.any {
+            it.name.equals(text, true) && category?.id != it.id
+        }
         val category = this.category ?: Category.create(text)
         if (category.id != 0) {
             if (text.isNotBlank() && !categoryExists &&
@@ -90,9 +97,7 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
             ) {
                 category.name = text
                 if (this.category == null) {
-                    // FIXME: Don't do blocking
-                    val categories = runBlocking { getCategories.await() }
-                    category.order = (categories.maxOfOrNull { it.order } ?: 0) + 1
+                    category.order = (existingCategories.maxOfOrNull { it.order } ?: 0) + 1
                     category.mangaSort = LibrarySort.Title.categoryValue
                     category.id = runBlocking { insertCategories.awaitOne(category) }?.toInt()
                     this.category = category
@@ -130,18 +135,8 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
             preferences.libraryUpdateInterval().set(0)
             LibraryUpdateJob.setupTask(preferences.context, 0)
         }
-        updateLibrary?.invoke(category.id)
+        updateLibrary?.invoke(category)
         return true
-    }
-
-    /**
-     * Returns true if a category with the given name already exists.
-     */
-    private fun categoryExists(name: String): Boolean {
-        // FIXME: Don't do blocking
-        return runBlocking { getCategories.await() }.any {
-            it.name.equals(name, true) && category?.id != it.id
-        }
     }
 
     fun onViewCreated() {

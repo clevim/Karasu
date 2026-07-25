@@ -32,12 +32,12 @@ import java.util.Locale
 import kotlin.math.max
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class SetCategoriesSheet(
     private val activity: Activity,

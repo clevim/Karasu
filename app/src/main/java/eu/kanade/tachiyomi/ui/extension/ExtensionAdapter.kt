@@ -6,8 +6,8 @@ import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.ui.extension.ExtensionAdapter.OnButtonClickListener
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.base.BasePreferences
-import yokai.domain.base.BasePreferences.ExtensionInstaller
+import karasu.domain.base.BasePreferences
+import karasu.domain.base.BasePreferences.ExtensionInstaller
 
 /**
  * Adapter that holds the catalogue cards.

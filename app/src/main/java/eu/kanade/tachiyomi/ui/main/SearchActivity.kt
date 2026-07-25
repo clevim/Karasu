@@ -26,10 +26,10 @@ import eu.kanade.tachiyomi.util.system.extensionIntentForText
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.manga.interactor.GetManga
-import yokai.presentation.core.Constants
-import yokai.presentation.core.util.IntentCommon
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.interactor.GetManga
+import karasu.presentation.core.Constants
+import karasu.presentation.core.util.IntentCommon
 
 class SearchActivity : MainActivity() {
     private val getChapter: GetChapter by injectLazy()

@@ -31,6 +31,9 @@ class CategoryHolder(view: View, val adapter: CategoryAdapter) : BaseFlexibleVie
         binding.editButton.setOnClickListener {
             submitChanges()
         }
+        binding.rulesButton.setOnClickListener {
+            adapter.categoryItemListener.onCategoryRules(flexibleAdapterPosition)
+        }
     }
 
     var createCategory = false
@@ -51,6 +54,8 @@ class CategoryHolder(view: View, val adapter: CategoryAdapter) : BaseFlexibleVie
             true
         }
         createCategory = category.order == CREATE_CATEGORY_ORDER
+        // The row that creates a category has nothing to hold rules yet.
+        binding.rulesButton.isVisible = !createCategory
         if (createCategory) {
             binding.title.setTextColor(ContextCompat.getColor(itemView.context, R.color.material_on_background_disabled))
             regularDrawable = ContextCompat.getDrawable(
@@ -79,6 +84,7 @@ class CategoryHolder(view: View, val adapter: CategoryAdapter) : BaseFlexibleVie
         itemView.isActivated = editing
         binding.title.visibility = if (editing) View.INVISIBLE else View.VISIBLE
         binding.editText.visibility = if (!editing) View.INVISIBLE else View.VISIBLE
+        binding.rulesButton.isVisible = !editing && !createCategory
         if (editing) {
             binding.editText.requestFocus()
             binding.editText.selectAll()

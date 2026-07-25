@@ -15,8 +15,8 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.ui.UiPreferences
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.ui.UiPreferences
 
 abstract class BaseMigrationPresenter<T : BaseMigrationInterface>(
     protected val sourceManager: SourceManager = Injekt.get(),

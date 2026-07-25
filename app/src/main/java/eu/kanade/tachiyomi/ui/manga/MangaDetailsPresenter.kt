@@ -49,6 +49,7 @@ import eu.kanade.tachiyomi.ui.manga.track.TrackItem
 import eu.kanade.tachiyomi.ui.manga.track.TrackingBottomSheet
 import eu.kanade.tachiyomi.ui.security.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.chapter.ChapterFilter
+import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
 import eu.kanade.tachiyomi.util.chapter.ChapterSort
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
@@ -62,6 +63,7 @@ import eu.kanade.tachiyomi.util.shouldDownloadNewChapters
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import eu.kanade.tachiyomi.util.system.e
+import eu.kanade.tachiyomi.util.system.isOnline
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchNonCancellableIO
 import eu.kanade.tachiyomi.util.system.launchNow
@@ -88,22 +90,26 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.chapter.interactor.GetAvailableScanlators
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.library.custom.model.CustomMangaInfo
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.manga.models.cover
-import yokai.domain.storage.StorageManager
-import yokai.domain.track.interactor.DeleteTrack
-import yokai.domain.track.interactor.GetTrack
-import yokai.domain.track.interactor.InsertTrack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.chapter.interactor.GetAvailableScanlators
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.library.custom.model.CustomMangaInfo
+import karasu.domain.manga.failures.interactor.UpdateFailures
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.manga.models.MergedMangaSource
+import karasu.domain.manga.models.cover
+import karasu.domain.storage.StorageManager
+import karasu.domain.track.interactor.DeleteTrack
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class MangaDetailsPresenter(
     val mangaId: Long,
@@ -118,6 +124,10 @@ class MangaDetailsPresenter(
     private val getAvailableScanlators: GetAvailableScanlators by injectLazy()
     private val getCategories: GetCategories by injectLazy()
     private val getChapter: GetChapter by injectLazy()
+    private val mergedSourceSync: MergedSourceSync by injectLazy()
+    private val mergedSources: MergedSources by injectLazy()
+    private val applyCategoryRules: ApplyCategoryRules by injectLazy()
+    private val updateFailures: UpdateFailures by injectLazy()
     private val getManga: GetManga by injectLazy()
     private val updateChapter: UpdateChapter by injectLazy()
     private val updateManga: UpdateManga by injectLazy()
@@ -274,7 +284,30 @@ class MangaDetailsPresenter(
         return chapters
     }
 
+    /**
+     * Source name for each merged source's manga row, keyed by that row's id.
+     *
+     * A merged chapter keeps the id of the row it was synced under, so this is what lets the
+     * chapter list say which source a row this manga didn't fetch itself came from. Empty for
+     * the usual case of a manga with no merges, so nothing here costs anything there.
+     */
+    var mergedSourceNames: Map<Long, String> = emptyMap()
+        private set
+
+    private suspend fun refreshMergedSourceNames() {
+        mergedSourceNames = if (!mergedSources.hasMerges(mangaId)) {
+            emptyMap()
+        } else {
+            mergedSources.await(mangaId).mapNotNull { merge ->
+                val childId = getManga.awaitByUrlAndSource(merge.url, merge.source)?.id
+                    ?: return@mapNotNull null
+                childId to sourceManager.getOrStub(merge.source).name
+            }.toMap()
+        }
+    }
+
     private suspend fun getChapters(queue: List<Download> = downloadManager.queueState.value) {
+        refreshMergedSourceNames()
         val chapters = getChapter.awaitAll(mangaId, isScanlatorFiltered()).map { it.toModel() }
         allChapters = if (!isScanlatorFiltered()) chapters else getChapter.awaitAll(mangaId, false).map { it.toModel() }
 
@@ -465,8 +498,15 @@ class MangaDetailsPresenter(
     private suspend fun fetchChaptersFromSource(manualFetch: Boolean = true) {
         try {
             withIOContext {
+                // Merged sources have their own non-favourite manga rows that no update job
+                // walks, so refresh them whenever this manga is refreshed.
+                val mergedAdded = mergedSourceSync.await(manga.id!!)
+
                 val chapters = source.getChapterList(manga.copy())
-                val (added, removed) = withIOContext { syncChaptersWithSource(chapters, manga, source) }
+                val (ownAdded, removed) = withIOContext { syncChaptersWithSource(chapters, manga, source) }
+                // Merged sources' new chapters appear in this manga's list, so they get the
+                // same auto-download treatment as its own.
+                val added = ownAdded + mergedAdded
                 if (added.isNotEmpty()) {
                     if (manga.shouldDownloadNewChapters(preferences) && manualFetch) {
                         downloadChapters(
@@ -489,12 +529,99 @@ class MangaDetailsPresenter(
                 }
                 getChapters()
                 getHistory()
+                // A manual refresh that worked is as good a sign as a library update, so it
+                // clears the broken-source count too — otherwise an entry the user just
+                // fixed stays flagged until the next scheduled run.
+                updateFailures.clear(manga.id!!)
+                applyCategoryRules.awaitFor(manga.id!!)
             }
         } catch (e: Exception) {
+            manga.id?.let {
+                updateFailures.record(it, e, preferences.context.isOnline())
+                // The failure count is a rule input, so recording one has to re-evaluate the entry
+                // the same way the success path does. Without this a rule watching for a broken
+                // source only fires on the next library update, not when the user sees it break.
+                applyCategoryRules.awaitFor(it)
+            }
             withUIContext {
                 view?.showError(trimException(e))
             }
         }
+    }
+
+    suspend fun mergedSources(): List<MergedMangaSource> = mergedSources.await(mangaId)
+
+    /**
+     * Merges [source]'s copy of this manga in, so its chapters join this manga's list.
+     *
+     * The row for the other source already exists — global search inserts every result it
+     * shows — so this only records the link and pulls that row's chapters in.
+     */
+    fun addMergedSource(source: Long, url: String) {
+        presenterScope.launchIO {
+            val existing = mergedSources.await(mangaId)
+            if (source == manga.source || existing.any { it.source == source }) return@launchIO
+            mergedSources.add(mangaId, source, url, (existing.maxOfOrNull { it.priority } ?: 0) + 1)
+            // Only a new source needs the network: its chapters aren't stored yet.
+            try {
+                mergedSourceSync.await(mangaId)
+            } catch (e: Exception) {
+                withUIContext { view?.showError(trimException(e)) }
+            }
+            reloadChapters()
+
+            val summary = mergeSummary(source, url)
+            withUIContext { view?.showMergeSummary(source, summary) }
+        }
+    }
+
+    /** What a merge actually did to the chapter list, once the new source has been pulled in. */
+    data class MergeSummary(val added: Int, val overlapped: Int)
+
+    /**
+     * Counts how much of the new source survived the merge.
+     *
+     * Merging is easy to get wrong — pick the wrong entry in search and you gain nothing but a
+     * duplicate — and until now the only way to find out was to scroll the list. A source whose
+     * chapters all lose to the ones already there reports 0 added, which is the signal that the
+     * merge was pointless or wrong.
+     */
+    private suspend fun mergeSummary(source: Long, url: String): MergeSummary {
+        val childId = getManga.awaitByUrlAndSource(url, source)?.id
+            ?: return MergeSummary(0, 0)
+        val fromSource = getChapter.awaitAllRaw(childId, false)
+        val shown = getChapter.awaitAll(mangaId, false).mapNotNull { it.id }.toSet()
+        val added = fromSource.count { it.id in shown }
+        return MergeSummary(added = added, overlapped = fromSource.size - added)
+    }
+
+    fun removeMergedSource(source: Long) {
+        presenterScope.launchIO {
+            mergedSources.remove(mangaId, source)
+            // Re-query so the removed source's chapters actually leave the list instead of
+            // lingering as rows that no longer open. Re-fetch from source when online for an
+            // authoritative "available chapters" list; fall back to a local reload otherwise.
+            if (preferences.context.isOnline()) {
+                fetchChaptersFromSource(manualFetch = false)
+            } else {
+                reloadChapters()
+            }
+        }
+    }
+
+    /** Applies the dialog's order as the priority used to break ties between sources. */
+    fun reorderMergedSources(sources: List<Long>) {
+        presenterScope.launchIO {
+            sources.forEachIndexed { index, source ->
+                mergedSources.reorder(mangaId, source, index + 1)
+            }
+            reloadChapters()
+        }
+    }
+
+    private suspend fun reloadChapters() {
+        getChapters()
+        withUIContext { view?.updateChapters() }
     }
 
     /** Refresh Manga Info and Chapter List (not tracking) */
@@ -567,6 +694,9 @@ class MangaDetailsPresenter(
                 it.toProgressUpdate()
             }
             updateChapter.awaitAll(updates)
+            // Starting or finishing a manga is what category rules react to, so re-file it
+            // now instead of leaving it in the wrong category until the next library update.
+            applyCategoryRules.awaitFor(mangaId)
             if (read && deleteNow && preferences.removeAfterMarkedAsRead().get()) {
                 deleteChapters(selectedChapters, false)
             }

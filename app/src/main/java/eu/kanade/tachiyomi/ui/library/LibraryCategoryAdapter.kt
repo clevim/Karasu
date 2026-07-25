@@ -16,12 +16,9 @@ import eu.kanade.tachiyomi.util.system.withDefContext
 import java.util.*
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.ui.UiPreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.ui.UiPreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * Adapter storing a list of manga in a certain category.
@@ -150,6 +147,9 @@ class LibraryCategoryAdapter(val controller: LibraryController?) :
         }
     }
 
+    // ponytail: blocking, and staying that way. The only suspending part is an in-memory string
+    // match, and callers set the items and then immediately scroll to a header, so making this
+    // async would show an empty list for a frame. Revisit if filtering ever touches disk.
     private fun performFilter() {
         runBlocking { performFilterAsync() }
     }
@@ -191,11 +191,15 @@ class LibraryCategoryAdapter(val controller: LibraryController?) :
         }
     }
 
+    /**
+     * Text for the fast-scroll bubble.
+     *
+     * Runs on every bubble update while the scrollbar is being dragged, so everything here reads
+     * from what the library query already loaded — `library_view` hands us `lastFetch`, `lastRead`
+     * and the manga's category, and hitting the database again for them mid-drag was the one thing
+     * that made fast-scrolling stutter.
+     */
     override fun onCreateBubbleText(position: Int): String {
-        val preferences: PreferencesHelper by injectLazy()
-        val getCategories: GetCategories by injectLazy()
-        val getChapter: GetChapter by injectLazy()
-        val getHistory: GetHistory by injectLazy()
         val context = recyclerView.context
         if (position == itemCount - 1) return context.getString(MR.strings.bottom)
         return when (val item: IFlexible<*>? = getItem(position)) {
@@ -211,8 +215,8 @@ class LibraryCategoryAdapter(val controller: LibraryController?) :
                     when (getSort(position)) {
                         LibrarySort.DragAndDrop -> {
                             if (item.header.category.isDynamic && item.manga.manga.id != null) {
-                                // FIXME: Don't do blocking
-                                val category = runBlocking { getCategories.awaitByMangaId(item.manga.manga.id!!) }.firstOrNull()?.name
+                                val category = controller?.presenter?.categories
+                                    ?.find { it.id == item.manga.category }?.name
                                 category ?: context.getString(MR.strings.default_value)
                             } else {
                                 val title = item.manga.manga.title
@@ -224,18 +228,10 @@ class LibraryCategoryAdapter(val controller: LibraryController?) :
                             }
                         }
                         LibrarySort.DateFetched -> {
-                            val id = item.manga.manga.id ?: return ""
-                            // FIXME: Don't do blocking
-                            val history = runBlocking { getChapter.awaitAll(id, false) }
-                            val last = history.maxOfOrNull { it.date_fetch }
-                            context.timeSpanFromNow(MR.strings.fetched_, last ?: 0)
+                            context.timeSpanFromNow(MR.strings.fetched_, item.manga.lastFetch)
                         }
                         LibrarySort.LastRead -> {
-                            val id = item.manga.manga.id ?: return ""
-                            // FIXME: Don't do blocking
-                            val history = runBlocking { getHistory.awaitAllByMangaId(id) }
-                            val last = history.maxOfOrNull { it.last_read }
-                            context.timeSpanFromNow(MR.strings.read_, last ?: 0)
+                            context.timeSpanFromNow(MR.strings.read_, item.manga.lastRead)
                         }
                         LibrarySort.Unread -> {
                             val unread = item.manga.unread

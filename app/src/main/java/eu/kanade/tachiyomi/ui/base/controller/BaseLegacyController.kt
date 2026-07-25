@@ -22,14 +22,23 @@ abstract class BaseLegacyController<VB : ViewBinding>(bundle: Bundle? = null) :
 
     override val shouldHideLegacyAppBar = false
 
-    lateinit var binding: VB
-    val isBindingInitialized get() = this::binding.isInitialized
+    // Backing field is nulled in onDestroyView so a backstacked controller doesn't retain views
+    // (and through them, the destroyed activity) across activity recreation.
+    private var _binding: VB? = null
+    val binding: VB get() = _binding!!
+    val isBindingInitialized get() = _binding != null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup, savedViewState: Bundle?): View {
         setAppBarVisibility()
-        binding = createBinding(inflater)
+        val binding = createBinding(inflater)
+        _binding = binding
         binding.root.backgroundColor = binding.root.context.getResourceColor(R.attr.background)
         return binding.root
+    }
+
+    override fun onDestroyView(view: View) {
+        _binding = null
+        super.onDestroyView(view)
     }
 
     override fun onChangeStarted(handler: ControllerChangeHandler, type: ControllerChangeType) {

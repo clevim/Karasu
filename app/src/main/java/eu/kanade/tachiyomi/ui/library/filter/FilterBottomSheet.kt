@@ -49,8 +49,8 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class FilterBottomSheet @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     LinearLayout(context, attrs),
@@ -159,6 +159,9 @@ class FilterBottomSheet @JvmOverloads constructor(context: Context, attrs: Attri
         binding.viewOptions.setOnClickListener {
             onGroupClicked(ACTION_DISPLAY)
         }
+        binding.newCategory.setOnClickListener {
+            onGroupClicked(ACTION_NEW_CATEGORY)
+        }
 
         sheetBehavior?.isGestureInsetBottomIgnored = true
 
@@ -191,11 +194,9 @@ class FilterBottomSheet @JvmOverloads constructor(context: Context, attrs: Attri
             if (binding.secondLayout.width + (binding.groupBy.width * 2) + 20.dpToPx < width) {
                 binding.secondLayout.removeView(binding.viewOptions)
                 binding.firstLayout.addView(binding.viewOptions)
-                binding.secondLayout.isVisible = false
             } else if (binding.viewOptions.parent == binding.firstLayout) {
                 binding.firstLayout.removeView(binding.viewOptions)
-                binding.secondLayout.addView(binding.viewOptions)
-                binding.secondLayout.isVisible = true
+                binding.secondLayout.addView(binding.viewOptions, 0)
             }
         }
 
@@ -623,6 +624,7 @@ class FilterBottomSheet @JvmOverloads constructor(context: Context, attrs: Attri
         const val ACTION_DISPLAY = 3
         const val ACTION_EXPAND_COLLAPSE_ALL = 4
         const val ACTION_GROUP_BY = 5
+        const val ACTION_NEW_CATEGORY = 6
 
         const val STATE_IGNORE = 0
         const val STATE_INCLUDE = 1

@@ -18,8 +18,8 @@ import eu.kanade.tachiyomi.util.chapter.ChapterUtil.Companion.preferredChapterNa
 import eu.kanade.tachiyomi.util.isLocal
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.getResourceColor
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 class ChapterHolder(
@@ -67,6 +67,12 @@ class ChapterHolder(
 
         if (chapter.scanlator?.isNotBlank() == true) {
             statuses.add(chapter.scanlator!!)
+        }
+
+        // A row this manga didn't fetch itself came from a merged source. Naming it is the only
+        // way to tell, and without it a chapter that misbehaves can't be traced back to a source.
+        if (chapter.manga_id != manga.id) {
+            adapter.controller.presenter.mergedSourceNames[chapter.manga_id]?.let { statuses.add(it) }
         }
 
         if (binding.frontView.translationX == 0f) {

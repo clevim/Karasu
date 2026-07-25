@@ -12,8 +12,8 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import eu.kanade.tachiyomi.util.compose.LocalBackPress
 import eu.kanade.tachiyomi.util.compose.LocalDialogHostState
 import eu.kanade.tachiyomi.util.compose.LocalRouter
-import yokai.domain.DialogHostState
-import yokai.presentation.theme.YokaiTheme
+import karasu.domain.DialogHostState
+import karasu.presentation.theme.KarasuTheme
 
 abstract class BaseComposeController(bundle: Bundle? = null) :
     BaseController(bundle) {
@@ -34,7 +34,7 @@ abstract class BaseComposeController(bundle: Bundle? = null) :
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val dialogHostState = remember { DialogHostState() }
-                YokaiTheme {
+                KarasuTheme {
                     CompositionLocalProvider(
                         LocalDialogHostState provides dialogHostState,
                         LocalBackPress provides router::handleBack,

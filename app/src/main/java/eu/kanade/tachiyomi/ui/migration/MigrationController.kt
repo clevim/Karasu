@@ -24,9 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.manga.interactor.GetManga
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.manga.interactor.GetManga
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class MigrationController :
     BaseCoroutineController<MigrationControllerBinding, MigrationPresenter>(),
@@ -140,6 +140,7 @@ class MigrationController :
 
     override fun setMigrationManga(title: String, manga: List<MangaItem>?) {
         this.title = title
+        view ?: return
         if (adapter !is MangaAdapter) {
             adapter = MangaAdapter(this, presenter.uiPreferences.outlineOnCovers().get())
             binding.migrationRecycler.adapter = adapter
@@ -152,6 +153,7 @@ class MigrationController :
 
     override fun setMigrationSources(sources: List<SourceItem>) {
         title = activity?.getString(MR.strings.source_migration)
+        view ?: return
         if (adapter !is SourceAdapter) {
             adapter = SourceAdapter(this)
             binding.migrationRecycler.adapter = adapter

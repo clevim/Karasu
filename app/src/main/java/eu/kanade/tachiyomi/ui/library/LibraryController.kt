@@ -75,6 +75,7 @@ import eu.kanade.tachiyomi.ui.base.MiniSearchView
 import eu.kanade.tachiyomi.ui.base.controller.BaseCoroutineController
 import eu.kanade.tachiyomi.ui.category.CategoryController
 import eu.kanade.tachiyomi.ui.category.ManageCategoryDialog
+import eu.kanade.tachiyomi.ui.category.rule.CategoryRuleController
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_AUTHOR
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_DEFAULT
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_LANGUAGE
@@ -143,9 +144,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.ui.UiPreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.ui.UiPreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 open class LibraryController(
@@ -727,6 +728,24 @@ open class LibraryController(
                 FilterBottomSheet.ACTION_DISPLAY -> showDisplayOptions()
                 FilterBottomSheet.ACTION_EXPAND_COLLAPSE_ALL -> presenter.toggleAllCategoryVisibility()
                 FilterBottomSheet.ACTION_GROUP_BY -> showGroupOptions()
+                FilterBottomSheet.ACTION_NEW_CATEGORY -> ManageCategoryDialog(null) { category ->
+                    presenter.updateLibrary()
+                    // Creating a category from the library sheet is how someone sets up a rule
+                    // target, so it opens the rule editor rather than leaving them to find it
+                    // under category settings. An empty rule list is a no-op, so backing out
+                    // straight away just leaves a plain category.
+                    //
+                    // Posted rather than pushed inline: this runs from the dialog's positive
+                    // button, before the dialog has popped itself off the router, and pushing
+                    // under it leaves the two fighting over the top of the backstack.
+                    val id = category?.id ?: return@ManageCategoryDialog
+                    val name = category.name
+                    viewScope.launchUI {
+                        router.pushController(
+                            CategoryRuleController(id.toLong(), name).withFadeTransaction(),
+                        )
+                    }
+                }.showDialog(router)
             }
         }
     }
@@ -1119,6 +1138,20 @@ open class LibraryController(
         showAllCategoriesView?.let {
             (activityBinding?.searchToolbar?.searchView as? MiniSearchView)?.removeSearchModifierIcon(it)
         }
+        // Everything below belongs to the activity's views; keeping it would leak the activity
+        // while this controller waits in the backstack.
+        showAllCategoriesView = null
+        removeStaggeredObserver()
+        filterTooltip?.close()
+        filterTooltip = null
+        snack?.dismiss()
+        snack = null
+        hopperAnimation?.cancel()
+        hopperAnimation = null
+        textAnim?.cancel()
+        textAnim = null
+        animatorSet?.cancel()
+        animatorSet = null
         super.onDestroyView(view)
     }
 

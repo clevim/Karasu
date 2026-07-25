@@ -67,23 +67,24 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.category.interactor.UpdateCategories
-import yokai.domain.category.models.CategoryUpdate
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.chapter.models.ChapterUpdate
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.library.LibraryPreferences
-import yokai.domain.manga.interactor.GetLibraryManga
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.track.interactor.GetTrack
-import yokai.i18n.MR
-import yokai.util.isLewd
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.category.interactor.UpdateCategories
+import karasu.domain.category.models.CategoryUpdate
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.chapter.models.ChapterUpdate
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.library.LibraryPreferences
+import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.track.interactor.GetTrack
+import karasu.i18n.MR
+import karasu.util.isLewd
+import karasu.util.lang.getString
 
 typealias LibraryMap = Map<Category, List<LibraryItem>>
 typealias LibraryMutableMap = MutableMap<Category, List<LibraryItem>>
@@ -98,6 +99,7 @@ class LibraryPresenter(
     val sourceManager: SourceManager = Injekt.get(),
     private val downloadCache: DownloadCache = Injekt.get(),
     private val downloadManager: DownloadManager = Injekt.get(),
+    private val applyCategoryRules: ApplyCategoryRules = Injekt.get(),
     private val chapterFilter: ChapterFilter = Injekt.get(),
     private val trackManager: TrackManager = Injekt.get(),
 ) : BaseCoroutinePresenter<LibraryController>() {
@@ -210,6 +212,11 @@ class LibraryPresenter(
 
         subscribeLibrary()
         updateLibrary()
+
+        // Time-based rules ("not read in three months") only come true with the calendar, so
+        // nothing else would ever fire them. The library is already subscribed above, so any
+        // move made here shows up on its own. Throttled to once a day — see `awaitSweep`.
+        presenterScope.launchIO { applyCategoryRules.awaitSweep() }
 
         if (!preferences.showLibrarySearchSuggestions().isSet()) {
             DelayedLibrarySuggestionsJob.setupTask(context, true)

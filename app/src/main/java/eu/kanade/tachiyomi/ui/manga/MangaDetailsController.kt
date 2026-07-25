@@ -89,6 +89,8 @@ import eu.kanade.tachiyomi.ui.main.SearchActivity
 import eu.kanade.tachiyomi.ui.manga.chapter.ChapterHolder
 import eu.kanade.tachiyomi.ui.manga.chapter.ChapterItem
 import eu.kanade.tachiyomi.ui.manga.chapter.ChaptersSortBottomSheet
+import eu.kanade.tachiyomi.ui.manga.merge.MergeSearchController
+import eu.kanade.tachiyomi.ui.manga.merge.showMergedSourcesDialog
 import eu.kanade.tachiyomi.ui.manga.track.TrackItem
 import eu.kanade.tachiyomi.ui.manga.track.TrackingBottomSheet
 import eu.kanade.tachiyomi.ui.migration.manga.design.PreMigrationController
@@ -148,10 +150,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
-import yokai.domain.manga.models.cover
-import yokai.i18n.MR
-import yokai.presentation.core.Constants
-import yokai.util.lang.getString
+import karasu.domain.manga.models.cover
+import karasu.i18n.MR
+import karasu.presentation.core.Constants
+import karasu.util.lang.getString
 import android.R as AR
 
 class MangaDetailsController :
@@ -485,9 +487,16 @@ class MangaDetailsController :
 
     override fun onDestroyView(view: View) {
         snack?.dismiss()
+        snack = null
         adapter = null
+        tabletAdapter = null
         finishFloatingActionMode()
         trackingBottomSheet = null
+        colorAnimator?.cancel()
+        colorAnimator = null
+        chapterPopupMenu?.second?.dismiss()
+        chapterPopupMenu = null
+        editMangaDialog = null
         super.onDestroyView(view)
     }
 
@@ -807,6 +816,7 @@ class MangaDetailsController :
     }
 
     fun showError(message: String) {
+        view ?: return
         binding.swipeRefresh.isRefreshing = presenter.isLoading
         view?.snack(message)
     }
@@ -883,6 +893,7 @@ class MangaDetailsController :
     }
 
     fun updateHeader() {
+        view ?: return
         binding.swipeRefresh.isRefreshing = presenter.isLoading
         adapter?.setChapters(presenter.chapters)
         tabletAdapter?.notifyItemChanged(0)
@@ -905,6 +916,29 @@ class MangaDetailsController :
         } else {
             binding.fab.isVisible = false
         }
+    }
+
+    /**
+     * Reports what a merge changed, with a way back.
+     *
+     * Undo is the whole point: picking the wrong entry in the merge search is easy, and this is
+     * the moment the mistake is visible — 0 added means the source contributed nothing.
+     */
+    fun showMergeSummary(source: Long, summary: MangaDetailsPresenter.MergeSummary) {
+        snack?.dismiss()
+        snack = view?.snack(
+            view!!.context.getString(
+                MR.strings.merged_source_summary,
+                summary.added,
+                summary.overlapped,
+            ),
+            Snackbar.LENGTH_LONG,
+        ) {
+            setAction(MR.strings.undo) {
+                presenter.removeMergedSource(source)
+            }
+        }
+        (activity as? MainActivity)?.setUndoSnackBar(snack)
     }
 
     fun updateChapters() {
@@ -1224,6 +1258,8 @@ class MangaDetailsController :
             presenter.hasBookmark() && !presenter.isLockedFromSearch
         menu.findItem(R.id.action_migrate)?.isVisible = !presenter.isLockedFromSearch &&
             !presenter.manga.isLocal() && presenter.manga.favorite
+        menu.findItem(R.id.action_merged_sources)?.isVisible = !presenter.isLockedFromSearch &&
+            !presenter.manga.isLocal() && presenter.manga.favorite
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -1245,6 +1281,7 @@ class MangaDetailsController :
                         listOf(manga!!.id!!),
                     )
                 }
+            R.id.action_merged_sources -> if (!isNotOnline()) showMergedSourcesDialog()
             R.id.action_mark_all_as_read -> {
                 activity!!.materialAlertDialog()
                     .setMessage(MR.strings.mark_all_chapters_as_read)
@@ -1714,6 +1751,28 @@ class MangaDetailsController :
             true
         }
         return popup
+    }
+
+    private fun showMergedSourcesDialog() {
+        viewScope.launchIO {
+            val sources = presenter.mergedSources().map {
+                it.source to presenter.sourceManager.getOrStub(it.source).name
+            }
+            withUIContext {
+                activity?.showMergedSourcesDialog(
+                    sources = sources,
+                    onRemove = presenter::removeMergedSource,
+                    onReorder = presenter::reorderMergedSources,
+                    onAdd = {
+                        router.pushController(
+                            MergeSearchController(presenter.manga)
+                                .apply { targetController = this@MangaDetailsController }
+                                .withFadeTransaction(),
+                        )
+                    },
+                )
+            }
+        }
     }
 
     private fun showCategoriesSheet() {

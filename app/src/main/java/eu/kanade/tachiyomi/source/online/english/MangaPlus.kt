@@ -15,9 +15,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.CacheControl
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.manga.interactor.GetManga
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.manga.interactor.GetManga
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class MangaPlus(delegate: HttpSource) :
     DelegatedHttpSource(delegate) {

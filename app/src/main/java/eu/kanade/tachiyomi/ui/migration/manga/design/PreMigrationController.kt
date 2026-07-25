@@ -18,8 +18,8 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.databinding.PreMigrationControllerBinding
@@ -54,6 +54,14 @@ class PreMigrationController(bundle: Bundle? = null) :
     override fun getTitle() = view?.context?.getString(MR.strings.select_sources)
 
     override fun createBinding(inflater: LayoutInflater) = PreMigrationControllerBinding.inflate(inflater)
+    override fun onDestroyView(view: View) {
+        // Built with activity!! as its context, so it pins the activity if it outlives the view
+        dialog?.dismiss()
+        dialog = null
+        adapter = null
+        super.onDestroyView(view)
+    }
+
     override fun onViewCreated(view: View) {
         super.onViewCreated(view)
         liftAppbarWith(binding.recycler)

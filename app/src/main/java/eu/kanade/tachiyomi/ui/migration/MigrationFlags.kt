@@ -8,9 +8,9 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.util.system.toInt
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.track.interactor.GetTrack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.track.interactor.GetTrack
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 object MigrationFlags {
 

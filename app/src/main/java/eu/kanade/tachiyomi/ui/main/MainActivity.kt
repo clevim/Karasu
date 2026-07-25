@@ -143,14 +143,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import uy.kohesive.injekt.injectLazy
-import yokai.core.migration.Migrator
-import yokai.domain.base.BasePreferences
-import yokai.domain.recents.interactor.GetRecents
-import yokai.i18n.MR
-import yokai.presentation.core.Constants
-import yokai.presentation.extension.repo.ExtensionRepoController
-import yokai.presentation.onboarding.OnboardingController
-import yokai.util.lang.getString
+import karasu.core.migration.Migrator
+import karasu.domain.base.BasePreferences
+import karasu.domain.recents.interactor.GetRecents
+import karasu.i18n.MR
+import karasu.presentation.core.Constants
+import karasu.presentation.extension.repo.ExtensionRepoController
+import karasu.presentation.onboarding.OnboardingController
+import karasu.util.lang.getString
 import android.R as AR
 
 @SuppressLint("ResourceType")

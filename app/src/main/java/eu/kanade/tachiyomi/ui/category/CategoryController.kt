@@ -12,7 +12,9 @@ import eu.kanade.tachiyomi.databinding.CategoriesControllerBinding
 import eu.kanade.tachiyomi.ui.base.SmallToolbarInterface
 import eu.kanade.tachiyomi.ui.base.controller.BaseLegacyController
 import eu.kanade.tachiyomi.ui.category.CategoryPresenter.Companion.CREATE_CATEGORY_ORDER
+import eu.kanade.tachiyomi.ui.category.rule.CategoryRuleController
 import eu.kanade.tachiyomi.ui.main.MainActivity
+import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.liftAppbarWith
@@ -21,8 +23,8 @@ import eu.kanade.tachiyomi.util.view.setMessage
 import eu.kanade.tachiyomi.util.view.setPositiveButton
 import eu.kanade.tachiyomi.util.view.setTitle
 import eu.kanade.tachiyomi.util.view.snack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 /**
@@ -117,6 +119,14 @@ class CategoryController(bundle: Bundle? = null) :
     override fun onItemClick(view: View?, position: Int): Boolean {
         adapter?.resetEditing(position)
         return true
+    }
+
+    override fun onCategoryRules(position: Int) {
+        val category = adapter?.getItem(position)?.category ?: return
+        val id = category.id?.toLong() ?: return
+        router.pushController(
+            CategoryRuleController(id, category.name).withFadeTransaction(),
+        )
     }
 
     override fun onCategoryRename(position: Int, newName: String): Boolean {
