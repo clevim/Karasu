@@ -3,8 +3,10 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupMergedSource
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.History
+import eu.kanade.tachiyomi.data.database.models.create
 import eu.kanade.tachiyomi.data.database.models.MangaCategory
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
@@ -17,20 +19,21 @@ import eu.kanade.tachiyomi.util.system.launchNow
 import kotlin.math.max
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.data.DatabaseHandler
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.InsertChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.history.interactor.UpsertHistory
-import yokai.domain.library.custom.model.CustomMangaInfo
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.InsertManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.track.interactor.GetTrack
-import yokai.domain.track.interactor.InsertTrack
+import karasu.data.DatabaseHandler
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.InsertChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.history.interactor.UpsertHistory
+import karasu.domain.library.custom.model.CustomMangaInfo
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
 
 class MangaBackupRestorer(
     private val customMangaManager: CustomMangaManager = Injekt.get(),
@@ -47,6 +50,7 @@ class MangaBackupRestorer(
     private val upsertHistory: UpsertHistory = Injekt.get(),
     private val getTrack: GetTrack = Injekt.get(),
     private val insertTrack: InsertTrack = Injekt.get(),
+    private val mergedSources: MergedSources = Injekt.get(),
 ) {
     suspend fun restoreManga(
         backupManga: BackupManga,
@@ -78,6 +82,7 @@ class MangaBackupRestorer(
                 // Fetch rest of manga information
                 restoreExistingManga(manga, chapters, categories, history, tracks, backupCategories, filteredScanlators, customManga)
             }
+            manga.id?.let { restoreMergedSources(it, manga.title, backupManga.mergedSources) }
         } catch (e: Exception) {
             onError(manga, e)
         }
@@ -113,6 +118,28 @@ class MangaBackupRestorer(
         restoreExtras(fetchedManga, categories, history, tracks, backupCategories, filteredScanlators, customManga)
     }
 
+    /**
+     * Relinks the sources merged into this manga.
+     *
+     * A merged source's manga row isn't a favourite, so the backup doesn't carry it. The bare
+     * row created here is enough for the merge to resolve; the next refresh fills in the
+     * details and the chapters.
+     */
+    private suspend fun restoreMergedSources(
+        mangaId: Long,
+        title: String,
+        merges: List<BackupMergedSource>,
+    ) {
+        if (merges.isEmpty()) return
+        val alreadyMerged = mergedSources.await(mangaId).map { it.source }.toSet()
+        merges.filterNot { it.source in alreadyMerged }.forEach { merge ->
+            if (getManga.awaitByUrlAndSource(merge.url, merge.source) == null) {
+                insertManga.await(Manga.create(merge.url, title, merge.source))
+            }
+            mergedSources.add(mangaId, merge.source, merge.url, merge.priority)
+        }
+    }
+
     private suspend fun restoreExistingManga(
         backupManga: Manga,
         chapters: List<Chapter>,
@@ -128,7 +155,9 @@ class MangaBackupRestorer(
     }
 
     private suspend fun restoreChapters(manga: Manga, chapters: List<Chapter>) {
-        val dbChapters = getChapter.awaitAll(manga)
+        // Unmerged: chapters are matched by url below and have their ids copied over, so a
+        // merged list could hand this manga an id belonging to another source's manga row.
+        val dbChapters = getChapter.awaitAllRaw(manga.id!!, manga.filtered_scanlators?.isNotEmpty() == true)
 
         chapters.forEach { chapter ->
             val dbChapter = dbChapters.find { it.url == chapter.url }

@@ -30,7 +30,7 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "Yokai"
+rootProject.name = "Karasu"
 include(":app")
 include(":core:archive")
 include(":core:main")

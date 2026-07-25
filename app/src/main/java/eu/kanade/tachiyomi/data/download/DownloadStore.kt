@@ -10,8 +10,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.manga.interactor.GetManga
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.interactor.GetManga
 
 /**
  * This class is used to persist active downloads across application restarts.

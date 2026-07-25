@@ -11,3 +11,9 @@
 .kotlin/
 kls_database.db
 weblate.conf
+
+# Claude Code / ferramentas locais — não versionar
+.claude/
+CLAUDE.md
+graphify-out/
+PLANO.md

@@ -20,9 +20,9 @@ import java.util.concurrent.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.manga.interactor.GetManga
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.manga.interactor.GetManga
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * Class used to create cover cache.

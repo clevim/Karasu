@@ -2,7 +2,7 @@
 
 -keep,allowoptimization class eu.kanade.**
 -keep,allowoptimization class tachiyomi.**
--keep,allowoptimization class yokai.**
+-keep,allowoptimization class karasu.**
 
 # Keep common dependencies used in extensions
 -keep,allowoptimization class androidx.preference.** { public protected *; }
@@ -74,11 +74,11 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
--keep,includedescriptorclasses class yokai.**$$serializer { *; }
--keepclassmembers class yokai.** {
+-keep,includedescriptorclasses class karasu.**$$serializer { *; }
+-keepclassmembers class karasu.** {
     *** Companion;
 }
--keepclasseswithmembers class yokai.** {
+-keepclasseswithmembers class karasu.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

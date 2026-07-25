@@ -73,18 +73,18 @@ import org.koin.core.context.startKoin
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.core.CrashlyticsLogWriter
-import yokai.core.RollingUniFileLogWriter
-import yokai.core.di.appModule
-import yokai.core.di.domainModule
-import yokai.core.di.initExpensiveComponents
-import yokai.core.di.preferenceModule
-import yokai.core.migration.Migrator
-import yokai.core.migration.migrations.migrations
-import yokai.domain.base.BasePreferences
-import yokai.domain.storage.StorageManager
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.core.CrashlyticsLogWriter
+import karasu.core.RollingUniFileLogWriter
+import karasu.core.di.appModule
+import karasu.core.di.domainModule
+import karasu.core.di.initExpensiveComponents
+import karasu.core.di.preferenceModule
+import karasu.core.migration.Migrator
+import karasu.core.migration.migrations.migrations
+import karasu.domain.base.BasePreferences
+import karasu.domain.storage.StorageManager
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 

@@ -4,8 +4,8 @@ import android.content.Context
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.library.LibrarySort
 import java.io.Serializable
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 interface Category : Serializable {
 
@@ -18,6 +18,9 @@ interface Category : Serializable {
     var flags: Int
 
     var mangaOrder: List<Long>
+
+    /** Serialized [karasu.domain.category.models.CategoryRule], null for a manual category. */
+    var rule: String?
 
     var mangaSort: Char?
 
@@ -118,11 +121,13 @@ interface Category : Serializable {
             sort: Long,
             flags: Long,
             orderString: String,
+            rule: String?,
         ) = create(name).also {
             it.id = id.toInt()
             it.name = name
             it.order = sort.toInt()
             it.flags = flags.toInt()
+            it.rule = rule
 
             val (mangaSort, order) = mangaOrderFromString(orderString)
             if (mangaSort != null) it.mangaSort = mangaSort

@@ -3,8 +3,9 @@ package eu.kanade.tachiyomi.data.backup.restore.restorers
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.data.DatabaseHandler
-import yokai.domain.category.interactor.GetCategories
+import karasu.data.DatabaseHandler
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.models.CategoryRuleTargets
 
 class CategoriesBackupRestorer(
     private val getCategories: GetCategories = Injekt.get(),
@@ -13,8 +14,9 @@ class CategoriesBackupRestorer(
     suspend fun restoreCategories(backupCategories: List<BackupCategory>, onComplete: () -> Unit) {
         // Get categories from file and from db
         handler.await(true) {
+            val categories = backupCategories.map { it.getCategoryImpl() }
             // Iterate over them
-            backupCategories.map { it.getCategoryImpl() }.forEach { category ->
+            categories.forEach { category ->
                 // Used to know if the category is already in the db
                 var found = false
                 for (dbCategory in getCategories.await()) {
@@ -36,9 +38,22 @@ class CategoriesBackupRestorer(
                         mangaOrder = category.mangaOrderToString(),
                         sort = category.order.toLong(),
                         flags = category.flags.toLong(),
+                        // Resolved below: the categories a rule points at may not exist yet.
+                        rule = null,
                     )
                     category.id = categoriesQueries.selectLastInsertedRowId().executeAsOneOrNull()?.toInt()
                 }
+            }
+
+            // Rules travel with their targets named, so they can only be turned back into ids
+            // once every category in the backup has one.
+            val nameToId = categories.mapNotNull { category ->
+                category.id?.let { category.name to it.toLong() }
+            }.toMap()
+            categories.forEach { category ->
+                val id = category.id?.toLong() ?: return@forEach
+                val rule = CategoryRuleTargets.namesToIds(category.rule, nameToId) ?: return@forEach
+                categoriesQueries.updateRule(rule = rule, id = id)
             }
         }
 

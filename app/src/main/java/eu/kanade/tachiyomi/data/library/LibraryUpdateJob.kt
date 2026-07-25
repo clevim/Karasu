@@ -44,6 +44,7 @@ import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithTrackServiceTwoWay
 import eu.kanade.tachiyomi.util.manga.MangaShortcutManager
@@ -53,6 +54,7 @@ import eu.kanade.tachiyomi.util.storage.getUriCompat
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import eu.kanade.tachiyomi.util.system.e
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
+import eu.kanade.tachiyomi.util.system.isOnline
 import eu.kanade.tachiyomi.util.system.localeContext
 import eu.kanade.tachiyomi.util.system.tryToSetForeground
 import eu.kanade.tachiyomi.util.system.withIOContext
@@ -83,15 +85,17 @@ import kotlinx.coroutines.sync.withPermit
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.manga.interactor.GetLibraryManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.cover
-import yokai.domain.track.interactor.GetTrack
-import yokai.domain.track.interactor.InsertTrack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.failures.interactor.UpdateFailures
+import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.cover
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class LibraryUpdateJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -106,6 +110,9 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     private val trackManager: TrackManager = Injekt.get()
     private val mangaShortcutManager: MangaShortcutManager = Injekt.get()
     private val getLibraryManga: GetLibraryManga = Injekt.get()
+    private val mergedSourceSync: MergedSourceSync = Injekt.get()
+    private val applyCategoryRules: ApplyCategoryRules = Injekt.get()
+    private val updateFailures: UpdateFailures = Injekt.get()
     private val updateManga: UpdateManga = Injekt.get()
     private val getTrack: GetTrack = Injekt.get()
     private val insertTrack: InsertTrack by injectLazy()
@@ -190,6 +197,9 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         return withIOContext {
             try {
                 launchTarget(target, mangaList)
+                // New chapters change the counts category rules read, so re-file the library
+                // before the run ends rather than leaving it stale until the next one.
+                applyCategoryRules.await()
                 Result.success()
             } catch (e: Exception) {
                 if (e is CancellationException) {
@@ -414,40 +424,54 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             var hasDownloads = false
             ensureActive()
             notifier.showProgressNotification(manga.manga, progress, mangaToUpdate.size)
+            // Merged sources live on their own non-favourite rows, which this job never
+            // walks, so refresh them alongside the manga they belong to.
+            val mergedChapters = mergedSourceSync.await(manga.manga.id!!)
+
             val fetchedChapters = source.getChapterList(manga.manga.copy())
 
-            if (fetchedChapters.isNotEmpty()) {
-                val newChapters = syncChaptersWithSource(fetchedChapters, manga.manga, source)
-                if (newChapters.first.isNotEmpty()) {
-                    if (shouldDownload) {
-                        downloadChapters(
-                            manga.manga,
-                            newChapters.first.sortedBy { it.chapter_number },
-                        )
-                        hasDownloads = true
-                    }
-                    newUpdates[manga] =
-                        newChapters.first.sortedBy { it.chapter_number }.toTypedArray()
+            val newChapters = if (fetchedChapters.isNotEmpty()) {
+                syncChaptersWithSource(fetchedChapters, manga.manga, source)
+            } else {
+                // A source that returns nothing is the case merging exists for, so the merged
+                // sources' chapters are still handled below.
+                emptyList<Chapter>() to emptyList()
+            }
+
+            // Chapters a merged source brought in show up in this manga's list, so they are
+            // new chapters of this manga as far as the user is concerned. They download under
+            // this manga's folder and their pages are fetched from the source they came from,
+            // which `MergedSourceFallback` resolves.
+            val added = (newChapters.first + mergedChapters).sortedBy { it.chapter_number }
+            if (added.isNotEmpty()) {
+                if (shouldDownload) {
+                    downloadChapters(manga.manga, added)
+                    hasDownloads = true
                 }
-                if (deleteRemoved && newChapters.second.isNotEmpty()) {
-                    val removedChapters = newChapters.second.filter {
-                        downloadManager.isChapterDownloaded(it, manga.manga) &&
-                            newChapters.first.none { newChapter ->
-                                newChapter.chapter_number == it.chapter_number && it.scanlator.isNullOrBlank()
-                            }
-                    }
-                    if (removedChapters.isNotEmpty()) {
-                        downloadManager.deleteChapters(removedChapters, manga.manga, source)
-                    }
+                newUpdates[manga] = added.toTypedArray()
+            }
+            if (deleteRemoved && newChapters.second.isNotEmpty()) {
+                val removedChapters = newChapters.second.filter {
+                    downloadManager.isChapterDownloaded(it, manga.manga) &&
+                        newChapters.first.none { newChapter ->
+                            newChapter.chapter_number == it.chapter_number && it.scanlator.isNullOrBlank()
+                        }
                 }
-                if (newChapters.first.size + newChapters.second.size > 0) {
-                    sendUpdate(manga.manga.id)
+                if (removedChapters.isNotEmpty()) {
+                    downloadManager.deleteChapters(removedChapters, manga.manga, source)
                 }
             }
+            if (added.isNotEmpty() || newChapters.second.isNotEmpty()) {
+                sendUpdate(manga.manga.id)
+            }
+            // Reaching here means the source answered, which is what makes the failure count
+            // below a count of *consecutive* failures.
+            manga.manga.id?.let { updateFailures.clear(it) }
             return@coroutineScope hasDownloads
         } catch (e: Exception) {
             if (e !is CancellationException) {
                 failedUpdates[manga.manga] = e.message
+                manga.manga.id?.let { updateFailures.record(it, e, context.isOnline()) }
                 Logger.e { "Failed updating: ${manga.manga.title}: $e" }
             }
             return@coroutineScope false

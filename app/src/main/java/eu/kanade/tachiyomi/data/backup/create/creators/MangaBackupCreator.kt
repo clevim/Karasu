@@ -4,16 +4,18 @@ import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupMergedSource
 import eu.kanade.tachiyomi.data.backup.models.BackupTracking
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.data.DatabaseHandler
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.track.interactor.GetTrack
+import karasu.data.DatabaseHandler
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.track.interactor.GetTrack
 
 class MangaBackupCreator(
     private val customMangaManager: CustomMangaManager = Injekt.get(),
@@ -22,6 +24,7 @@ class MangaBackupCreator(
     private val getChapter: GetChapter = Injekt.get(),
     private val getHistory: GetHistory = Injekt.get(),
     private val getTrack: GetTrack = Injekt.get(),
+    private val mergedSources: MergedSources = Injekt.get(),
 ) {
     suspend operator fun invoke(mangas: List<Manga>, options: BackupOptions): List<BackupManga> {
         return mangas.map {
@@ -89,6 +92,17 @@ class MangaBackupCreator(
                 }
                 if (history.isNotEmpty()) {
                     mangaObject.history = history
+                }
+            }
+        }
+
+        // Merged sources ride along with the chapters they contribute; without them the
+        // restored manga would silently lose every chapter its own source doesn't have.
+        if (options.chapters) {
+            val merges = manga.id?.let { mergedSources.await(it) }.orEmpty()
+            if (merges.isNotEmpty()) {
+                mangaObject.mergedSources = merges.map {
+                    BackupMergedSource(it.source, it.url, it.priority)
                 }
             }
         }

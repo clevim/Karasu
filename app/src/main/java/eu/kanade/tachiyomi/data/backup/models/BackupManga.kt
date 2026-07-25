@@ -10,7 +10,7 @@ import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
-import yokai.domain.library.custom.model.CustomMangaInfo
+import karasu.domain.library.custom.model.CustomMangaInfo
 
 @Suppress("DEPRECATION")
 @Serializable
@@ -55,6 +55,7 @@ data class BackupManga(
     // skipping 803 due to using duplicate value in previous builds
     @ProtoNumber(804) var customDescription: String? = null,
     @ProtoNumber(805) var customGenre: List<String>? = null,
+    @ProtoNumber(806) var mergedSources: List<BackupMergedSource> = emptyList(),
 ) {
     fun getMangaImpl(): MangaImpl {
         return MangaImpl(

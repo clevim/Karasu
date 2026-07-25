@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
+import eu.kanade.tachiyomi.source.MergedSourceFallback
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.model.Page
@@ -56,14 +57,14 @@ import okhttp3.Response
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.core.archive.ZipWriter
-import yokai.core.metadata.COMIC_INFO_FILE
-import yokai.core.metadata.ComicInfo
-import yokai.core.metadata.getComicInfo
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.download.DownloadPreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.core.archive.ZipWriter
+import karasu.core.metadata.COMIC_INFO_FILE
+import karasu.core.metadata.ComicInfo
+import karasu.core.metadata.getComicInfo
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.download.DownloadPreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * This class is the one in charge of downloading chapters.
@@ -81,6 +82,7 @@ class Downloader(
     private val chapterCache: ChapterCache by injectLazy()
     private val xml: XML by injectLazy()
     private val getCategories: GetCategories by injectLazy()
+    private val mergedSourceFallback: MergedSourceFallback by injectLazy()
 
     /**
      * Store for persisting downloads across restarts.
@@ -338,7 +340,11 @@ class Downloader(
             // If the page list already exists, start from the file
             val pageList = download.pages ?: run {
                 // Otherwise, pull page list from network and add them to download object
-                val pages = download.source.getPageList(download.chapter)
+                val pages = when (val mangaId = download.manga.id) {
+                    // Never persisted, so it can't have merged sources to fall back to.
+                    null -> download.source.getPageList(download.chapter)
+                    else -> mergedSourceFallback.getPageList(mangaId, download.chapter, download.source)
+                }
 
                 if (pages.isEmpty()) {
                     throw Exception(context.getString(MR.strings.no_pages_found))

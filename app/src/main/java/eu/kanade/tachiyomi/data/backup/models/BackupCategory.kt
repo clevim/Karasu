@@ -15,6 +15,8 @@ class BackupCategory(
 
     // J2K Specific values
     @ProtoNumber(800) var mangaSort: Char? = null,
+    // Without this the whole rule graph is lost on restore, since it lives on the category.
+    @ProtoNumber(801) var rule: String? = null,
 ) {
     fun getCategoryImpl(): CategoryImpl {
         return CategoryImpl().apply {
@@ -22,6 +24,7 @@ class BackupCategory(
             flags = this@BackupCategory.flags
             order = this@BackupCategory.order
             mangaSort = this@BackupCategory.mangaSort
+            rule = this@BackupCategory.rule
         }
     }
 
@@ -32,6 +35,7 @@ class BackupCategory(
                 order = category.order,
                 flags = category.flags,
                 mangaSort = category.mangaSort,
+                rule = category.rule,
             )
         }
     }

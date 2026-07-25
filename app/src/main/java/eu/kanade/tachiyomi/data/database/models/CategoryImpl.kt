@@ -12,6 +12,8 @@ class CategoryImpl : Category {
 
     override var mangaOrder: List<Long> = emptyList()
 
+    override var rule: String? = null
+
     override var mangaSort: Char? = null
 
     override var isAlone: Boolean = false

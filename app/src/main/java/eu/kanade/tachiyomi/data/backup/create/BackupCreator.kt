@@ -24,10 +24,10 @@ import okio.gzip
 import okio.sink
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.backup.BackupPreferences
-import yokai.domain.manga.interactor.GetManga
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.backup.BackupPreferences
+import karasu.domain.manga.interactor.GetManga
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 class BackupCreator(
     val context: Context,

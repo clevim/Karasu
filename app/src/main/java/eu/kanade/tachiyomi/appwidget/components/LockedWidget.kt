@@ -19,8 +19,8 @@ import androidx.glance.unit.ColorProvider
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.appwidget.ContainerModifier
 import eu.kanade.tachiyomi.appwidget.util.stringResource
-import yokai.i18n.MR
-import yokai.presentation.core.Constants
+import karasu.i18n.MR
+import karasu.presentation.core.Constants
 
 @Composable
 fun LockedWidget() {
