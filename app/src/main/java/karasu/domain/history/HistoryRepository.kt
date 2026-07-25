@@ -1,4 +1,4 @@
-package yokai.domain.history
+package karasu.domain.history
 
 import eu.kanade.tachiyomi.data.database.models.History
 import eu.kanade.tachiyomi.data.database.models.MangaChapterHistory

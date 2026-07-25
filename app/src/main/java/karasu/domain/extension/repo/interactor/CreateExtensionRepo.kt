@@ -1,18 +1,19 @@
-package yokai.domain.extension.repo.interactor
+package karasu.domain.extension.repo.interactor
 
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.network.NetworkHelper
 import okhttp3.OkHttpClient
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.extension.repo.ExtensionRepoRepository
-import yokai.domain.extension.repo.exception.SaveExtensionRepoException
-import yokai.domain.extension.repo.model.ExtensionRepo
-import yokai.domain.extension.repo.service.ExtensionRepoService
+import karasu.domain.extension.repo.ExtensionRepoRepository
+import karasu.domain.extension.repo.exception.SaveExtensionRepoException
+import karasu.domain.extension.repo.model.ExtensionRepo
+import karasu.domain.extension.repo.service.ExtensionRepoService
 
 class CreateExtensionRepo(
     private val extensionRepoRepository: ExtensionRepoRepository
 ) {
-    private val repoRegex = """^https://.*/index\.min\.json$""".toRegex()
+    // ponytail: index.pb aceito só para achar a baseUrl; o fetch continua em index.min.json
+    private val repoRegex = """^https://.*/index\.(min\.json|pb)$""".toRegex()
 
     private val networkService: NetworkHelper by injectLazy()
 
@@ -26,7 +27,7 @@ class CreateExtensionRepo(
             return Result.InvalidUrl
         }
 
-        val baseUrl = repoUrl.removeSuffix("/index.min.json")
+        val baseUrl = repoUrl.substringBeforeLast('/')
         return extensionRepoService.fetchRepoDetails(baseUrl)?.let { insert(it) } ?: Result.InvalidUrl
     }
 

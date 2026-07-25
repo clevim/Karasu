@@ -45,16 +45,16 @@ import kotlinx.serialization.json.Json
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.InsertManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.source.browse.filter.FilterSerializer
-import yokai.domain.source.browse.filter.interactor.DeleteSavedSearch
-import yokai.domain.source.browse.filter.interactor.GetSavedSearch
-import yokai.domain.source.browse.filter.interactor.InsertSavedSearch
-import yokai.domain.source.browse.filter.models.SavedSearch
-import yokai.domain.ui.UiPreferences
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.source.browse.filter.FilterSerializer
+import karasu.domain.source.browse.filter.interactor.DeleteSavedSearch
+import karasu.domain.source.browse.filter.interactor.GetSavedSearch
+import karasu.domain.source.browse.filter.interactor.InsertSavedSearch
+import karasu.domain.source.browse.filter.models.SavedSearch
+import karasu.domain.ui.UiPreferences
 
 // FIXME: Migrate to Compose
 /**

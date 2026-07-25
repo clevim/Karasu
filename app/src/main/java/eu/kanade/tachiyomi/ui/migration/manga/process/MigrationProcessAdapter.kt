@@ -21,20 +21,20 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.chapter.models.ChapterUpdate
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.history.interactor.UpsertHistory
-import yokai.domain.library.custom.model.CustomMangaInfo.Companion.getMangaInfo
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.track.interactor.GetTrack
-import yokai.domain.track.interactor.InsertTrack
-import yokai.domain.ui.UiPreferences
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.chapter.models.ChapterUpdate
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.history.interactor.UpsertHistory
+import karasu.domain.library.custom.model.CustomMangaInfo.Companion.getMangaInfo
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
+import karasu.domain.ui.UiPreferences
 
 class MigrationProcessAdapter(
     val controller: MigrationListController,

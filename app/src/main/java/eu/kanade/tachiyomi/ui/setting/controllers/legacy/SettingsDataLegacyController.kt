@@ -45,12 +45,12 @@ import eu.kanade.tachiyomi.util.view.setTitle
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.backup.BackupPreferences
-import yokai.domain.storage.StorageManager
-import yokai.domain.storage.StoragePreferences
-import yokai.i18n.MR
-import yokai.presentation.settings.screen.BACKUPS_HELP_URL
-import yokai.util.lang.getString
+import karasu.domain.backup.BackupPreferences
+import karasu.domain.storage.StorageManager
+import karasu.domain.storage.StoragePreferences
+import karasu.i18n.MR
+import karasu.presentation.settings.screen.BACKUPS_HELP_URL
+import karasu.util.lang.getString
 import android.R as AR
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes

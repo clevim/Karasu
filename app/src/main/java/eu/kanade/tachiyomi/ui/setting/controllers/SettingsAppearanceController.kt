@@ -32,9 +32,9 @@ import eu.kanade.tachiyomi.util.view.moveRecyclerViewUp
 import kotlin.math.max
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import yokai.domain.base.BasePreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.base.BasePreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes

@@ -1,13 +1,13 @@
-package yokai.core.migration.migrations
+package karasu.core.migration.migrations
 
 import android.app.Application
 import androidx.preference.PreferenceManager
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys
-import yokai.core.migration.Migration
-import yokai.core.migration.MigrationContext
-import yokai.domain.ui.settings.ReaderPreferences
-import yokai.domain.ui.settings.ReaderPreferences.CutoutBehaviour
-import yokai.domain.ui.settings.ReaderPreferences.LandscapeCutoutBehaviour
+import karasu.core.migration.Migration
+import karasu.core.migration.MigrationContext
+import karasu.domain.ui.settings.ReaderPreferences
+import karasu.domain.ui.settings.ReaderPreferences.CutoutBehaviour
+import karasu.domain.ui.settings.ReaderPreferences.LandscapeCutoutBehaviour
 
 class CutoutMigration : Migration {
     override val version: Float = 121f

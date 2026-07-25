@@ -1,12 +1,15 @@
-package yokai.data.track
+package karasu.data.track
 
 import eu.kanade.tachiyomi.data.database.models.Track
-import yokai.data.DatabaseHandler
-import yokai.domain.track.TrackRepository
+import karasu.data.DatabaseHandler
+import karasu.domain.track.TrackRepository
 
 class TrackRepositoryImpl(private val handler: DatabaseHandler) : TrackRepository {
     override suspend fun getAllByMangaId(mangaId: Long): List<Track> =
         handler.awaitList { manga_syncQueries.getAllByMangaId(mangaId, Track::mapper) }
+
+    override suspend fun getAll(): List<Track> =
+        handler.awaitList { manga_syncQueries.getAll(Track::mapper) }
 
     override suspend fun deleteForManga(mangaId: Long, syncId: Long) {
         handler.await { manga_syncQueries.deleteForManga(mangaId, syncId) }

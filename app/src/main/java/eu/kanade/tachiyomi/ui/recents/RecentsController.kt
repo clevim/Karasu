@@ -96,8 +96,8 @@ import eu.kanade.tachiyomi.widget.LinearLayoutManagerAccurateOffset
 import java.util.Locale
 import kotlin.math.max
 import kotlinx.coroutines.launch
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 /**
@@ -122,8 +122,12 @@ class RecentsController(bundle: Bundle? = null) :
         retainViewMode = RetainViewMode.RETAIN_DETACH
     }
 
-    /** Adapter containing the recent manga. */
-    private lateinit var adapter: RecentMangaAdapter
+    /** Adapter containing the recent manga. Nulled in onDestroyView so it doesn't outlive its recycler. */
+    private var _adapter: RecentMangaAdapter? = null
+    private val adapter: RecentMangaAdapter get() = _adapter!!
+
+    /** Survives view destruction, unlike [_adapter], so returning to this controller is still detected. */
+    private var hasCreatedAdapter = false
     var displaySheet: TabbedRecentsOptionsSheet? = null
 
     private var progressItem: ProgressItem? = null
@@ -172,8 +176,9 @@ class RecentsController(bundle: Bundle? = null) :
     override fun onViewCreated(view: View) {
         super.onViewCreated(view)
         // Initialize adapter
-        val isReturning = this::adapter.isInitialized
-        adapter = RecentMangaAdapter(this)
+        val isReturning = hasCreatedAdapter
+        hasCreatedAdapter = true
+        _adapter = RecentMangaAdapter(this)
         adapter.setPreferenceFlows()
         binding.recycler.adapter = adapter
         binding.recycler.layoutManager = LinearLayoutManagerAccurateOffset(view.context)
@@ -481,6 +486,7 @@ class RecentsController(bundle: Bundle? = null) :
     }
 
     fun setRefreshing(refresh: Boolean) {
+        view ?: return
         binding.swipeRefresh.isRefreshing = refresh
     }
 
@@ -557,14 +563,17 @@ class RecentsController(bundle: Bundle? = null) :
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isBindingInitialized) {
-            binding.downloadBottomSheet.root.onDestroy()
-        }
         snack?.dismiss()
         snack = null
     }
 
     override fun onDestroyView(view: View) {
+        // Paired with dlBottomSheet.onCreate(this) in onViewCreated, which re-attaches the presenter
+        binding.downloadBottomSheet.root.onDestroy()
+        snack?.dismiss()
+        snack = null
+        progressItem = null
+        _adapter = null
         super.onDestroyView(view)
         displaySheet?.dismiss()
         displaySheet = null
@@ -632,7 +641,7 @@ class RecentsController(bundle: Bundle? = null) :
     }
 
     fun updateChapterDownload(download: Download) {
-        if (view == null || !this::adapter.isInitialized) return
+        if (view == null || _adapter == null) return
         val id = download.chapter.id ?: return
         val item = adapter.getItemByChapterId(id) ?: return
         val holder = binding.recycler.findViewHolderForItemId(item.id!!) as? RecentMangaHolder ?: return
@@ -650,6 +659,7 @@ class RecentsController(bundle: Bundle? = null) :
     }
 
     fun updateDownloadStatus(isRunning: Boolean) {
+        view ?: return
         binding.downloadBottomSheet.dlBottomSheet.update(isRunning)
     }
 

@@ -1,17 +1,18 @@
-package yokai.core.migration.migrations
+package karasu.core.migration.migrations
 
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
-import yokai.core.migration.Migration
+import karasu.core.migration.Migration
 
 val migrations: ImmutableList<Migration> = persistentListOf(
     // Always run
     SetupAppUpdateMigration(),
     SetupBackupCreateMigration(),
     SetupExtensionUpdateMigration(),
+    SetupKoreaderSyncMigration(),
     SetupLibraryUpdateMigration(),
 
-    // Yokai fork
+    // Karasu fork
     CutoutMigration(),
     ExtensionInstallerEnumMigration(),
     RepoJsonMigration(),

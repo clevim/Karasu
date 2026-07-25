@@ -1,9 +1,9 @@
-package yokai.core.migration.migrations
+package karasu.core.migration.migrations
 
 import android.app.Application
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
-import yokai.core.migration.Migration
-import yokai.core.migration.MigrationContext
+import karasu.core.migration.Migration
+import karasu.core.migration.MigrationContext
 
 class SetupLibraryUpdateMigration : Migration {
     override val version: Float = Migration.ALWAYS

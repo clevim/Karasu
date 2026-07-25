@@ -1,7 +1,7 @@
-package yokai.domain.category.interactor
+package karasu.domain.category.interactor
 
 import eu.kanade.tachiyomi.data.database.models.Category
-import yokai.domain.category.CategoryRepository
+import karasu.domain.category.CategoryRepository
 
 class InsertCategories(
     private val categoryRepository: CategoryRepository,

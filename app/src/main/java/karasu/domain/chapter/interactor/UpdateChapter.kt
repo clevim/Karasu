@@ -1,7 +1,7 @@
-package yokai.domain.chapter.interactor
+package karasu.domain.chapter.interactor
 
-import yokai.domain.chapter.ChapterRepository
-import yokai.domain.chapter.models.ChapterUpdate
+import karasu.domain.chapter.ChapterRepository
+import karasu.domain.chapter.models.ChapterUpdate
 
 class UpdateChapter(
     private val chapterRepository: ChapterRepository,

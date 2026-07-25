@@ -1,8 +1,8 @@
-package yokai.domain.category
+package karasu.domain.category
 
 import eu.kanade.tachiyomi.data.database.models.Category
 import kotlinx.coroutines.flow.Flow
-import yokai.domain.category.models.CategoryUpdate
+import karasu.domain.category.models.CategoryUpdate
 
 interface CategoryRepository {
     suspend fun getAll(): List<Category>
@@ -12,5 +12,6 @@ interface CategoryRepository {
     suspend fun insertBulk(categories: List<Category>)
     suspend fun update(update: CategoryUpdate): Boolean
     suspend fun updateAll(updates: List<CategoryUpdate>): Boolean
+    suspend fun setRule(id: Long, rule: String?)
     suspend fun delete(id: Long)
 }

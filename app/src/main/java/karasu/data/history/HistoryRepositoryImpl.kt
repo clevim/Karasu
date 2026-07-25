@@ -1,10 +1,10 @@
-package yokai.data.history
+package karasu.data.history
 
 import eu.kanade.tachiyomi.data.database.models.History
 import eu.kanade.tachiyomi.data.database.models.MangaChapterHistory
 import eu.kanade.tachiyomi.util.system.toInt
-import yokai.data.DatabaseHandler
-import yokai.domain.history.HistoryRepository
+import karasu.data.DatabaseHandler
+import karasu.domain.history.HistoryRepository
 
 class HistoryRepositoryImpl(private val handler: DatabaseHandler) : HistoryRepository {
     override suspend fun upsert(chapterId: Long, lastRead: Long, timeRead: Long) =

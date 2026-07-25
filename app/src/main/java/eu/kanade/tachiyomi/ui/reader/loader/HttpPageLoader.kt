@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.loader
 
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.source.MergedSourceFallback
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
@@ -31,6 +32,7 @@ class HttpPageLoader(
     private val source: HttpSource,
     private val chapterCache: ChapterCache = Injekt.get(),
     private val preferences: PreferencesHelper = Injekt.get(),
+    private val mergedSourceFallback: MergedSourceFallback = Injekt.get(),
 ) : PageLoader() {
 
     override val isLocal: Boolean = false
@@ -93,7 +95,11 @@ class HttpPageLoader(
             if (e is CancellationException) {
                 throw e
             }
-            source.getPageList(chapter.chapter)
+            when (val mangaId = chapter.chapter.manga_id) {
+                // Never persisted, so it can't have merged sources to fall back to.
+                null -> source.getPageList(chapter.chapter)
+                else -> mergedSourceFallback.getPageList(mangaId, chapter.chapter, source)
+            }
         }
         return pages.mapIndexed { index, page ->
             // Don't trust sources and use our own indexing

@@ -1,4 +1,4 @@
-package yokai.core
+package karasu.core
 
 import co.touchlab.kermit.DefaultFormatter
 import co.touchlab.kermit.LogWriter

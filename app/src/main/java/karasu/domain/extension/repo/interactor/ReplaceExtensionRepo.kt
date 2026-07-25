@@ -1,7 +1,7 @@
-package yokai.domain.extension.repo.interactor
+package karasu.domain.extension.repo.interactor
 
-import yokai.domain.extension.repo.ExtensionRepoRepository
-import yokai.domain.extension.repo.model.ExtensionRepo
+import karasu.domain.extension.repo.ExtensionRepoRepository
+import karasu.domain.extension.repo.model.ExtensionRepo
 
 class ReplaceExtensionRepo(
     private val extensionRepoRepository: ExtensionRepoRepository

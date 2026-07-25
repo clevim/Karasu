@@ -1,7 +1,7 @@
-package yokai.domain.history.interactor
+package karasu.domain.history.interactor
 
 import eu.kanade.tachiyomi.data.database.models.History
-import yokai.domain.history.HistoryRepository
+import karasu.domain.history.HistoryRepository
 
 class UpsertHistory(
     private val historyRepository: HistoryRepository

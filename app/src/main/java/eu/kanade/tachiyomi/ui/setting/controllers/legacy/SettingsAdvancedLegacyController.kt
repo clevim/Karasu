@@ -83,18 +83,19 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import rikka.sui.Sui
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.base.BasePreferences
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.extension.interactor.TrustExtension
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.source.SourcePreferences
-import yokai.domain.ui.settings.ReaderPreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.base.BasePreferences
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.extension.interactor.TrustExtension
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.source.SourcePreferences
+import karasu.domain.ui.settings.ReaderPreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 @Deprecated("Migrating to compose", replaceWith = ReplaceWith("SettingsAdvancedController"))
 class SettingsAdvancedLegacyController : SettingsLegacyController() {
@@ -269,7 +270,23 @@ class SettingsAdvancedLegacyController : SettingsLegacyController() {
 
                 onClick {
                     network.cookieJar.removeAll()
+                    // The stored agents only mean something paired with the cookies just dropped.
+                    network.flareSolverr.userAgents.clear()
                     activity?.toast(MR.strings.cookies_cleared)
+                }
+            }
+            editTextPreference(activity) {
+                bindTo(networkPreferences.flareSolverrUrl())
+                titleMRes = MR.strings.flaresolverr_url
+                summaryMRes = MR.strings.flaresolverr_url_summary
+
+                onChange {
+                    it as String
+                    if (it.isNotBlank() && it.trim().toHttpUrlOrNull() == null) {
+                        context.toast(MR.strings.error_flaresolverr_url_invalid)
+                        return@onChange false
+                    }
+                    true
                 }
             }
             intListPreference(activity) {

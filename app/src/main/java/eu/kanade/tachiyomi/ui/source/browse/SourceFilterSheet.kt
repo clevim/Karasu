@@ -23,8 +23,8 @@ import eu.kanade.tachiyomi.util.view.checkHeightThen
 import eu.kanade.tachiyomi.util.view.collapse
 import eu.kanade.tachiyomi.util.view.doOnApplyWindowInsetsCompat
 import eu.kanade.tachiyomi.widget.E2EBottomSheetDialog
-import yokai.domain.source.browse.filter.models.SavedSearch
-import yokai.presentation.component.recyclerview.VertPaddingDecoration
+import karasu.domain.source.browse.filter.models.SavedSearch
+import karasu.presentation.component.recyclerview.VertPaddingDecoration
 import android.R as AR
 
 class SourceFilterSheet(

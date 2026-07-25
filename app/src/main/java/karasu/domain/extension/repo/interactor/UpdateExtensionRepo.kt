@@ -1,12 +1,12 @@
-package yokai.domain.extension.repo.interactor
+package karasu.domain.extension.repo.interactor
 
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import yokai.domain.extension.repo.ExtensionRepoRepository
-import yokai.domain.extension.repo.model.ExtensionRepo
-import yokai.domain.extension.repo.service.ExtensionRepoService
+import karasu.domain.extension.repo.ExtensionRepoRepository
+import karasu.domain.extension.repo.model.ExtensionRepo
+import karasu.domain.extension.repo.service.ExtensionRepoService
 
 class UpdateExtensionRepo(
     private val extensionRepoRepository: ExtensionRepoRepository,

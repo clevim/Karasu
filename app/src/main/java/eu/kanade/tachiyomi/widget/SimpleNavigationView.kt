@@ -17,8 +17,8 @@ import com.google.android.material.textfield.TextInputLayout
 import eu.kanade.tachiyomi.util.view.inflate
 import kotlin.math.min
 import eu.kanade.tachiyomi.R as TR
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 
 @Suppress("LeakingThis")

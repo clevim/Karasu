@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.CrossfadeTransition
 import eu.kanade.tachiyomi.ui.base.controller.BaseComposeController
-import yokai.presentation.settings.ComposableSettings
+import karasu.presentation.settings.ComposableSettings
 
 abstract class SettingsComposeController: BaseComposeController(), SettingsControllerInterface {
     override fun getTitle(): String? = __getTitle()

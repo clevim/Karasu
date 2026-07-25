@@ -1,6 +1,6 @@
-package yokai.domain.library.custom.interactor
+package karasu.domain.library.custom.interactor
 
-import yokai.domain.library.custom.CustomMangaRepository
+import karasu.domain.library.custom.CustomMangaRepository
 
 class RelinkCustomManga(
     private val customMangaRepository: CustomMangaRepository,

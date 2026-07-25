@@ -1,4 +1,4 @@
-package yokai.data.manga
+package karasu.data.manga
 
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.LibraryManga
@@ -6,10 +6,10 @@ import eu.kanade.tachiyomi.data.database.models.MangaCategory
 import eu.kanade.tachiyomi.data.database.models.mapper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import kotlinx.coroutines.flow.Flow
-import yokai.data.DatabaseHandler
-import yokai.data.updateStrategyAdapter
-import yokai.domain.manga.MangaRepository
-import yokai.domain.manga.models.MangaUpdate
+import karasu.data.DatabaseHandler
+import karasu.data.updateStrategyAdapter
+import karasu.domain.manga.MangaRepository
+import karasu.domain.manga.models.MangaUpdate
 
 class MangaRepositoryImpl(private val handler: DatabaseHandler) : MangaRepository {
     override suspend fun getMangaList(): List<Manga> =

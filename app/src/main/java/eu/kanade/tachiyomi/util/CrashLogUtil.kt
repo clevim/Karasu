@@ -17,19 +17,19 @@ import eu.kanade.tachiyomi.util.system.withNonCancellableContext
 import eu.kanade.tachiyomi.util.system.withUIContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import java.io.IOException
 
 class CrashLogUtil(private val context: Context) {
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_CRASH_LOGS) {
-        setSmallIcon(R.drawable.ic_yokai)
+        setSmallIcon(R.drawable.ic_karasu)
     }
 
     suspend fun dumpLogs(exception: Throwable? = null) = withNonCancellableContext {
         try {
-            val file = context.createFileInCacheDir("yokai_crash_logs.txt")
+            val file = context.createFileInCacheDir("karasu_crash_logs.txt")
             file.appendText(getDebugInfo() + "\n\n")
             file.appendText(getExtensionsInfo() + "\n\n")
             exception?.let { file.appendText("$it\n\n") }

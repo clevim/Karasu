@@ -1,10 +1,10 @@
-package yokai.core.migration.migrations
+package karasu.core.migration.migrations
 
 import android.app.Application
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
-import yokai.core.migration.Migration
-import yokai.core.migration.MigrationContext
+import karasu.core.migration.Migration
+import karasu.core.migration.MigrationContext
 
 class ThePurgeMigration : Migration {
     override val version: Float = 112f

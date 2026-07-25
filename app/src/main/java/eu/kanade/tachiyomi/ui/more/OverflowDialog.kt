@@ -12,8 +12,8 @@ import androidx.core.view.updateLayoutParams
 import androidx.vectordrawable.graphics.drawable.AnimatedVectorDrawableCompat
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.core.preference.toggle
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper

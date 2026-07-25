@@ -79,12 +79,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.source.browse.filter.models.SavedSearch
-import yokai.i18n.MR
-import yokai.presentation.core.icons.CustomIcons
-import yokai.presentation.core.icons.LocalSource
-import yokai.util.lang.getString
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.source.browse.filter.models.SavedSearch
+import karasu.i18n.MR
+import karasu.presentation.core.icons.CustomIcons
+import karasu.presentation.core.icons.LocalSource
+import karasu.util.lang.getString
 
 /**
  * Controller to manage the catalogues available in the app.
@@ -246,6 +246,9 @@ open class BrowseSourceController(bundle: Bundle) :
         adapter = null
         snack = null
         recycler = null
+        filterSheet?.dismiss()
+        filterSheet = null
+        progressItem = null
         super.onDestroyView(view)
     }
 

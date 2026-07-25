@@ -1,11 +1,11 @@
-package yokai.data.category
+package karasu.data.category
 
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Category
 import kotlinx.coroutines.flow.Flow
-import yokai.data.DatabaseHandler
-import yokai.domain.category.CategoryRepository
-import yokai.domain.category.models.CategoryUpdate
+import karasu.data.DatabaseHandler
+import karasu.domain.category.CategoryRepository
+import karasu.domain.category.models.CategoryUpdate
 
 class CategoryRepositoryImpl(private val handler: DatabaseHandler) : CategoryRepository {
     override suspend fun getAll(): List<Category> =
@@ -24,6 +24,7 @@ class CategoryRepositoryImpl(private val handler: DatabaseHandler) : CategoryRep
                 mangaOrder = category.mangaOrderToString(),
                 sort = category.order.toLong(),
                 flags = category.flags.toLong(),
+                rule = category.rule,
             )
             categoriesQueries.selectLastInsertedRowId()
         }
@@ -36,6 +37,7 @@ class CategoryRepositoryImpl(private val handler: DatabaseHandler) : CategoryRep
                     mangaOrder = category.mangaOrderToString(),
                     sort = category.order.toLong(),
                     flags = category.flags.toLong(),
+                    rule = category.rule,
                 )
             }
         }
@@ -72,6 +74,10 @@ class CategoryRepositoryImpl(private val handler: DatabaseHandler) : CategoryRep
                 )
             }
         }
+    }
+
+    override suspend fun setRule(id: Long, rule: String?) {
+        handler.await { categoriesQueries.updateRule(rule = rule, id = id) }
     }
 
     override suspend fun delete(id: Long) {

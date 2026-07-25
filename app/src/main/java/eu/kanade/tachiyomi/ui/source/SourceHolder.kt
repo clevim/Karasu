@@ -4,8 +4,8 @@ import android.content.res.ColorStateList
 import android.view.View
 import androidx.core.view.isVisible
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.databinding.SourceItemBinding
 import eu.kanade.tachiyomi.source.LocalSource
@@ -27,6 +27,10 @@ class SourceHolder(view: View, val adapter: SourceAdapter) :
         }
         binding.sourceLatest.setOnClickListener {
             adapter.sourceListener.onLatestClick(flexibleAdapterPosition)
+        }
+        binding.card.setOnLongClickListener {
+            adapter.sourceListener.onSourceLongClick(flexibleAdapterPosition, it)
+            true
         }
     }
 

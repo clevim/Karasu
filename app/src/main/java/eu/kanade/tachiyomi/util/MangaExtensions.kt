@@ -46,15 +46,15 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.track.interactor.InsertTrack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.track.interactor.InsertTrack
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 fun Manga.isLocal() = source == LocalSource.ID

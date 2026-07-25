@@ -5,9 +5,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.domain.source.browse.filter.FilterSerializer
-import yokai.domain.source.browse.filter.models.RawSavedSearch
-import yokai.domain.source.browse.filter.models.SavedSearch
+import karasu.domain.source.browse.filter.FilterSerializer
+import karasu.domain.source.browse.filter.models.RawSavedSearch
+import karasu.domain.source.browse.filter.models.SavedSearch
 
 fun RawSavedSearch.applySave(
     originalFilters: FilterList,

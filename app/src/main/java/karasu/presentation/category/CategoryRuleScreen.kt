@@ -348,7 +348,7 @@ private fun RuleHeader(
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
@@ -359,7 +359,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun ConditionRow(
+internal fun ConditionRow(
     condition: RuleCondition,
     onChange: (RuleCondition) -> Unit,
     onDelete: () -> Unit,
@@ -457,7 +457,7 @@ private fun NumberField(value: Long, onChange: (Long) -> Unit) {
 
 /** A dropdown chip that reads as part of the sentence instead of as a form field. */
 @Composable
-private fun Picker(label: String, options: List<String>, onSelect: (Int) -> Unit) {
+internal fun Picker(label: String, options: List<String>, onSelect: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     // secondaryContainer/onSecondaryContainer is the tonal pair meant for tappable chips: it keeps

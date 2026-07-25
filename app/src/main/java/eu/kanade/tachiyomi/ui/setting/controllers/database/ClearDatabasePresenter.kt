@@ -8,7 +8,7 @@ import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.withUIContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.data.DatabaseHandler
+import karasu.data.DatabaseHandler
 
 class ClearDatabasePresenter : BaseCoroutinePresenter<ClearDatabaseController>() {
 

@@ -72,23 +72,24 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.InsertChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.chapter.models.ChapterUpdate
-import yokai.domain.download.DownloadPreferences
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.history.interactor.UpsertHistory
-import yokai.domain.library.LibraryPreferences
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.InsertManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
-import yokai.domain.storage.StorageManager
-import yokai.domain.track.interactor.GetTrack
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.InsertChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.chapter.models.ChapterUpdate
+import karasu.domain.download.DownloadPreferences
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.history.interactor.UpsertHistory
+import karasu.domain.library.LibraryPreferences
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.storage.StorageManager
+import karasu.domain.track.interactor.GetTrack
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * Presenter used by the activity to perform background operations.
@@ -103,6 +104,7 @@ class ReaderViewModel(
     private val storageManager: StorageManager = Injekt.get(),
     private val downloadPreferences: DownloadPreferences = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val applyCategoryRules: ApplyCategoryRules = Injekt.get(),
 ) : ViewModel() {
     private val getCategories: GetCategories by injectLazy()
     private val getChapter: GetChapter by injectLazy()
@@ -655,6 +657,9 @@ class ReaderViewModel(
         readerChapter.chapter.read = true
         updateTrackChapterAfterReading(readerChapter)
         deleteChapterIfNeeded(readerChapter)
+        // Finishing a chapter is the moment "started reading" and "caught up" become true, so
+        // let the category rules act on it while the user is still in the reader.
+        manga?.id?.let { applyCategoryRules.awaitFor(it) }
 
         val markDuplicateAsRead = libraryPreferences.markDuplicateReadChapterAsRead().get()
             .contains(LibraryPreferences.MARK_DUPLICATE_READ_CHAPTER_READ_EXISTING)

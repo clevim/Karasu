@@ -1,4 +1,4 @@
-package yokai.core.metadata
+package karasu.core.metadata
 
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.source.model.SManga

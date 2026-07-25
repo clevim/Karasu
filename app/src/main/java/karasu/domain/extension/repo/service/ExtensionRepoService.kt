@@ -1,4 +1,4 @@
-package yokai.domain.extension.repo.service
+package karasu.domain.extension.repo.service
 
 import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
@@ -7,7 +7,7 @@ import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.parseAs
 import eu.kanade.tachiyomi.util.system.withIOContext
 import okhttp3.OkHttpClient
-import yokai.domain.extension.repo.model.ExtensionRepo
+import karasu.domain.extension.repo.model.ExtensionRepo
 
 class ExtensionRepoService(
     private val client: OkHttpClient,

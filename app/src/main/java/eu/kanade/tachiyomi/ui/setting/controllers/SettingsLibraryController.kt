@@ -33,12 +33,12 @@ import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.library.LibraryPreferences
-import yokai.domain.manga.interactor.GetLibraryManga
-import yokai.domain.ui.UiPreferences
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.library.LibraryPreferences
+import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.ui.UiPreferences
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes

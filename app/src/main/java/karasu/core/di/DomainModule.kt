@@ -1,66 +1,84 @@
-package yokai.core.di
+package karasu.core.di
 
+import eu.kanade.tachiyomi.source.MergedSourceFallback
+import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
 import org.koin.dsl.module
-import yokai.data.category.CategoryRepositoryImpl
-import yokai.data.chapter.ChapterRepositoryImpl
-import yokai.data.extension.repo.ExtensionRepoRepositoryImpl
-import yokai.data.history.HistoryRepositoryImpl
-import yokai.data.library.custom.CustomMangaRepositoryImpl
-import yokai.data.manga.MangaRepositoryImpl
-import yokai.data.source.browse.filter.SavedSearchRepositoryImpl
-import yokai.data.track.TrackRepositoryImpl
-import yokai.domain.category.CategoryRepository
-import yokai.domain.category.interactor.DeleteCategories
-import yokai.domain.category.interactor.GetCategories
-import yokai.domain.category.interactor.InsertCategories
-import yokai.domain.category.interactor.SetMangaCategories
-import yokai.domain.category.interactor.UpdateCategories
-import yokai.domain.chapter.ChapterRepository
-import yokai.domain.chapter.interactor.DeleteChapter
-import yokai.domain.chapter.interactor.GetAvailableScanlators
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.InsertChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.extension.interactor.TrustExtension
-import yokai.domain.extension.repo.ExtensionRepoRepository
-import yokai.domain.extension.repo.interactor.CreateExtensionRepo
-import yokai.domain.extension.repo.interactor.DeleteExtensionRepo
-import yokai.domain.extension.repo.interactor.GetExtensionRepo
-import yokai.domain.extension.repo.interactor.GetExtensionRepoCount
-import yokai.domain.extension.repo.interactor.ReplaceExtensionRepo
-import yokai.domain.extension.repo.interactor.UpdateExtensionRepo
-import yokai.domain.history.HistoryRepository
-import yokai.domain.history.interactor.GetHistory
-import yokai.domain.history.interactor.UpsertHistory
-import yokai.domain.library.custom.CustomMangaRepository
-import yokai.domain.library.custom.interactor.CreateCustomManga
-import yokai.domain.library.custom.interactor.DeleteCustomManga
-import yokai.domain.library.custom.interactor.GetCustomManga
-import yokai.domain.library.custom.interactor.RelinkCustomManga
-import yokai.domain.manga.MangaRepository
-import yokai.domain.manga.interactor.GetLibraryManga
-import yokai.domain.manga.interactor.GetManga
-import yokai.domain.manga.interactor.InsertManga
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.recents.interactor.GetRecents
-import yokai.domain.source.browse.filter.FilterSerializer
-import yokai.domain.source.browse.filter.SavedSearchRepository
-import yokai.domain.source.browse.filter.interactor.DeleteSavedSearch
-import yokai.domain.source.browse.filter.interactor.GetSavedSearch
-import yokai.domain.source.browse.filter.interactor.InsertSavedSearch
-import yokai.domain.track.TrackRepository
-import yokai.domain.track.interactor.DeleteTrack
-import yokai.domain.track.interactor.GetTrack
-import yokai.domain.track.interactor.InsertTrack
+import karasu.data.category.CategoryRepositoryImpl
+import karasu.data.chapter.ChapterRepositoryImpl
+import karasu.data.extension.repo.ExtensionRepoRepositoryImpl
+import karasu.data.history.HistoryRepositoryImpl
+import karasu.data.koreader.KoreaderApi
+import karasu.data.library.custom.CustomMangaRepositoryImpl
+import karasu.data.manga.MangaRepositoryImpl
+import karasu.data.manga.failures.MangaUpdateFailureRepositoryImpl
+import karasu.data.manga.merged.MergedMangaRepositoryImpl
+import karasu.data.source.browse.filter.SavedSearchRepositoryImpl
+import karasu.data.track.TrackRepositoryImpl
+import karasu.domain.category.CategoryRepository
+import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.DeleteCategories
+import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.InsertCategories
+import karasu.domain.category.interactor.SetMangaCategories
+import karasu.domain.category.interactor.TransferCategoryRules
+import karasu.domain.category.interactor.UpdateCategories
+import karasu.domain.chapter.ChapterRepository
+import karasu.domain.chapter.interactor.DeleteChapter
+import karasu.domain.chapter.interactor.GetAvailableScanlators
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.InsertChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.extension.interactor.TrustExtension
+import karasu.domain.extension.repo.ExtensionRepoRepository
+import karasu.domain.extension.repo.interactor.CreateExtensionRepo
+import karasu.domain.extension.repo.interactor.DeleteExtensionRepo
+import karasu.domain.extension.repo.interactor.GetExtensionRepo
+import karasu.domain.extension.repo.interactor.GetExtensionRepoCount
+import karasu.domain.extension.repo.interactor.ReplaceExtensionRepo
+import karasu.domain.extension.repo.interactor.UpdateExtensionRepo
+import karasu.domain.history.HistoryRepository
+import karasu.domain.history.interactor.GetHistory
+import karasu.domain.history.interactor.UpsertHistory
+import karasu.domain.koreader.interactor.SyncKoreaderShelf
+import karasu.domain.library.custom.CustomMangaRepository
+import karasu.domain.library.custom.interactor.CreateCustomManga
+import karasu.domain.library.custom.interactor.DeleteCustomManga
+import karasu.domain.library.custom.interactor.GetCustomManga
+import karasu.domain.library.custom.interactor.RelinkCustomManga
+import karasu.domain.manga.MangaRepository
+import karasu.domain.manga.failures.MangaUpdateFailureRepository
+import karasu.domain.manga.failures.interactor.GetBrokenSources
+import karasu.domain.manga.failures.interactor.UpdateFailures
+import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.merged.MergedMangaRepository
+import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.recents.interactor.GetRecents
+import karasu.domain.source.browse.filter.FilterSerializer
+import karasu.domain.source.browse.filter.SavedSearchRepository
+import karasu.domain.source.browse.filter.interactor.DeleteSavedSearch
+import karasu.domain.source.browse.filter.interactor.GetSavedSearch
+import karasu.domain.source.browse.filter.interactor.InsertSavedSearch
+import karasu.domain.track.TrackRepository
+import karasu.domain.track.interactor.DeleteTrack
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
 
 fun domainModule() = module {
     factory { TrustExtension(get(), get()) }
 
+    single { KoreaderApi(get(), get()) }
+    factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get()) }
+
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
+    factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { DeleteCategories(get()) }
     factory { GetCategories(get()) }
     factory { InsertCategories(get()) }
     factory { UpdateCategories(get()) }
+    factory { TransferCategoryRules(get(), get()) }
 
     single<ExtensionRepoRepository> { ExtensionRepoRepositoryImpl(get()) }
     factory { CreateExtensionRepo(get()) }
@@ -82,12 +100,21 @@ fun domainModule() = module {
     factory { InsertManga(get()) }
     factory { UpdateManga(get()) }
 
+    single<MangaUpdateFailureRepository> { MangaUpdateFailureRepositoryImpl(get()) }
+    factory { UpdateFailures(get()) }
+    factory { GetBrokenSources(get(), get(), get(), get()) }
+
+    single<MergedMangaRepository> { MergedMangaRepositoryImpl(get()) }
+    factory { MergedSources(get()) }
+    factory { MergedSourceFallback(get(), get(), get()) }
+    factory { MergedSourceSync(get(), get(), get(), get()) }
+
     factory { SetMangaCategories(get()) }
 
     single<ChapterRepository> { ChapterRepositoryImpl(get()) }
     factory { DeleteChapter(get()) }
     factory { GetAvailableScanlators(get()) }
-    factory { GetChapter(get()) }
+    factory { GetChapter(get(), get(), get()) }
     factory { InsertChapter(get()) }
     factory { UpdateChapter(get()) }
 

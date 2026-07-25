@@ -1,3 +1,3 @@
-package yokai.core.migration
+package karasu.core.migration
 
 typealias MigrationCompletedListener = () -> Unit

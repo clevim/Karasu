@@ -1,4 +1,4 @@
-package yokai.core.di
+package karasu.core.di
 
 import android.app.Application
 import androidx.core.content.ContextCompat
@@ -32,11 +32,11 @@ import nl.adaptivity.xmlutil.serialization.XML
 import org.koin.dsl.module
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import yokai.data.AndroidDatabaseHandler
-import yokai.data.Database
-import yokai.data.DatabaseHandler
-import yokai.domain.SplashState
-import yokai.domain.storage.StorageManager
+import karasu.data.AndroidDatabaseHandler
+import karasu.data.Database
+import karasu.data.DatabaseHandler
+import karasu.domain.SplashState
+import karasu.domain.storage.StorageManager
 
 fun appModule(app: Application) = module {
     single { app }

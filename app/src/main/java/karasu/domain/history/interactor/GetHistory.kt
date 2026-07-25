@@ -1,6 +1,6 @@
-package yokai.domain.history.interactor
+package karasu.domain.history.interactor
 
-import yokai.domain.history.HistoryRepository
+import karasu.domain.history.HistoryRepository
 
 class GetHistory(
     private val historyRepository: HistoryRepository

@@ -1,4 +1,4 @@
-package yokai.domain
+package karasu.domain
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -15,7 +15,7 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import yokai.i18n.MR
+import karasu.i18n.MR
 
 typealias ComposableDialog = (@Composable () -> Unit)?
 typealias ComposableDialogState = MutableState<ComposableDialog>

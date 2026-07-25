@@ -10,16 +10,16 @@ import java.util.*
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
-import yokai.data.DatabaseHandler
-import yokai.domain.chapter.interactor.DeleteChapter
-import yokai.domain.chapter.interactor.GetChapter
-import yokai.domain.chapter.interactor.InsertChapter
-import yokai.domain.chapter.interactor.UpdateChapter
-import yokai.domain.chapter.models.ChapterUpdate
-import yokai.domain.chapter.services.ChapterRecognition
-import yokai.domain.library.LibraryPreferences
-import yokai.domain.manga.interactor.UpdateManga
-import yokai.domain.manga.models.MangaUpdate
+import karasu.data.DatabaseHandler
+import karasu.domain.chapter.interactor.DeleteChapter
+import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.chapter.interactor.InsertChapter
+import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.chapter.models.ChapterUpdate
+import karasu.domain.chapter.services.ChapterRecognition
+import karasu.domain.library.LibraryPreferences
+import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.models.MangaUpdate
 
 /**
  * Helper method for syncing the list of chapters from the source with the ones from the database.
@@ -47,8 +47,9 @@ suspend fun syncChaptersWithSource(
     }
 
     val downloadManager: DownloadManager by injectLazy()
-    // Chapters from db.
-    val dbChapters = getChapter.awaitAll(manga, false)
+    // Chapters from db. Deliberately unmerged: everything missing from [rawSourceChapters]
+    // is deleted below, so a merged list would delete the other sources' chapters here.
+    val dbChapters = getChapter.awaitAllRaw(manga.id!!, false)
 
     val sourceChapters = rawSourceChapters
         .distinctBy { it.url }

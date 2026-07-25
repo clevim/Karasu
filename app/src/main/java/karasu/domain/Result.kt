@@ -1,4 +1,4 @@
-package yokai.domain
+package karasu.domain
 
 sealed class Result<out T> {
     data class Success<out T>(val data: T? = null) : Result<T>()

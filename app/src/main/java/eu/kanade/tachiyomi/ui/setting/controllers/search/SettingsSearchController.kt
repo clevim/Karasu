@@ -9,8 +9,8 @@ import android.view.View
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.databinding.SettingsSearchControllerBinding
 import eu.kanade.tachiyomi.ui.base.controller.BaseLegacyController
@@ -102,6 +102,7 @@ class SettingsSearchController :
 
     override fun onDestroyView(view: View) {
         adapter = null
+        searchView = null
         super.onDestroyView(view)
     }
 

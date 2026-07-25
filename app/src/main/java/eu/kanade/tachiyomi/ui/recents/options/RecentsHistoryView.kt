@@ -3,8 +3,8 @@ package eu.kanade.tachiyomi.ui.recents.options
 import android.content.Context
 import android.util.AttributeSet
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.databinding.RecentsHistoryViewBinding
 import eu.kanade.tachiyomi.util.bindToPreference

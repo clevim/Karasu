@@ -25,9 +25,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import yokai.i18n.MR
-import yokai.presentation.theme.YokaiTheme
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.presentation.theme.KarasuTheme
+import karasu.util.lang.getString
 
 /**
  * View of the ViewPager that contains a chapter transition.
@@ -116,7 +116,7 @@ class PagerTransitionHolder(
             layoutParams = FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
             setContent {
-                YokaiTheme { CircularProgressIndicator() }
+                KarasuTheme { CircularProgressIndicator() }
             }
         }
 

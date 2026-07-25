@@ -36,8 +36,8 @@ import eu.kanade.tachiyomi.util.view.snack
 import eu.kanade.tachiyomi.util.view.toolbarHeight
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import uy.kohesive.injekt.injectLazy
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 
 /**
  * This controller shows and manages the different search result in global search.
@@ -269,6 +269,8 @@ open class GlobalSearchController(
 
     override fun onDestroyView(view: View) {
         adapter = null
+        snack?.dismiss()
+        snack = null
         super.onDestroyView(view)
     }
 

@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.BuildConfig
-import yokai.domain.base.BasePreferences
+import karasu.domain.base.BasePreferences
 
 fun Context.setAppIcon(basePreferences: BasePreferences, selectedIcon: BasePreferences.AppIcons) {
     val enabled = PackageManager.COMPONENT_ENABLED_STATE_ENABLED

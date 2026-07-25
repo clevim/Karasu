@@ -1,7 +1,7 @@
-package yokai.domain.category.interactor
+package karasu.domain.category.interactor
 
 import eu.kanade.tachiyomi.data.database.models.MangaCategory
-import yokai.domain.manga.MangaRepository
+import karasu.domain.manga.MangaRepository
 
 class SetMangaCategories(
     private val mangaRepository: MangaRepository,

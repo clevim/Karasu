@@ -3,8 +3,8 @@ package eu.kanade.tachiyomi.ui.setting.controllers
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.R
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.core.security.SecurityPreferences
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys

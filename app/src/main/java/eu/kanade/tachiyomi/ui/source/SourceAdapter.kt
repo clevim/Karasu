@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.source
 
+import android.view.View
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
@@ -32,5 +33,6 @@ class SourceAdapter(val controller: BrowseController) :
     interface SourceListener {
         fun onPinClick(position: Int)
         fun onLatestClick(position: Int)
+        fun onSourceLongClick(position: Int, view: View)
     }
 }

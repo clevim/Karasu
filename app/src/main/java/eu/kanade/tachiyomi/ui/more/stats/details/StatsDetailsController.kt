@@ -67,8 +67,8 @@ import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import yokai.i18n.MR
-import yokai.util.lang.getString
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import android.R as AR
 
 class StatsDetailsController :
@@ -81,8 +81,10 @@ class StatsDetailsController :
     private val concatAdapter: ConcatAdapter? get() = binding.statsRecyclerView.adapter as? ConcatAdapter
     private val statsAdapter: StatsDetailsAdapter?
         get() = concatAdapter?.adapters?.last() as? StatsDetailsAdapter
-    lateinit var searchView: SearchView
-    lateinit var searchItem: MenuItem
+    // Nulled in onDestroyView: these belong to the activity's toolbar, so holding them past view
+    // destruction leaks the activity while this controller sits in the backstack.
+    var searchView: SearchView? = null
+    var searchItem: MenuItem? = null
 
     private val defaultStat = Stats.SERIES_TYPE
     private val defaultSort = StatsSort.COUNT_DESC
@@ -125,14 +127,14 @@ class StatsDetailsController :
             statsClearButtonContainer.compatToolTipText = activity?.getString(MR.strings.clear_filters)
             statsClearButtonContainer.setOnClickListener {
                 resetFilters()
-                searchView.clearFocus()
-                searchItem.collapseActionView()
+                searchView?.clearFocus()
+                searchItem?.collapseActionView()
                 resetAndSetup(keepAdapter = true)
                 initializeChips()
             }
 
             chipStat.setOnClickListener {
-                searchView.clearFocus()
+                searchView?.clearFocus()
                 activity?.materialAlertDialog()
                     ?.setTitle(MR.strings.stat)
                     ?.setSingleChoiceItems(
@@ -146,7 +148,7 @@ class StatsDetailsController :
                         chipStat.setColors((presenter.selectedStat != defaultStat).toInt())
 
                         dialog.dismiss()
-                        searchItem.collapseActionView()
+                        searchItem?.collapseActionView()
                         resetAndSetup()
                         highlightedBar = null
                         highlightedDay = null
@@ -340,8 +342,10 @@ class StatsDetailsController :
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.stats_bar, menu)
-        searchItem = menu.findItem(R.id.action_search)
-        searchView = searchItem.actionView as SearchView
+        val searchItem = menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as SearchView
+        this.searchItem = searchItem
+        this.searchView = searchView
         searchView.queryHint = activity?.getString(MR.strings.search_, activity?.getString(MR.strings.statistics)?.lowercase(Locale.ROOT) ?: "")
         if (query.isNotBlank() && (!searchItem.isActionViewExpanded || searchView.query != query)) {
             searchItem.expandActionView()
@@ -353,6 +357,14 @@ class StatsDetailsController :
         }
 
         searchItem.fixExpand(onExpand = { invalidateMenuOnExpand() })
+    }
+
+    override fun onDestroyView(view: View) {
+        searchView = null
+        searchItem = null
+        colorAnimator?.cancel()
+        colorAnimator = null
+        super.onDestroyView(view)
     }
 
     /**
@@ -390,7 +402,7 @@ class StatsDetailsController :
                 else -> it.toString()
             }
         }.toTypedArray()
-        searchView.clearFocus()
+        searchView?.clearFocus()
         activity!!.materialAlertDialog()
             .setTitle(resourceId)
             .setMultiChoiceItems(
@@ -456,6 +468,7 @@ class StatsDetailsController :
     }
 
     fun updateStats(binding: StatsDetailsChartBinding? = null, keepAdapter: Boolean = false) {
+        view ?: return
         val currentStats = presenter.currentStats
         with(binding ?: headerBinding) {
             val hasNoData = currentStats.isNullOrEmpty() || currentStats.all { it.count == 0 }
@@ -779,7 +792,7 @@ class StatsDetailsController :
     }
 
     override fun onSortClicked(binding: StatsDetailsChartBinding?) {
-        searchView.clearFocus()
+        searchView?.clearFocus()
         activity!!.materialAlertDialog()
             .setTitle(MR.strings.sort_by)
             .setSingleChoiceItems(

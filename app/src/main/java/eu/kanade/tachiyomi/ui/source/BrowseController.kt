@@ -31,9 +31,11 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.databinding.BrowseControllerBinding
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.LocalSource
+import eu.kanade.tachiyomi.source.pkgName
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.base.controller.BaseLegacyController
 import eu.kanade.tachiyomi.ui.extension.ExtensionFilterController
+import eu.kanade.tachiyomi.ui.extension.details.ExtensionDetailsController
 import eu.kanade.tachiyomi.ui.main.BottomSheetController
 import eu.kanade.tachiyomi.ui.main.FloatingSearchInterface
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -62,6 +64,7 @@ import eu.kanade.tachiyomi.util.view.setOnQueryTextChangeListener
 import eu.kanade.tachiyomi.util.view.snack
 import eu.kanade.tachiyomi.util.view.toolbarHeight
 import eu.kanade.tachiyomi.util.view.updateGradiantBGRadius
+import eu.kanade.tachiyomi.util.view.popupMenu
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import eu.kanade.tachiyomi.widget.LinearLayoutManagerAccurateOffset
 import kotlinx.coroutines.flow.drop
@@ -69,11 +72,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.parcelize.Parcelize
 import uy.kohesive.injekt.injectLazy
-import yokai.domain.base.BasePreferences
-import yokai.domain.base.BasePreferences.ExtensionInstaller
-import yokai.i18n.MR
-import yokai.presentation.extension.repo.ExtensionRepoController
-import yokai.util.lang.getString
+import karasu.domain.base.BasePreferences
+import karasu.domain.base.BasePreferences.ExtensionInstaller
+import karasu.i18n.MR
+import karasu.presentation.extension.repo.ExtensionRepoController
+import karasu.util.lang.getString
 import java.util.*
 import kotlin.math.max
 
@@ -524,6 +527,8 @@ class BrowseController :
 
     override fun onDestroyView(view: View) {
         adapter = null
+        snackbar?.dismiss()
+        snackbar = null
         binding.bottomSheet.root.onDestroy()
         super.onDestroyView(view)
     }
@@ -635,6 +640,26 @@ class BrowseController :
     override fun onLatestClick(position: Int) {
         val item = adapter?.getItem(position) as? SourceItem ?: return
         openCatalogue(item.source, BrowseSourceController(item.source, useLatest = true))
+    }
+
+    /**
+     * Long-pressing a source offers its extension's settings and uninstall right from the list.
+     * Local and stub sources have no package to act on, so they get no menu.
+     */
+    override fun onSourceLongClick(position: Int, view: View) {
+        val source = (adapter?.getItem(position) as? SourceItem)?.source ?: return
+        val pkgName = source.pkgName() ?: return
+        view.popupMenu(
+            items = listOf(
+                0 to MR.strings.source_settings,
+                1 to MR.strings.uninstall,
+            ),
+        ) {
+            when (itemId) {
+                0 -> router.pushController(ExtensionDetailsController(pkgName).withFadeTransaction())
+                1 -> presenter.extensionManager.uninstallExtension(pkgName)
+            }
+        }
     }
 
     /**
