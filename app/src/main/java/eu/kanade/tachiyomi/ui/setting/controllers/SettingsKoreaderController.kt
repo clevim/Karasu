@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.ui.setting.switchPreference
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.withUIContext
+import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import karasu.data.koreader.KoreaderApi
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.koreader.KoreaderPreferences
@@ -89,6 +90,13 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 titleRes = MR.strings.koreader_max_manga
                 entries = listOf(5, 10, 20, 50).map { it.toString() }
                 entryValues = listOf(5, 10, 20, 50)
+            }
+            preference {
+                titleRes = MR.strings.koreader_filter
+                summaryRes = MR.strings.koreader_filter_summary
+                onClick {
+                    router.pushController(KoreaderFilterController().withFadeTransaction())
+                }
             }
             infoPreference(MR.strings.koreader_needs_cbz)
         }

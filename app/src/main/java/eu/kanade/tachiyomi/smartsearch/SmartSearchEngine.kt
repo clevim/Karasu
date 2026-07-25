@@ -52,6 +52,26 @@ class SmartSearchEngine(
         return eligibleManga.maxBy { it.dist }?.manga
     }*/
 
+    /**
+     * [normalSearch] over several spellings of the same series, first hit wins.
+     *
+     * Migration fails most often because the two sources romanise a title differently, or one
+     * uses the English release name. A bound tracker already knows the canonical titles, so
+     * trying those after the local one costs a search per alias only when the local one missed.
+     *
+     * Blank and duplicate titles are dropped, so a manga with no tracker behaves exactly as
+     * [normalSearch] on its own title.
+     */
+    suspend fun normalSearchAliases(source: CatalogueSource, titles: List<String>): SManga? {
+        titles.map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .forEach { title ->
+                normalSearch(source, title)?.let { return it }
+            }
+        return null
+    }
+
     suspend fun normalSearch(source: CatalogueSource, title: String): SManga? {
         val titleNormalized = title.toNormalized()
         val eligibleManga = supervisorScope {

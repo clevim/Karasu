@@ -133,4 +133,9 @@
         <item quantity="one">%d item afetado</item>
         <item quantity="other">%d itens afetados</item>
     </plurals>
+
+    <plurals name="koreader_filter_preview">
+        <item quantity="one">%d item selecionado agora</item>
+        <item quantity="other">%d itens selecionados agora</item>
+    </plurals>
 </resources>

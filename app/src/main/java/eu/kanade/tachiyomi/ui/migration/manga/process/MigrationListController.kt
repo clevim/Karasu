@@ -65,6 +65,7 @@ import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.track.interactor.GetTrack
 import karasu.i18n.MR
 import karasu.util.lang.getString
 import android.R as AR
@@ -91,6 +92,7 @@ class MigrationListController(bundle: Bundle? = null) :
 
     private val preferences: PreferencesHelper by injectLazy()
     private val sourceManager: SourceManager by injectLazy()
+    private val getTrack: GetTrack by injectLazy()
 
     private val smartSearchEngine = SmartSearchEngine(coroutineContext, config?.extraSearchParams)
 
@@ -137,6 +139,23 @@ class MigrationListController(bundle: Bundle? = null) :
         }
     }
 
+    /**
+     * The manga's own title, then whatever its trackers call it.
+     *
+     * Migration fails most often on naming, not availability: the target source has the series
+     * under its English release name, or a different romanisation. A bound tracker already holds
+     * the canonical title, so it is the closest thing to an identity the two sources share —
+     * manga sources publish no tracker ids, so matching by id is not possible.
+     *
+     * The local title stays first, so a manga with no tracker searches exactly as it did before.
+     */
+    private suspend fun searchTitlesFor(manga: Manga): List<String> {
+        val tracked = runCatching { getTrack.awaitAllByMangaId(manga.id) }
+            .getOrDefault(emptyList())
+            .map { it.title }
+        return listOf(manga.title) + tracked
+    }
+
     private suspend fun runMigrations(mangas: List<MigratingManga>) {
         val useSourceWithMost = preferences.useSourceWithMost().get()
 
@@ -162,6 +181,9 @@ class MigrationListController(bundle: Bundle? = null) :
                 }
 
                 val mangaSource = manga.mangaSource()
+                // Fetched once per manga rather than once per candidate source: the tracker
+                // titles are the same whichever source is being searched.
+                val searchTitles = searchTitlesFor(mangaObj)
 
                 val result = try {
                     CoroutineScope(manga.migrationJob).async {
@@ -178,9 +200,9 @@ class MigrationListController(bundle: Bundle? = null) :
                                 async source@{
                                     sourceSemaphore.withPermit {
                                         try {
-                                            val searchResult = smartSearchEngine.normalSearch(
+                                            val searchResult = smartSearchEngine.normalSearchAliases(
                                                 source,
-                                                mangaObj.title,
+                                                searchTitles,
                                             )
 
                                             if (searchResult != null &&
@@ -221,9 +243,9 @@ class MigrationListController(bundle: Bundle? = null) :
                         } else {
                             validSources.forEachIndexed { index, source ->
                                 val searchResult = try {
-                                    val searchResult = smartSearchEngine.normalSearch(
+                                    val searchResult = smartSearchEngine.normalSearchAliases(
                                         source,
-                                        mangaObj.title,
+                                        searchTitles,
                                     )
 
                                     if (searchResult != null) {

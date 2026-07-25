@@ -22,10 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.compose.pluralStringResource
 import dev.icerock.moko.resources.compose.stringResource
 import karasu.domain.manga.failures.interactor.BreakageKind
+import karasu.domain.manga.failures.FailureCause
+import karasu.domain.manga.failures.causeOf
 import karasu.domain.manga.failures.interactor.BrokenSource
 import karasu.i18n.MR
 
@@ -138,11 +141,24 @@ private fun BrokenSourceCard(source: BrokenSource, onMigrate: () -> Unit) {
             // one, and an empty line would read as the source failing silently.
             source.entries.firstNotNullOfOrNull { it.lastMessage?.takeIf(String::isNotBlank) }
                 ?.let { message ->
+                    // The plain-language cause first, because the raw text is a library's
+                    // internal complaint and says nothing about what to do. The raw text still
+                    // follows, quieter and clipped: it is what makes a bug report useful.
+                    causeOf(message).label()?.let { cause ->
+                        Text(
+                            text = stringResource(cause),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
                     Text(
                         text = message,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = RAW_ERROR_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
                     )
                 }
 
@@ -172,4 +188,12 @@ private fun BreakageKind.label() = when (this) {
     BreakageKind.FAILING -> MR.strings.broken_source_failing
 }
 
+/** Null when there is nothing useful to add beyond the raw message. */
+private fun FailureCause.label() = when (this) {
+    FailureCause.OUTDATED_EXTENSION -> MR.strings.broken_cause_outdated_extension
+    FailureCause.SOURCE_REFUSED -> MR.strings.broken_cause_source_refused
+    FailureCause.UNKNOWN -> null
+}
+
 private const val PREVIEW_TITLES = 3
+private const val RAW_ERROR_LINES = 3

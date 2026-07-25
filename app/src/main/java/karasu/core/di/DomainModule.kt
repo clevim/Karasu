@@ -16,6 +16,7 @@ import karasu.data.source.browse.filter.SavedSearchRepositoryImpl
 import karasu.data.track.TrackRepositoryImpl
 import karasu.domain.category.CategoryRepository
 import karasu.domain.category.interactor.ApplyCategoryRules
+import karasu.domain.category.interactor.BuildRuleInputs
 import karasu.domain.category.interactor.DeleteCategories
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.category.interactor.InsertCategories
@@ -70,7 +71,8 @@ fun domainModule() = module {
     factory { TrustExtension(get(), get()) }
 
     single { KoreaderApi(get(), get()) }
-    factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { BuildRuleInputs(get(), get(), get(), get(), get(), get()) }
+    factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
     factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get()) }

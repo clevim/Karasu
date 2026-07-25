@@ -30,13 +30,25 @@ import android.R as AR
 class ManageCategoryDialog(bundle: Bundle? = null) :
     DialogController(bundle) {
 
-    /** [updateLibrary] receives the saved category, so a caller can follow up on the new one. */
-    constructor(category: Category?, updateLibrary: ((Category?) -> Unit)) : this() {
+    /**
+     * [updateLibrary] receives the saved category, so a caller can follow up on the new one.
+     *
+     * [onCreateRule] is optional and opting in to it is what puts the "add a rule" box on the
+     * dialog. Passing it does not force the rule editor open — it is offered, and only called if
+     * the box is ticked, because most new categories are plain ones.
+     */
+    constructor(
+        category: Category?,
+        updateLibrary: ((Category?) -> Unit),
+        onCreateRule: ((Category) -> Unit)? = null,
+    ) : this() {
         this.updateLibrary = updateLibrary
+        this.onCreateRule = onCreateRule
         this.category = category
     }
 
     private var updateLibrary: ((Category?) -> Unit)? = null
+    private var onCreateRule: ((Category) -> Unit)? = null
     private var category: Category? = null
 
     private val preferences by injectLazy<PreferencesHelper>()
@@ -136,6 +148,11 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
             LibraryUpdateJob.setupTask(preferences.context, 0)
         }
         updateLibrary?.invoke(category)
+        // Only for a category that actually got an id: with no row to attach it to there is
+        // nothing for a rule editor to edit.
+        if (binding.createRule.isChecked && category.id != null) {
+            onCreateRule?.invoke(category)
+        }
         return true
     }
 
@@ -144,6 +161,10 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
             binding.categoryTextLayout.isVisible = false
         }
         binding.editCategories.isVisible = category != null
+        // Offered only when creating, and only where the caller can actually open the editor.
+        val offersRule = onCreateRule != null && category == null
+        binding.createRule.isVisible = offersRule
+        binding.createRuleSummary.isVisible = offersRule
         binding.editCategories.setOnClickListener {
             router.popCurrentController()
             router.pushController(CategoryController().withFadeTransaction())

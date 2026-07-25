@@ -152,18 +152,38 @@ class SyncKoreaderShelf(
      * recently updated manga in the chosen categories, capped by both limits.
      */
     private suspend fun wantedChapters(): List<Candidate> {
+        val perManga = preferences.chaptersPerManga().get().coerceAtLeast(1)
+
+        return selectedManga(selectionConditions())
+            .take(preferences.maxManga().get().coerceAtLeast(1))
+            .flatMap { manga ->
+                val mangaId = manga.manga.id ?: return@flatMap emptyList()
+                getChapter.awaitUnread(mangaId, manga.manga.filtered_scanlators?.isNotEmpty() == true)
+                    .filter { it.id != null }
+                    .sortedBy { it.chapter_number }
+                    .take(perManga)
+                    .map { Candidate(manga, it) }
+            }
+    }
+
+    /**
+     * How many manga [conditions] would select right now, ignoring the shelf's size limit.
+     *
+     * The filter editor shows this so a condition can be judged before the next sync acts on it.
+     * The limit is left out on purpose: capping the number is what the limit is for, and folding
+     * it in here would make every filter look like it matched exactly ten things.
+     */
+    suspend fun countSelectedManga(conditions: List<RuleCondition>): Int =
+        selectedManga(conditions).size
+
+    /** Manga in the chosen categories that also satisfy [conditions], most recently updated first. */
+    private suspend fun selectedManga(conditions: List<RuleCondition>): List<LibraryManga> {
         val categories = preferences.syncCategories().get().mapNotNull { it.toIntOrNull() }.toSet()
         if (categories.isEmpty()) return emptyList()
 
-        val perManga = preferences.chaptersPerManga().get().coerceAtLeast(1)
-        val conditions = selectionConditions()
         // Only built when there is something to evaluate, since it reads the whole library's
         // failure counts and possibly its trackers.
-        val inputs = if (conditions.isEmpty()) {
-            emptyMap()
-        } else {
-            buildRuleInputs.await(conditions)
-        }
+        val inputs = if (conditions.isEmpty()) emptyMap() else buildRuleInputs.await(conditions)
         val now = System.currentTimeMillis()
 
         return getLibraryManga.await()
@@ -175,15 +195,6 @@ class SyncKoreaderShelf(
             }
             .distinctBy { it.manga.id }
             .sortedByDescending { it.latestUpdate }
-            .take(preferences.maxManga().get().coerceAtLeast(1))
-            .flatMap { manga ->
-                val mangaId = manga.manga.id ?: return@flatMap emptyList()
-                getChapter.awaitUnread(mangaId, manga.manga.filtered_scanlators?.isNotEmpty() == true)
-                    .filter { it.id != null }
-                    .sortedBy { it.chapter_number }
-                    .take(perManga)
-                    .map { Candidate(manga, it) }
-            }
     }
 
     /** An unreadable filter selects nothing rather than everything, so a corrupt setting is visible. */

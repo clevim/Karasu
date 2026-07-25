@@ -672,6 +672,8 @@
     <string name="broken_source_missing">Extension not installed</string>
     <string name="broken_source_obsolete">No longer in its repository</string>
     <string name="broken_source_failing">Updates keep failing</string>
+    <string name="broken_cause_outdated_extension">The site changed and this extension no longer understands it. A newer version of the extension usually fixes it.</string>
+    <string name="broken_cause_source_refused">The source refused the request or is down.</string>
     <string name="broken_sources_migrate_all">Migrate these</string>
     <string name="broken_sources_and_more">and %1$d more</string>
 
@@ -688,6 +690,12 @@
     <string name="koreader_set_url_first">Enter the shelf address first</string>
     <string name="koreader_what_to_send">What to send</string>
     <string name="koreader_categories_summary">Only manga in these categories are sent</string>
+    <string name="koreader_filter">Extra filter</string>
+    <string name="koreader_filter_summary">Narrow the categories down with conditions</string>
+    <string name="koreader_filter_explainer">On top of the categories above, only entries matching
+        all of these are sent.</string>
+    <string name="koreader_filter_empty">No filter, so every entry in the chosen categories can be
+        sent. Add a condition to narrow it down.</string>
     <string name="koreader_chapters_per_manga">Chapters per manga</string>
     <string name="koreader_max_manga">Manga on the shelf</string>
     <string name="koreader_needs_cbz">Chapters are sent from your downloads, so "Save chapters as
@@ -702,6 +710,8 @@
     <string name="koreader_only_over_wifi">Only sync over Wi-Fi</string>
 
     <!-- Category rules -->
+    <string name="category_add_rule">Add a rule to this category</string>
+    <string name="category_add_rule_summary">Opens the rule editor after saving. Rules move entries out of a category on their own.</string>
     <string name="category_rules">Rules</string>
     <string name="category_rules_explainer">Entries in this category are checked against the
         rules below, top to bottom, and the first one that matches moves them.</string>

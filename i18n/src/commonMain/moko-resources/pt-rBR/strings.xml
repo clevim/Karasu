@@ -82,6 +82,8 @@
     <string name="broken_source_missing">Extensão não instalada</string>
     <string name="broken_source_obsolete">Não está mais no repositório</string>
     <string name="broken_source_failing">Atualizações falhando</string>
+    <string name="broken_cause_outdated_extension">O site mudou e esta extensão não entende mais o formato. Normalmente uma versão mais nova da extensão resolve.</string>
+    <string name="broken_cause_source_refused">A fonte recusou a requisição ou está fora do ar.</string>
     <string name="broken_sources_migrate_all">Migrar estes</string>
     <string name="broken_sources_and_more">e mais %1$d</string>
 
@@ -98,6 +100,12 @@
     <string name="koreader_set_url_first">Informe o endereço do servidor primeiro</string>
     <string name="koreader_what_to_send">O que enviar</string>
     <string name="koreader_categories_summary">Só mangás nestas categorias são enviados</string>
+    <string name="koreader_filter">Filtro extra</string>
+    <string name="koreader_filter_summary">Restringe as categorias com condições</string>
+    <string name="koreader_filter_explainer">Além das categorias acima, só são enviados os itens
+        que satisfazem todas estas condições.</string>
+    <string name="koreader_filter_empty">Sem filtro, então qualquer item das categorias escolhidas
+        pode ser enviado. Adicione uma condição para restringir.</string>
     <string name="koreader_chapters_per_manga">Capítulos por mangá</string>
     <string name="koreader_max_manga">Mangás no servidor</string>
     <string name="koreader_needs_cbz">Os capítulos são enviados a partir dos seus downloads, então
@@ -113,6 +121,8 @@
     <string name="koreader_only_over_wifi">Sincronizar só no Wi-Fi</string>
 
     <!-- Category rules -->
+    <string name="category_add_rule">Adicionar uma regra a esta categoria</string>
+    <string name="category_add_rule_summary">Abre o editor de regras após salvar. Regras tiram itens da categoria sozinhas.</string>
     <string name="category_rules">Regras</string>
     <string name="category_rules_explainer">As entradas nesta categoria são verificadas pelas regras abaixo, de cima para baixo, e a primeira que corresponder as move.</string>
     <string name="category_rules_empty">Nenhuma regra ainda, então nada sai desta categoria por conta própria.</string>

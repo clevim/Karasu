@@ -728,24 +728,22 @@ open class LibraryController(
                 FilterBottomSheet.ACTION_DISPLAY -> showDisplayOptions()
                 FilterBottomSheet.ACTION_EXPAND_COLLAPSE_ALL -> presenter.toggleAllCategoryVisibility()
                 FilterBottomSheet.ACTION_GROUP_BY -> showGroupOptions()
-                FilterBottomSheet.ACTION_NEW_CATEGORY -> ManageCategoryDialog(null) { category ->
-                    presenter.updateLibrary()
-                    // Creating a category from the library sheet is how someone sets up a rule
-                    // target, so it opens the rule editor rather than leaving them to find it
-                    // under category settings. An empty rule list is a no-op, so backing out
-                    // straight away just leaves a plain category.
-                    //
-                    // Posted rather than pushed inline: this runs from the dialog's positive
-                    // button, before the dialog has popped itself off the router, and pushing
-                    // under it leaves the two fighting over the top of the backstack.
-                    val id = category?.id ?: return@ManageCategoryDialog
-                    val name = category.name
-                    viewScope.launchUI {
-                        router.pushController(
-                            CategoryRuleController(id.toLong(), name).withFadeTransaction(),
-                        )
-                    }
-                }.showDialog(router)
+                FilterBottomSheet.ACTION_NEW_CATEGORY -> ManageCategoryDialog(
+                    category = null,
+                    updateLibrary = { presenter.updateLibrary() },
+                    onCreateRule = { category ->
+                        // Posted rather than pushed inline: this runs from the dialog's positive
+                        // button, before the dialog has popped itself off the router, and pushing
+                        // under it leaves the two fighting over the top of the backstack.
+                        val id = category.id ?: return@ManageCategoryDialog
+                        val name = category.name
+                        viewScope.launchUI {
+                            router.pushController(
+                                CategoryRuleController(id.toLong(), name).withFadeTransaction(),
+                            )
+                        }
+                    },
+                ).showDialog(router)
             }
         }
     }
@@ -1851,9 +1849,10 @@ open class LibraryController(
     override fun manageCategory(position: Int) {
         val category = (adapter.getItem(position) as? LibraryHeaderItem)?.category ?: return
         if (!category.isDynamic) {
-            ManageCategoryDialog(category) {
-                presenter.updateLibrary()
-            }.showDialog(router)
+            ManageCategoryDialog(
+                category = category,
+                updateLibrary = { presenter.updateLibrary() },
+            ).showDialog(router)
         }
     }
 

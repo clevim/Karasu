@@ -244,7 +244,7 @@ class SetCategoriesSheet(
 
         binding.cancelButton.setOnClickListener { dismiss() }
         binding.newCategoryButton.setOnClickListener {
-            ManageCategoryDialog(null) {
+            ManageCategoryDialog(category = null, updateLibrary = {
                 // FIXME: Don't do blocking
                 categories = runBlocking { getCategories.await() }.toMutableList()
                 val map = itemAdapter.adapterItems.associate { it.category.id to it.state }
@@ -258,7 +258,7 @@ class SetCategoriesSheet(
                     },
                 )
                 setCategoriesButtons()
-            }.show(activity)
+            }).show(activity)
         }
 
         binding.addToCategoriesButton.setOnClickListener {

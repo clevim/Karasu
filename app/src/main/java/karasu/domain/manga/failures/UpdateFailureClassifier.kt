@@ -45,6 +45,41 @@ fun shouldCountUpdateFailure(error: Throwable): Boolean = when (error) {
     else -> true
 }
 
+/**
+ * What a stored failure message actually means, in terms a reader can act on.
+ *
+ * Only the message survives in the database, not the exception, so this matches on text. That is
+ * crude, but the alternative is storing a classification made at record time, which would freeze
+ * the wording of failures already on disk and re-classify nothing when this list improves.
+ */
+enum class FailureCause {
+    /** The source answered, but not in the shape the extension expects. */
+    OUTDATED_EXTENSION,
+
+    /** The source answered with a refusal or an error of its own. */
+    SOURCE_REFUSED,
+
+    /** Nothing matched, so the raw message is all there is. */
+    UNKNOWN,
+}
+
+fun causeOf(message: String?): FailureCause {
+    val text = message?.lowercase() ?: return FailureCause.UNKNOWN
+    return when {
+        // kotlinx-serialization complaining about the payload is the signature of a site that
+        // changed its API while the extension still expects the old one.
+        "serial name" in text ||
+            "are required for type" in text ||
+            "unexpected json token" in text ||
+            "missing at path" in text -> FailureCause.OUTDATED_EXTENSION
+        "http error" in text ||
+            "cloudflare" in text ||
+            "403" in text ||
+            "503" in text -> FailureCause.SOURCE_REFUSED
+        else -> FailureCause.UNKNOWN
+    }
+}
+
 /** True for the answers that mean this entry is gone rather than the source being down. */
 fun isEntryGone(error: Throwable): Boolean =
     error is HttpException && (error.code == HTTP_NOT_FOUND || error.code == HTTP_GONE)

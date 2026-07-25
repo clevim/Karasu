@@ -122,4 +122,9 @@
         <item quantity="one">%d entry affected</item>
         <item quantity="other">%d entries affected</item>
     </plurals>
+
+    <plurals name="koreader_filter_preview">
+        <item quantity="one">%d entry selected right now</item>
+        <item quantity="other">%d entries selected right now</item>
+    </plurals>
 </resources>
