@@ -86,6 +86,7 @@ import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.base.controller.BaseLegacyController
 import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.ui.library.LibraryController
+import eu.kanade.tachiyomi.ui.library.broken.BrokenSourcesController
 import eu.kanade.tachiyomi.ui.library.compose.LibraryComposeController
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
 import eu.kanade.tachiyomi.ui.more.AboutController
@@ -1107,6 +1108,13 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
                 if (router.backstack.isEmpty()) nav.selectedItemId = R.id.nav_library
                 router.pushController(BrowseSourceController(extras).withFadeTransaction())
             }
+            SHORTCUT_BROKEN_SOURCES -> {
+                if (router.backstack.isEmpty()) nav.selectedItemId = R.id.nav_library
+                // Tapping the notification twice should not stack two copies of the panel.
+                if (router.backstack.lastOrNull()?.controller !is BrokenSourcesController) {
+                    router.pushController(BrokenSourcesController().withFadeTransaction())
+                }
+            }
             SHORTCUT_DOWNLOADS -> {
                 nav.selectedItemId = R.id.nav_recents
                 router.popToRoot()
@@ -1624,6 +1632,7 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
         const val SHORTCUT_SOURCE = "eu.kanade.tachiyomi.SHOW_SOURCE"
         const val SHORTCUT_READER_SETTINGS = "eu.kanade.tachiyomi.READER_SETTINGS"
         const val SHORTCUT_EXTENSIONS = "eu.kanade.tachiyomi.EXTENSIONS"
+        const val SHORTCUT_BROKEN_SOURCES = "eu.kanade.tachiyomi.SHOW_BROKEN_SOURCES"
 
         const val INTENT_SEARCH = "eu.kanade.tachiyomi.SEARCH"
         const val INTENT_SEARCH_QUERY = "query"

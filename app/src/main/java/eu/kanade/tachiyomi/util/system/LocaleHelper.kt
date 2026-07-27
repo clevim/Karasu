@@ -36,6 +36,22 @@ object LocaleHelper {
     }
 
     /**
+     * The `ic_flag_*` drawable for a source language, or null when there is none.
+     *
+     * Source languages carry a region ("pt-BR", "es-419") more often than the flag set does, so a
+     * regional code falls back to the plain language before giving up.
+     */
+    fun getFlagDrawable(context: Context, lang: String?): Int? {
+        if (lang.isNullOrBlank()) return null
+        fun lookup(name: String) = context.resources
+            .getIdentifier("ic_flag_$name", "drawable", context.packageName)
+            .takeIf { it != 0 }
+
+        return lookup(lang.replace("-", "_"))
+            ?: lang.substringBefore("-").takeIf { it != lang }?.let { lookup(it) }
+    }
+
+    /**
      * Returns Display name of a string language code
      *
      * @param lang empty for system language

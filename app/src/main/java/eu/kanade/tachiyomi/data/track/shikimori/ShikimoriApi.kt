@@ -161,7 +161,9 @@ class ShikimoriApi(
         private const val OAUTH_URL = "$BASE_URL/oauth/token"
         private const val LOGIN_URL = "$BASE_URL/oauth/authorize"
 
-        private const val REDIRECT_URL = "karasu://shikimori-auth"
+        // Must match the redirect registered against CLIENT_ID above, which is still
+        // upstream's — see the tracker callback comment in AndroidManifest.xml.
+        private const val REDIRECT_URL = "tachiyomi://shikimori-auth"
         private const val BASE_MANGA_URL = "$API_URL/mangas"
 
         fun mangaUrl(remoteId: Int): String {

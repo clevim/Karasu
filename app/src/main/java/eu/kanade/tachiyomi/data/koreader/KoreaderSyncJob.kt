@@ -16,6 +16,8 @@ import eu.kanade.tachiyomi.util.system.workManager
 import java.util.concurrent.TimeUnit
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.domain.koreader.interactor.SyncKoreaderShelf
+import karasu.i18n.MR
+import karasu.util.lang.getString
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -44,10 +46,40 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
                 "KOReader shelf synced: ${result.uploaded} uploaded, ${result.removed} removed, " +
                     "${result.markedRead} marked read, ${result.queuedForDownload} queued"
             }
+            record(preferences, describe(result))
             Result.success()
         } catch (e: Exception) {
             Logger.e(e) { "KOReader shelf sync failed" }
+            record(
+                preferences,
+                applicationContext.getString(
+                    MR.strings.koreader_sync_failed_summary,
+                    e.message ?: e::class.simpleName.orEmpty(),
+                ),
+            )
             Result.retry()
+        }
+    }
+
+    private fun record(preferences: KoreaderPreferences, summary: String) {
+        preferences.lastSyncSummary().set(summary)
+        preferences.lastSyncAt().set(System.currentTimeMillis())
+    }
+
+    /** A run that did nothing is the common case, and four zeroes read as a malfunction. */
+    private fun describe(result: SyncKoreaderShelf.Summary): String {
+        val idle = result.uploaded == 0 && result.removed == 0 &&
+            result.markedRead == 0 && result.queuedForDownload == 0
+        return if (idle) {
+            applicationContext.getString(MR.strings.koreader_sync_nothing_to_do)
+        } else {
+            applicationContext.getString(
+                MR.strings.koreader_sync_counts,
+                result.uploaded,
+                result.removed,
+                result.markedRead,
+                result.queuedForDownload,
+            )
         }
     }
 

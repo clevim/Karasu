@@ -155,7 +155,7 @@ fun ExtensionRepoInput(
 @Preview(name = "Light", uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true)
 @Composable
 fun ExtensionRepoItemPreview() {
-    val input = "https://raw.githubusercontent.com/null2264/totally-real-extensions/repo/index.min.json"
+    val input = "https://raw.githubusercontent.com/clevim/totally-real-extensions/repo/index.min.json"
     Surface {
         Column {
             ExtensionRepoItem(extensionRepo = ExtensionRepo("", "", "", "", ""))

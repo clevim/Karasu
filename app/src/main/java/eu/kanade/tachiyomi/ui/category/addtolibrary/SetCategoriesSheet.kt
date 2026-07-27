@@ -22,7 +22,9 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.ui.category.ManageCategoryDialog
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.system.dpToPx
+import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.rootWindowInsetsCompat
+import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.util.view.checkHeightThen
 import eu.kanade.tachiyomi.util.view.expand
 import eu.kanade.tachiyomi.widget.E2EBottomSheetDialog
@@ -30,7 +32,6 @@ import eu.kanade.tachiyomi.widget.TriStateCheckBox
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
-import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.category.interactor.SetMangaCategories
@@ -245,19 +246,23 @@ class SetCategoriesSheet(
         binding.cancelButton.setOnClickListener { dismiss() }
         binding.newCategoryButton.setOnClickListener {
             ManageCategoryDialog(category = null, updateLibrary = {
-                // FIXME: Don't do blocking
-                categories = runBlocking { getCategories.await() }.toMutableList()
                 val map = itemAdapter.adapterItems.associate { it.category.id to it.state }
-                itemAdapter.set(
-                    categories.mapIndexed { index, category ->
-                        AddCategoryItem(category).apply {
-                            skipInversed =
-                                preselected.getOrElse(index) { TriStateCheckBox.State.UNCHECKED } != TriStateCheckBox.State.IGNORE
-                            state = map[category.id] ?: TriStateCheckBox.State.CHECKED
-                        }
-                    },
-                )
-                setCategoriesButtons()
+                launchIO {
+                    val updated = getCategories.await()
+                    withUIContext {
+                        categories = updated.toMutableList()
+                        itemAdapter.set(
+                            categories.mapIndexed { index, category ->
+                                AddCategoryItem(category).apply {
+                                    skipInversed =
+                                        preselected.getOrElse(index) { TriStateCheckBox.State.UNCHECKED } != TriStateCheckBox.State.IGNORE
+                                    state = map[category.id] ?: TriStateCheckBox.State.CHECKED
+                                }
+                            },
+                        )
+                        setCategoriesButtons()
+                    }
+                }
             }).show(activity)
         }
 
@@ -267,39 +272,53 @@ class SetCategoriesSheet(
         }
     }
 
+    /**
+     * Persists the selection off the main thread.
+     *
+     * The read of the adapter's state has to happen here, synchronously, because the sheet
+     * dismisses the moment this returns. Everything after it is database work — one query per
+     * manga plus two writes — which used to run blocking on the UI thread and stalled it for the
+     * whole of a multi-select.
+     */
     private fun addMangaToCategories() {
-        if (listManga.size == 1 && !listManga.first().favorite) {
-            val manga = listManga.first()
-            manga.favorite = !manga.favorite
-            manga.date_added = Date().time
+        val addCategories = checkedItems.map(AddCategoryItem::category)
+        val removeCategories = uncheckedItems.map(AddCategoryItem::category)
+        val newToLibrary = listManga.size == 1 && !listManga.first().favorite
 
-            // FIXME: Don't do blocking
-            runBlocking {
+        if (newToLibrary) {
+            listManga.first().apply {
+                favorite = true
+                date_added = Date().time
+            }
+        }
+        if (addCategories.isNotEmpty() || listManga.size == 1) {
+            Category.lastCategoriesAddedTo =
+                addCategories.mapNotNull { it.id }.toSet().ifEmpty { setOf(0) }
+        }
+
+        // Not the dialog's scope: it is already gone by the time this runs.
+        launchIO {
+            if (newToLibrary) {
+                val manga = listManga.first()
                 updateManga.await(
                     MangaUpdate(
                         id = manga.id!!,
                         favorite = manga.favorite,
                         dateAdded = manga.date_added,
-                    )
+                    ),
                 )
             }
-        }
 
-        val addCategories = checkedItems.map(AddCategoryItem::category)
-        val removeCategories = uncheckedItems.map(AddCategoryItem::category)
-        val mangaCategories = listManga.map { manga ->
-            // FIXME: Don't do blocking
-            runBlocking { getCategories.awaitByMangaId(manga.id!!) }
-                .subtract(removeCategories.toSet())
-                .plus(addCategories)
-                .distinct()
-                .map { MangaCategory.create(manga, it) }
-        }.flatten()
-        if (addCategories.isNotEmpty() || listManga.size == 1) {
-            Category.lastCategoriesAddedTo =
-                addCategories.mapNotNull { it.id }.toSet().ifEmpty { setOf(0) }
+            val mangaCategories = listManga.map { manga ->
+                getCategories.awaitByMangaId(manga.id!!)
+                    .subtract(removeCategories.toSet())
+                    .plus(addCategories)
+                    .distinct()
+                    .map { MangaCategory.create(manga, it) }
+            }.flatten()
+
+            setMangaCategories.awaitAll(listManga.mapNotNull { it.id }, mangaCategories)
+            withUIContext { onMangaAdded() }
         }
-        runBlocking { setMangaCategories.awaitAll(listManga.mapNotNull { it.id }, mangaCategories) }
-        onMangaAdded()
     }
 }

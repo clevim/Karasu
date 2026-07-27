@@ -14,7 +14,7 @@ class GetChapterMergeTest {
         val own = chapters("a", 0..15)
         val other = chapters("b", 0..20)
 
-        val merged = mergeChapters(own, listOf(0 to other))
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
 
         assertEquals(21, merged.size, "one row per chapter number, no duplicates")
         // 0-15 stay on the primary, only 16-20 are borrowed.
@@ -33,7 +33,7 @@ class GetChapterMergeTest {
         val own = chapters("a", 5..5)
         val other = chapters("b", 5..5).onEach { it.read = true; it.bookmark = true }
 
-        val merged = mergeChapters(own, listOf(0 to other))
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
 
         assertEquals(1, merged.size)
         assertTrue(merged.single().read, "read must survive whichever row wins")
@@ -47,8 +47,8 @@ class GetChapterMergeTest {
         val other = chapters("b", 5..5)
 
         // Whoever wins the tie, the chapter stays read.
-        assertTrue(mergeChapters(own, listOf(0 to other)).single().read)
-        assertTrue(mergeChapters(other, listOf(0 to own)).single().read)
+        assertTrue(mergeChapters(own, "en", listOf(MergedChapters(0, "en", other))).single().read)
+        assertTrue(mergeChapters(other, "en", listOf(MergedChapters(0, "en", own))).single().read)
     }
 
     @Test
@@ -57,9 +57,39 @@ class GetChapterMergeTest {
         val second = chapters("b", 7..7)
         val third = chapters("c", 7..7)
 
-        val merged = mergeChapters(own, listOf(2 to third, 1 to second))
+        val merged = mergeChapters(
+            own,
+            "en",
+            listOf(MergedChapters(2, "en", third), MergedChapters(1, "en", second)),
+        )
 
         assertEquals("b/7", merged.first { it.chapter_number == 7f }.url)
+    }
+
+    @Test
+    fun `keeps both rows when the merged source is in another language`() {
+        val own = chapters("a", 1..3)
+        val other = chapters("b", 1..3)
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
+
+        assertEquals(6, merged.size, "a chapter in another language is another thing to read")
+        assertEquals(
+            listOf("a/1", "b/1"),
+            merged.filter { it.chapter_number == 1f }.map { it.url },
+            "the manga's own language comes first for the same number",
+        )
+    }
+
+    @Test
+    fun `read state does not leak between languages`() {
+        val own = chapters("a", 5..5).onEach { it.read = true }
+        val other = chapters("b", 5..5)
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
+
+        assertTrue(merged.first { it.url == "a/5" }.read)
+        assertFalse(merged.first { it.url == "b/5" }.read, "the translation has not been read")
     }
 
     @Test
@@ -67,7 +97,7 @@ class GetChapterMergeTest {
         val own = chapters("a", 1..1) + listOf(chapter("a/extra", -1f))
         val other = chapters("b", 1..1) + listOf(chapter("b/extra", -1f))
 
-        val merged = mergeChapters(own, listOf(0 to other))
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
 
         assertEquals(2, merged.size)
         assertTrue(merged.any { it.url == "a/extra" }, "own unnumbered chapters are kept")
@@ -79,13 +109,13 @@ class GetChapterMergeTest {
         val own = listOf(chapter("a/11.1", 11.1f))
         val other = listOf(chapter("b/11.1", 11.1.toFloat()))
 
-        assertEquals(1, mergeChapters(own, listOf(0 to other)).size)
+        assertEquals(1, mergeChapters(own, "en", listOf(MergedChapters(0, "en", other))).size)
     }
 
     @Test
     fun `returns the original list untouched when nothing is merged`() {
         val own = chapters("a", 0..3)
-        val merged = mergeChapters(own, emptyList())
+        val merged = mergeChapters(own, "en", emptyList())
 
         assertSame(own, merged, "unmerged manga must not pay for copies or sorting")
     }
@@ -97,7 +127,7 @@ class GetChapterMergeTest {
         val ownRow = own.single()
         val ownOrder = ownRow.source_order
 
-        mergeChapters(own, listOf(0 to other))
+        mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
 
         assertFalse(ownRow.read, "the database row must not be flipped by a read-time merge")
         assertEquals(ownOrder, ownRow.source_order)

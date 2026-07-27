@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.setting.controllers
 
+import android.content.Context
+import android.text.format.DateUtils
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
@@ -23,6 +25,8 @@ import karasu.domain.category.interactor.GetCategories
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
@@ -102,6 +106,34 @@ class SettingsKoreaderController : SettingsLegacyController() {
         }
 
         preferenceCategory {
+            titleRes = MR.strings.koreader_pages
+
+            switchPreference {
+                bindTo(koreaderPreferences.optimizePages())
+                titleRes = MR.strings.koreader_optimize_pages
+                summaryRes = MR.strings.koreader_optimize_pages_summary
+            }
+            intListPreference(activity) {
+                bindTo(koreaderPreferences.deviceScreenWidth())
+                titleRes = MR.strings.koreader_device_width
+                summaryRes = MR.strings.koreader_device_width_summary
+                entriesRes = arrayOf(
+                    MR.strings.koreader_device_width_original,
+                    MR.strings.koreader_device_width_1072,
+                    MR.strings.koreader_device_width_1236,
+                    MR.strings.koreader_device_width_1440,
+                    MR.strings.koreader_device_width_1860,
+                )
+                entryValues = listOf(0, 1072, 1236, 1440, 1860)
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.grayscalePages())
+                titleRes = MR.strings.koreader_grayscale
+                summaryRes = MR.strings.koreader_grayscale_summary
+            }
+        }
+
+        preferenceCategory {
             titleRes = MR.strings.koreader_reading
 
             switchPreference {
@@ -140,6 +172,12 @@ class SettingsKoreaderController : SettingsLegacyController() {
             }
             preference {
                 titleRes = MR.strings.koreader_sync_now
+                summary = lastSyncSummary(context)
+                // The job finishes minutes after the tap, long after this screen was built, so
+                // the line follows the preference instead of being a snapshot of it.
+                koreaderPreferences.lastSyncAt().changes()
+                    .onEach { summary = lastSyncSummary(context) }
+                    .launchIn(viewScope)
                 onClick {
                     if (koreaderPreferences.serverUrl().get().isBlank()) {
                         context.toast(MR.strings.koreader_set_url_first)
@@ -150,6 +188,21 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 }
             }
         }
+    }
+
+    private fun lastSyncSummary(context: Context): String {
+        val at = koreaderPreferences.lastSyncAt().get()
+        if (at <= 0L) return context.getString(MR.strings.koreader_never_synced)
+        val relative = DateUtils.getRelativeTimeSpanString(
+            at,
+            System.currentTimeMillis(),
+            DateUtils.MINUTE_IN_MILLIS,
+        )
+        return context.getString(
+            MR.strings.koreader_last_sync,
+            relative,
+            koreaderPreferences.lastSyncSummary().get(),
+        )
     }
 
     private fun testConnection() {

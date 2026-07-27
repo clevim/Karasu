@@ -731,18 +731,7 @@ open class LibraryController(
                 FilterBottomSheet.ACTION_NEW_CATEGORY -> ManageCategoryDialog(
                     category = null,
                     updateLibrary = { presenter.updateLibrary() },
-                    onCreateRule = { category ->
-                        // Posted rather than pushed inline: this runs from the dialog's positive
-                        // button, before the dialog has popped itself off the router, and pushing
-                        // under it leaves the two fighting over the top of the backstack.
-                        val id = category.id ?: return@ManageCategoryDialog
-                        val name = category.name
-                        viewScope.launchUI {
-                            router.pushController(
-                                CategoryRuleController(id.toLong(), name).withFadeTransaction(),
-                            )
-                        }
-                    },
+                    onCreateRule = ::openRuleEditor,
                 ).showDialog(router)
             }
         }
@@ -1852,7 +1841,21 @@ open class LibraryController(
             ManageCategoryDialog(
                 category = category,
                 updateLibrary = { presenter.updateLibrary() },
+                onCreateRule = ::openRuleEditor,
             ).showDialog(router)
+        }
+    }
+
+    /**
+     * Posted rather than pushed inline: this runs from the dialog's positive button, before the
+     * dialog has popped itself off the router, and pushing under it leaves the two fighting over
+     * the top of the backstack.
+     */
+    private fun openRuleEditor(category: Category) {
+        val id = category.id ?: return
+        val name = category.name
+        viewScope.launchUI {
+            router.pushController(CategoryRuleController(id.toLong(), name).withFadeTransaction())
         }
     }
 

@@ -7,6 +7,7 @@ import coil3.dispose
 import eu.kanade.tachiyomi.databinding.SourceGlobalSearchControllerCardItemBinding
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.ui.base.holder.BaseFlexibleViewHolder
+import eu.kanade.tachiyomi.ui.source.ChapterCountBinder
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.view.makeShapeCorners
 import eu.kanade.tachiyomi.util.view.setCards
@@ -41,10 +42,13 @@ class GlobalSearchMangaHolder(view: View, adapter: GlobalSearchCardAdapter) :
         setCards(adapter.showOutlines, binding.card, binding.favoriteButton)
     }
 
+    private val chapterCounts = ChapterCountBinder { setChapterCount(it) }
+
     fun bind(manga: Manga) {
         binding.title.text = manga.title
         binding.favoriteButton.isVisible = manga.favorite
         setImage(manga)
+        chapterCounts.bind(manga)
     }
 
     fun setImage(manga: Manga) {
@@ -52,5 +56,11 @@ class GlobalSearchMangaHolder(view: View, adapter: GlobalSearchCardAdapter) :
         if (!manga.thumbnail_url.isNullOrEmpty()) {
             binding.itemImage.loadManga(manga.cover(), binding.progress)
         }
+    }
+
+    /** Zero is the answer worth showing: it is what saves opening the entry at all. */
+    private fun setChapterCount(count: Int?) {
+        binding.chapterBadge.badgeView.setChapters(count)
+        binding.itemImage.alpha = if (count == 0) 0.4f else 1.0f
     }
 }

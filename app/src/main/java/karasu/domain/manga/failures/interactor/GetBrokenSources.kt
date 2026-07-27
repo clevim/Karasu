@@ -2,7 +2,9 @@ package karasu.domain.manga.failures.interactor
 
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.SourceManager
+import karasu.domain.manga.failures.FailureCause
 import karasu.domain.manga.failures.MangaUpdateFailureRepository
+import karasu.domain.manga.failures.causeOf
 import karasu.domain.manga.interactor.GetLibraryManga
 
 /**
@@ -36,7 +38,22 @@ data class BrokenSource(
     val sourceName: String,
     val kind: BreakageKind,
     val entries: List<BrokenEntry>,
-)
+) {
+    /**
+     * What the failures look like, taken from the most recent one that said anything.
+     *
+     * Drives which recovery the screen offers. A source that is refusing requests and a source
+     * whose extension can no longer parse it both fail every update, but migrating away from the
+     * first one throws away a library over what is often a bad afternoon.
+     */
+    val cause: FailureCause
+        get() = entries.asSequence()
+            .sortedByDescending { it.lastAttempt }
+            .mapNotNull { it.lastMessage?.takeIf(String::isNotBlank) }
+            .firstOrNull()
+            ?.let(::causeOf)
+            ?: FailureCause.UNKNOWN
+}
 
 /**
  * The library grouped by the source that is letting it down.

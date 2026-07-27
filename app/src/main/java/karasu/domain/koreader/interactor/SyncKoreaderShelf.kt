@@ -40,6 +40,7 @@ class SyncKoreaderShelf(
     private val downloadProvider: DownloadProvider,
     private val sourceManager: SourceManager,
     private val buildRuleInputs: BuildRuleInputs,
+    private val prepareCbz: PrepareShelfCbz,
 ) {
 
     data class Summary(
@@ -71,7 +72,14 @@ class SyncKoreaderShelf(
         var uploaded = 0
         ready.forEach { candidate ->
             val cbz = findCbz(candidate) ?: return@forEach
-            if (upload(candidate, cbz)) uploaded++
+            // The downloaded file is what the phone's reader wants; the device wants pages it can
+            // actually fit on a screen. Null means the two happen to be the same file.
+            val prepared = prepareCbz.await(cbz, candidate.chapter.id!!)
+            try {
+                if (upload(candidate, prepared ?: cbz)) uploaded++
+            } finally {
+                prepared?.delete()
+            }
         }
 
         // Anything on the shelf that is no longer wanted goes, which is what keeps the device

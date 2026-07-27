@@ -4,9 +4,13 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import eu.kanade.tachiyomi.util.compose.LocalBackPress
@@ -35,12 +39,20 @@ abstract class BaseComposeController(bundle: Bundle? = null) :
             setContent {
                 val dialogHostState = remember { DialogHostState() }
                 KarasuTheme {
-                    CompositionLocalProvider(
-                        LocalDialogHostState provides dialogHostState,
-                        LocalBackPress provides router::handleBack,
-                        LocalRouter provides router,
+                    // Conductor leaves the controller underneath in place, so a screen that draws
+                    // no background of its own shows through to it. Opaque here once instead of
+                    // in every ScreenContent.
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
                     ) {
-                        ScreenContent()
+                        CompositionLocalProvider(
+                            LocalDialogHostState provides dialogHostState,
+                            LocalBackPress provides router::handleBack,
+                            LocalRouter provides router,
+                        ) {
+                            ScreenContent()
+                        }
                     }
                 }
             }

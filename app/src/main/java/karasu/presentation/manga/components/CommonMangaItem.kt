@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImagePainter
 import dev.icerock.moko.resources.compose.stringResource
-import dev.icerock.moko.resources.desc.Utils
+import eu.kanade.tachiyomi.util.system.LocaleHelper
 import karasu.i18n.MR
 import karasu.presentation.library.components.LazyLibraryStaggeredGrid
 import karasu.domain.manga.models.MangaCover as MangaCoverModel
@@ -66,22 +66,7 @@ fun BadgeSegments(
     val context = LocalContext.current
 
     if (!lang.isNullOrBlank()) {
-        val resources = Utils.resourcesForContext(context)
-        val flagId = resources.getIdentifier(
-            "ic_flag_${lang.replace("-", "_")}",
-            "drawable",
-            context.packageName,
-        ).takeIf { it != 0 } ?: (
-            if (lang.contains("-")) {
-                resources.getIdentifier(
-                    "ic_flag_${lang.split("-").first()}",
-                    "drawable",
-                    context.packageName,
-                ).takeIf { it != 0 }
-            } else {
-                null
-            }
-            )
+        val flagId = LocaleHelper.getFlagDrawable(context, lang)
         if (flagId != null) {
             add(
                 BadgeSegment(
@@ -132,6 +117,7 @@ fun MangaComfortableGridItem(
     downloadCount: Int = 0,
     badgeSegments: List<BadgeSegment> = listOf(),
     isSelected: Boolean = false,
+    dimmed: Boolean = false,
     showOutline: Boolean = false,
     onClickContinueReading: (() -> Unit)? = null,
 ) {
@@ -144,7 +130,7 @@ fun MangaComfortableGridItem(
                     MangaCover(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .alpha(if (isSelected) 0.34f else 1.0f),
+                            .alpha(if (isSelected) 0.34f else if (dimmed) 0.4f else 1.0f),
                         data = coverData,
                         onState = { state ->
                             isLoading = state is AsyncImagePainter.State.Loading
@@ -190,6 +176,7 @@ fun MangaCompactGridItem(
     downloadCount: Int = 0,
     badgeSegments: List<BadgeSegment> = listOf(),
     isSelected: Boolean = false,
+    dimmed: Boolean = false,
     showOutline: Boolean = false,
     onClickContinueReading: (() -> Unit)? = null,
 ) {

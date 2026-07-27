@@ -100,7 +100,13 @@ open class GlobalSearchController(
         return customTitle ?: presenter.query
     }
 
-    override val presenter = GlobalSearchPresenter(initialQuery, extensionFilter)
+    override val presenter = createPresenter()
+
+    /**
+     * Built here rather than assigned directly so a subclass can search a different set of
+     * sources. Runs before the subclass's own fields exist, so an override must not touch them.
+     */
+    protected open fun createPresenter() = GlobalSearchPresenter(initialQuery, extensionFilter)
 
     override fun onTitleClick(position: Int) {
         val source = adapter?.getItem(position)?.source ?: return

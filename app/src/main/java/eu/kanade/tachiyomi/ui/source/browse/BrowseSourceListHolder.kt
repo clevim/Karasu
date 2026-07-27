@@ -39,6 +39,18 @@ class BrowseSourceListHolder(
      *
      * @param manga the manga to bind.
      */
+    private var isFavorite = false
+    private var hasNoChapters = false
+
+    /** Cover dimming has two independent reasons, and either can arrive after the other. */
+    private fun applyCoverAlpha() {
+        binding.coverThumbnail.alpha = when {
+            isFavorite -> 0.34f
+            hasNoChapters -> 0.4f
+            else -> 1.0f
+        }
+    }
+
     override fun onSetValues(manga: Manga) {
         binding.title.text = manga.title
         binding.inLibraryBadge.badge.isVisible = manga.favorite
@@ -48,12 +60,19 @@ class BrowseSourceListHolder(
 
     override fun setImage(manga: Manga) {
         // Update the cover.
+        isFavorite = manga.favorite
         if (manga.thumbnail_url == null) {
             binding.coverThumbnail.dispose()
         } else {
             manga.id ?: return
             binding.coverThumbnail.loadManga(manga.cover())
-            binding.coverThumbnail.alpha = if (manga.favorite) 0.34f else 1.0f
+            applyCoverAlpha()
         }
+    }
+
+    override fun setChapterCount(count: Int?) {
+        hasNoChapters = count == 0
+        binding.unreadDownloadBadge.badgeView.setChapters(count)
+        applyCoverAlpha()
     }
 }

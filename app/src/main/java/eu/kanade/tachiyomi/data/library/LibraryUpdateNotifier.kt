@@ -100,7 +100,12 @@ class LibraryUpdateNotifier(private val context: Context) {
      * @param errors List of entry titles that failed to update.
      * @param uri Uri for error log file containing all titles that failed.
      */
-    fun showUpdateErrorNotification(errors: List<String>, uri: Uri) {
+    /**
+     * [hasBrokenSources] adds a shortcut to the panel that explains the failures by source.
+     * Only offered when there is actually something there: a run that failed once on a timeout
+     * leaves the panel empty, and sending someone to an empty screen is worse than not offering.
+     */
+    fun showUpdateErrorNotification(errors: List<String>, uri: Uri, hasBrokenSources: Boolean = false) {
         if (errors.isEmpty()) {
             return
         }
@@ -124,6 +129,13 @@ class LibraryUpdateNotifier(private val context: Context) {
                     context.getString(MR.strings.open_log),
                     pendingIntent,
                 )
+                if (hasBrokenSources) {
+                    addAction(
+                        R.drawable.ic_warning_white_24dp,
+                        context.getString(MR.strings.broken_sources),
+                        NotificationReceiver.openBrokenSourcesPendingActivity(context),
+                    )
+                }
             }
                 .build(),
         )

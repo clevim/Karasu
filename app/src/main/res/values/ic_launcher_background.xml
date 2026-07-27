@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0e1418</color>
+    <!-- The logo's own backdrop. Matching it exactly is what stops a mask wider than the disc
+         from drawing a ring around it. -->
+    <color name="ic_launcher_background">#070c12</color>
 </resources>

@@ -72,6 +72,7 @@ class BrowseSourceItem(
         payloads: MutableList<Any?>?,
     ) {
         holder.onSetValues(manga)
+        holder.bindChapterCount(manga)
     }
 
     override fun equals(other: Any?): Boolean {

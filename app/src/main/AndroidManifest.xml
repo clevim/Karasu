@@ -198,6 +198,14 @@
             android:configChanges="uiMode|orientation|screenSize"/>
         <activity
             android:name=".ui.security.BiometricActivity" />
+        <!--
+            The tracker OAuth callbacks below stay on the "tachiyomi" scheme on purpose: the
+            client IDs are still upstream's, so the redirect has to be the one registered
+            against them. Moving these to "karasu" means registering our own OAuth apps at
+            AniList, MyAnimeList, Shikimori and Bangumi first. Downside of staying: another
+            Tachiyomi fork on the same device makes Android ask which app should take the
+            callback.
+        -->
         <activity
             android:name=".ui.setting.track.MyAnimeListLoginActivity"
             android:label="MyAnimeList"
@@ -210,7 +218,7 @@
 
                 <data
                     android:host="myanimelist-auth"
-                    android:scheme="karasu" />
+                    android:scheme="tachiyomi" />
             </intent-filter>
         </activity>
         <activity
@@ -225,7 +233,7 @@
 
                 <data
                     android:host="anilist-auth"
-                    android:scheme="karasu" />
+                    android:scheme="tachiyomi" />
             </intent-filter>
         </activity>
         <activity
@@ -240,7 +248,7 @@
 
                 <data
                     android:host="shikimori-auth"
-                    android:scheme="karasu" />
+                    android:scheme="tachiyomi" />
             </intent-filter>
         </activity>
         <activity
@@ -255,7 +263,7 @@
 
                 <data
                     android:host="bangumi-auth"
-                    android:scheme="karasu" />
+                    android:scheme="tachiyomi" />
             </intent-filter>
         </activity>
 

@@ -85,19 +85,23 @@
     <string name="broken_cause_outdated_extension">O site mudou e esta extensão não entende mais o formato. Normalmente uma versão mais nova da extensão resolve.</string>
     <string name="broken_cause_source_refused">A fonte recusou a requisição ou está fora do ar.</string>
     <string name="broken_sources_migrate_all">Migrar estes</string>
+    <string name="broken_sources_update_extension">Atualizar extensão</string>
+    <string name="broken_sources_checking_extensions">Procurando atualizações de extensão</string>
+    <string name="broken_sources_retry">Tentar atualizar de novo</string>
+    <string name="broken_sources_retrying">Atualizando a biblioteca</string>
     <string name="broken_sources_and_more">e mais %1$d</string>
 
-    <!-- KOReader shelf -->
-    <string name="koreader">KOReader</string>
-    <string name="koreader_summary">Envia capítulos para um servidor próprio e recebe o progresso de leitura</string>
-    <string name="koreader_server_url">Endereço do servidor</string>
+    <!-- Yatagarasu -->
+    <string name="koreader">Yatagarasu</string>
+    <string name="koreader_summary">Envia capítulos para o KOReader através de um servidor Yatagarasu, e recebe o progresso de volta</string>
+    <string name="koreader_server_url">Endereço do Yatagarasu</string>
     <string name="koreader_server_url_hint">http://192.168.1.10:3000</string>
     <string name="koreader_api_key">Chave de API</string>
-    <string name="koreader_api_key_summary">Deixe em branco se o contêiner não usa chave</string>
+    <string name="koreader_api_key_summary">Deixe em branco se o servidor não usa chave</string>
     <string name="koreader_test_connection">Testar conexão</string>
-    <string name="koreader_connection_ok">Servidor respondeu</string>
-    <string name="koreader_connection_failed">Não foi possível acessar o servidor: %1$s</string>
-    <string name="koreader_set_url_first">Informe o endereço do servidor primeiro</string>
+    <string name="koreader_connection_ok">Yatagarasu respondeu</string>
+    <string name="koreader_connection_failed">Não foi possível acessar o Yatagarasu: %1$s</string>
+    <string name="koreader_set_url_first">Informe o endereço do Yatagarasu primeiro</string>
     <string name="koreader_what_to_send">O que enviar</string>
     <string name="koreader_categories_summary">Só mangás nestas categorias são enviados</string>
     <string name="koreader_filter">Filtro extra</string>
@@ -111,11 +115,31 @@
     <string name="koreader_needs_cbz">Os capítulos são enviados a partir dos seus downloads, então
         "Salvar capítulos como CBZ" precisa estar ligado. O que ainda não estiver baixado entra na
         fila e é enviado na próxima sincronização.</string>
+    <string name="koreader_pages">Páginas no dispositivo</string>
+    <string name="koreader_optimize_pages">Dividir páginas longas</string>
+    <string name="koreader_optimize_pages_summary">Corta tiras de webtoon em páginas do tamanho da
+        tela, nos espaços entre os quadros. Páginas que já cabem são enviadas sem alteração.</string>
+    <string name="koreader_device_width">Largura da tela</string>
+    <string name="koreader_device_width_summary">Páginas mais largas que a tela são reduzidas, o que
+        o dispositivo faria de qualquer jeito</string>
+    <string name="koreader_device_width_original">Enviar em tamanho original</string>
+    <string name="koreader_device_width_1072">1072 px (Paperwhite, Clara)</string>
+    <string name="koreader_device_width_1236">1236 px (Paperwhite 5, Oasis, Libra)</string>
+    <string name="koreader_device_width_1440">1440 px (Sage, Elipsa)</string>
+    <string name="koreader_device_width_1860">1860 px (Scribe)</string>
+    <string name="koreader_grayscale">Enviar em preto e branco</string>
+    <string name="koreader_grayscale_summary">Arquivos menores em uma tela que não mostra cor de
+        qualquer forma</string>
     <string name="koreader_reading">Progresso de volta</string>
     <string name="koreader_mark_read">Marcar como lido pelo KOReader</string>
     <string name="koreader_mark_read_summary">Capítulo terminado no dispositivo é marcado como lido aqui</string>
     <string name="koreader_sync_now">Sincronizar agora</string>
-    <string name="koreader_sync_started">Sincronizando</string>
+    <string name="koreader_sync_started">Sincronizando com o Yatagarasu</string>
+    <string name="koreader_never_synced">Nunca sincronizado</string>
+    <string name="koreader_last_sync">%1$s · %2$s</string>
+    <string name="koreader_sync_counts">%1$d enviados, %2$d removidos, %3$d lidos, %4$d na fila</string>
+    <string name="koreader_sync_nothing_to_do">nada a fazer</string>
+    <string name="koreader_sync_failed_summary">falhou: %1$s</string>
     <string name="koreader_sync_section">Sincronização</string>
     <string name="koreader_sync_interval">Sincronizar automaticamente</string>
     <string name="koreader_only_over_wifi">Sincronizar só no Wi-Fi</string>

@@ -148,7 +148,9 @@ class BangumiApi(
         private const val OAUTH_URL = "https://bgm.tv/oauth/access_token"
         private const val LOGIN_URL = "https://bgm.tv/oauth/authorize"
 
-        private const val REDIRECT_URL = "karasu://bangumi-auth"
+        // Must match the redirect registered against CLIENT_ID above, which is still
+        // upstream's — see the tracker callback comment in AndroidManifest.xml.
+        private const val REDIRECT_URL = "tachiyomi://bangumi-auth"
         private const val BASE_MANGA_URL = "$API_URL/mangas"
 
         fun mangaUrl(remoteId: Int): String {

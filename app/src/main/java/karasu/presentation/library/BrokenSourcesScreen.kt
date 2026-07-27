@@ -2,8 +2,8 @@ package karasu.presentation.library
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -19,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +43,8 @@ import karasu.i18n.MR
 fun BrokenSourcesScreen(
     sources: List<BrokenSource>,
     onMigrate: (BrokenSource) -> Unit,
+    onUpdateExtensions: () -> Unit,
+    onRetryUpdate: () -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     LazyColumn(
@@ -74,13 +77,23 @@ fun BrokenSourcesScreen(
         }
 
         items(sources, key = { "${it.sourceId}-${it.kind}" }) { source ->
-            BrokenSourceCard(source = source, onMigrate = { onMigrate(source) })
+            BrokenSourceCard(
+                source = source,
+                onMigrate = { onMigrate(source) },
+                onUpdateExtensions = onUpdateExtensions,
+                onRetryUpdate = onRetryUpdate,
+            )
         }
     }
 }
 
 @Composable
-private fun BrokenSourceCard(source: BrokenSource, onMigrate: () -> Unit) {
+private fun BrokenSourceCard(
+    source: BrokenSource,
+    onMigrate: () -> Unit,
+    onUpdateExtensions: () -> Unit,
+    onRetryUpdate: () -> Unit,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,23 +175,48 @@ private fun BrokenSourceCard(source: BrokenSource, onMigrate: () -> Unit) {
                     )
                 }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+            // Migrating is always offered but is deliberately never the only thing on the card
+            // when something cheaper might work: it rewrites which source every one of these
+            // entries points at, and there is no undo. A source that is merely refusing requests
+            // today usually needs another attempt, not a rewrite of the library.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
             ) {
-                TextButton(onClick = onMigrate) {
-                    Icon(
-                        Icons.Default.SwapHoriz,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        text = stringResource(MR.strings.broken_sources_migrate_all),
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+                if (source.kind == BreakageKind.FAILING) {
+                    when (source.cause) {
+                        FailureCause.OUTDATED_EXTENSION -> CardAction(
+                            icon = Icons.Default.Update,
+                            label = MR.strings.broken_sources_update_extension,
+                            onClick = onUpdateExtensions,
+                        )
+                        FailureCause.SOURCE_REFUSED -> CardAction(
+                            icon = Icons.Default.Refresh,
+                            label = MR.strings.broken_sources_retry,
+                            onClick = onRetryUpdate,
+                        )
+                        FailureCause.UNKNOWN -> Unit
+                    }
                 }
+                CardAction(
+                    icon = Icons.Default.SwapHoriz,
+                    label = MR.strings.broken_sources_migrate_all,
+                    onClick = onMigrate,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun CardAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: dev.icerock.moko.resources.StringResource,
+    onClick: () -> Unit,
+) {
+    TextButton(onClick = onClick) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(text = stringResource(label), modifier = Modifier.padding(start = 8.dp))
     }
 }
 

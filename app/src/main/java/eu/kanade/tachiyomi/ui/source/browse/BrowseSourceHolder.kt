@@ -6,6 +6,7 @@ import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.ui.base.holder.BaseFlexibleViewHolder
+import eu.kanade.tachiyomi.ui.source.ChapterCountBinder
 
 /**
  * Generic class used to hold the displayed data of a manga in the catalogue.
@@ -31,4 +32,15 @@ abstract class BrowseSourceHolder(view: View, adapter: FlexibleAdapter<IFlexible
      * @param manga the manga to bind.
      */
     abstract fun setImage(manga: Manga)
+
+    /**
+     * Shows how many chapters the source has for this manga, or nothing while it is unknown.
+     *
+     * Zero is worth showing: it is the answer that saves opening the entry at all.
+     */
+    abstract fun setChapterCount(count: Int?)
+
+    private val chapterCounts = ChapterCountBinder { setChapterCount(it) }
+
+    fun bindChapterCount(manga: Manga) = chapterCounts.bind(manga)
 }

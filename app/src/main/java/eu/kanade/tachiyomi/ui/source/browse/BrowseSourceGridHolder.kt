@@ -36,10 +36,12 @@ class BrowseSourceGridHolder(
 
     var title by mutableStateOf("")
     var cover by mutableStateOf(MangaCover(0L, 0L, "", 0L, false))
+    private var count by mutableStateOf<Int?>(null)
 
     init {
         view.setContent {
             KarasuTheme {
+                val count = this@BrowseSourceGridHolder.count
                 val badgeSegments = buildList {
                     if (cover.inLibrary)
                         add(
@@ -49,12 +51,31 @@ class BrowseSourceGridHolder(
                                 textColor = MaterialTheme.colorScheme.onSecondary,
                             )
                         )
+                    // An entry the source has nothing for is the thing worth spotting, so its
+                    // badge is the loud one rather than being hidden as "no badge".
+                    if (count != null)
+                        add(
+                            BadgeSegment.text(
+                                backgroundColor = if (count == 0) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.tertiary
+                                },
+                                text = count.toString(),
+                                textColor = if (count == 0) {
+                                    MaterialTheme.colorScheme.onError
+                                } else {
+                                    MaterialTheme.colorScheme.onTertiary
+                                },
+                            )
+                        )
                 }
                 if (compact) {
                     MangaCompactGridItem(
                         coverData = cover,
                         title = title,
                         isSelected = cover.inLibrary,
+                        dimmed = count == 0,
                         showOutline = showOutline,
                         badgeSegments = badgeSegments,
                     )
@@ -63,6 +84,7 @@ class BrowseSourceGridHolder(
                         coverData = cover,
                         title = title,
                         isSelected = cover.inLibrary,
+                        dimmed = count == 0,
                         showOutline = showOutline,
                         badgeSegments = badgeSegments,
                     )
@@ -90,5 +112,9 @@ class BrowseSourceGridHolder(
     override fun setImage(manga: Manga) {
         if ((view.context as? Activity)?.isDestroyed == true) return
         cover = manga.cover()
+    }
+
+    override fun setChapterCount(count: Int?) {
+        this.count = count
     }
 }

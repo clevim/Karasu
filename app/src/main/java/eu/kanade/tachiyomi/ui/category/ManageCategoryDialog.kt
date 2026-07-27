@@ -35,7 +35,7 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
      *
      * [onCreateRule] is optional and opting in to it is what puts the "add a rule" box on the
      * dialog. Passing it does not force the rule editor open — it is offered, and only called if
-     * the box is ticked, because most new categories are plain ones.
+     * the box is ticked, because most categories are plain ones.
      */
     constructor(
         category: Category?,
@@ -161,8 +161,9 @@ class ManageCategoryDialog(bundle: Bundle? = null) :
             binding.categoryTextLayout.isVisible = false
         }
         binding.editCategories.isVisible = category != null
-        // Offered only when creating, and only where the caller can actually open the editor.
-        val offersRule = onCreateRule != null && category == null
+        // Offered wherever the caller can actually open the editor — editing an existing category
+        // is the more common moment to want a rule, not the rarer one.
+        val offersRule = onCreateRule != null
         binding.createRule.isVisible = offersRule
         binding.createRuleSummary.isVisible = offersRule
         binding.editCategories.setOnClickListener {

@@ -16,6 +16,7 @@ import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.databinding.UnreadDownloadBadgeBinding
 import eu.kanade.tachiyomi.util.system.contextCompatColor
 import eu.kanade.tachiyomi.util.system.dpToPx
+import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.getResourceColor
 import eu.kanade.tachiyomi.util.view.makeShapeCorners
 
@@ -80,29 +81,9 @@ class LibraryBadge @JvmOverloads constructor(context: Context, attrs: AttributeS
         }
 
         with(binding.langImage) {
-            isVisible = !lang.isNullOrBlank()
-            if (!lang.isNullOrBlank()) {
-                val flagId = resources.getIdentifier(
-                    "ic_flag_${lang.replace("-", "_")}",
-                    "drawable",
-                    context.packageName,
-                ).takeIf { it != 0 } ?: (
-                    if (lang.contains("-")) {
-                        resources.getIdentifier(
-                            "ic_flag_${lang.split("-").first()}",
-                            "drawable",
-                            context.packageName,
-                        ).takeIf { it != 0 }
-                    } else {
-                        null
-                    }
-                    )
-                if (flagId != null) {
-                    setImageResource(flagId)
-                } else {
-                    isVisible = false
-                }
-            }
+            val flagId = LocaleHelper.getFlagDrawable(context, lang)
+            isVisible = flagId != null
+            if (flagId != null) setImageResource(flagId)
         }
 
         binding.unreadAngle.isVisible = false

@@ -88,6 +88,9 @@ import uy.kohesive.injekt.injectLazy
 import karasu.domain.category.interactor.ApplyCategoryRules
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.failures.FailureCause
+import karasu.domain.manga.failures.causeOf
+import karasu.domain.manga.failures.interactor.GetBrokenSources
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.manga.interactor.UpdateManga
@@ -113,6 +116,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     private val mergedSourceSync: MergedSourceSync = Injekt.get()
     private val applyCategoryRules: ApplyCategoryRules = Injekt.get()
     private val updateFailures: UpdateFailures = Injekt.get()
+    private val getBrokenSources: GetBrokenSources = Injekt.get()
     private val updateManga: UpdateManga = Injekt.get()
     private val getTrack: GetTrack = Injekt.get()
     private val insertTrack: InsertTrack by injectLazy()
@@ -376,7 +380,15 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
         if (failedUpdates.isNotEmpty() && Notifications.isNotificationChannelEnabled(context, Notifications.CHANNEL_LIBRARY_ERROR)) {
             val errorFile = writeErrorFile(failedUpdates).getUriCompat(context)
-            notifier.showUpdateErrorNotification(failedUpdates.map { it.key.title }, errorFile)
+            // Asked once, at the end of a run that already did hundreds of network calls, so the
+            // cost is noise — and it is the only way to know whether the panel has anything in it.
+            val hasBrokenSources = runCatching { getBrokenSources.await().isNotEmpty() }
+                .getOrDefault(false)
+            notifier.showUpdateErrorNotification(
+                failedUpdates.map { it.key.title },
+                errorFile,
+                hasBrokenSources,
+            )
         }
         mangaShortcutManager.updateShortcuts(context)
         failedUpdates.clear()
@@ -472,6 +484,12 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             if (e !is CancellationException) {
                 failedUpdates[manga.manga] = e.message
                 manga.manga.id?.let { updateFailures.record(it, e, context.isOnline()) }
+                // A source whose response no longer fits the extension's parser is almost always
+                // fixed by a newer extension, and this run has just proven the network works.
+                // The completion block already knows how to kick that job off.
+                if (causeOf(e.message) == FailureCause.OUTDATED_EXTENSION) {
+                    runExtensionUpdatesAfterJob()
+                }
                 Logger.e { "Failed updating: ${manga.manga.title}: $e" }
             }
             return@coroutineScope false

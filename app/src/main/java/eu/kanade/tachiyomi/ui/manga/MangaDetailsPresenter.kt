@@ -284,30 +284,52 @@ class MangaDetailsPresenter(
         return chapters
     }
 
+    /** Which source a chapter row came from. */
+    data class ChapterSource(val name: String, val lang: String)
+
     /**
-     * Source name for each merged source's manga row, keyed by that row's id.
+     * Source of each manga row this chapter list draws from, keyed by that row's id — the
+     * manga's own row included.
      *
      * A merged chapter keeps the id of the row it was synced under, so this is what lets the
      * chapter list say which source a row this manga didn't fetch itself came from. Empty for
      * the usual case of a manga with no merges, so nothing here costs anything there.
      */
-    var mergedSourceNames: Map<Long, String> = emptyMap()
+    var chapterSources: Map<Long, ChapterSource> = emptyMap()
         private set
 
-    private suspend fun refreshMergedSourceNames() {
-        mergedSourceNames = if (!mergedSources.hasMerges(mangaId)) {
-            emptyMap()
-        } else {
-            mergedSources.await(mangaId).mapNotNull { merge ->
-                val childId = getManga.awaitByUrlAndSource(merge.url, merge.source)?.id
-                    ?: return@mapNotNull null
-                childId to sourceManager.getOrStub(merge.source).name
-            }.toMap()
+    /**
+     * True when the merged sources speak a language the manga's own source doesn't.
+     *
+     * Then chapter 5 appears once per language, and a flag on every row — not just the merged
+     * ones — is the only thing that says which of them is which.
+     */
+    var showChapterLanguages = false
+        private set
+
+    private suspend fun refreshChapterSources() {
+        if (!mergedSources.hasMerges(mangaId)) {
+            chapterSources = emptyMap()
+            showChapterLanguages = false
+            return
         }
+
+        val own = sourceManager.getOrStub(manga.source)
+        val sources = buildMap {
+            put(mangaId, ChapterSource(own.name, own.lang))
+            mergedSources.await(mangaId).forEach { merge ->
+                val childId = getManga.awaitByUrlAndSource(merge.url, merge.source)?.id
+                    ?: return@forEach
+                val source = sourceManager.getOrStub(merge.source)
+                put(childId, ChapterSource(source.name, source.lang))
+            }
+        }
+        chapterSources = sources
+        showChapterLanguages = sources.values.distinctBy { it.lang }.size > 1
     }
 
     private suspend fun getChapters(queue: List<Download> = downloadManager.queueState.value) {
-        refreshMergedSourceNames()
+        refreshChapterSources()
         val chapters = getChapter.awaitAll(mangaId, isScanlatorFiltered()).map { it.toModel() }
         allChapters = if (!isScanlatorFiltered()) chapters else getChapter.awaitAll(mangaId, false).map { it.toModel() }
 

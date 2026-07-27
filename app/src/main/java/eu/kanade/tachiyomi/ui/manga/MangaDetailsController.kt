@@ -110,6 +110,7 @@ import eu.kanade.tachiyomi.util.system.addCheckBoxPrompt
 import eu.kanade.tachiyomi.util.system.contextCompatColor
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.e
+import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.getResourceColor
 import eu.kanade.tachiyomi.util.system.ignoredSystemInsets
 import eu.kanade.tachiyomi.util.system.isInNightMode
@@ -1755,10 +1756,16 @@ class MangaDetailsController :
 
     private fun showMergedSourcesDialog() {
         viewScope.launchIO {
-            val sources = presenter.mergedSources().map {
-                it.source to presenter.sourceManager.getOrStub(it.source).name
-            }
+            val merged = presenter.mergedSources()
             withUIContext {
+                val context = activity ?: return@withUIContext
+                // The language is part of a merged source's identity now that two of them can
+                // differ only by it, so the list says which is which instead of showing two
+                // look-alike names.
+                val sources = merged.map {
+                    val source = presenter.sourceManager.getOrStub(it.source)
+                    it.source to "${source.name} (${LocaleHelper.getSourceDisplayName(source.lang, context)})"
+                }
                 activity?.showMergedSourcesDialog(
                     sources = sources,
                     onRemove = presenter::removeMergedSource,

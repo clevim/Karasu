@@ -199,13 +199,14 @@ class CustomMangaManager(val context: Context) {
     }
 
     @Serializable
-    // ponytail: tag name stays "Yokai" — it's the on-disk format in ComicInfoEdits.xml, renaming it drops every existing user's custom info
-    @XmlSerialName("ComicListYokai", "http://www.w3.org/2001/XMLSchema", "yk")
+    // ponytail: this is the on-disk format of ComicInfoEdits.xml. A file written under the old
+    // "Yokai" tag no longer parses — sed the two tag names in it if custom info goes missing.
+    @XmlSerialName("ComicListKarasu", "http://www.w3.org/2001/XMLSchema", "ks")
     data class ComicList(
         val comics: List<ComicInfoKarasu>? = null,
     ) {
         @Serializable
-        @XmlSerialName("ComicInfoYokai", "http://www.w3.org/2001/XMLSchema", "yk")
+        @XmlSerialName("ComicInfoKarasu", "http://www.w3.org/2001/XMLSchema", "ks")
         data class ComicInfoKarasu(
             @XmlValue(true) val value: ComicInfo,
             var id: Long? = null,

@@ -40,6 +40,7 @@ import karasu.domain.extension.repo.interactor.UpdateExtensionRepo
 import karasu.domain.history.HistoryRepository
 import karasu.domain.history.interactor.GetHistory
 import karasu.domain.history.interactor.UpsertHistory
+import karasu.domain.koreader.interactor.PrepareShelfCbz
 import karasu.domain.koreader.interactor.SyncKoreaderShelf
 import karasu.domain.library.custom.CustomMangaRepository
 import karasu.domain.library.custom.interactor.CreateCustomManga
@@ -72,7 +73,8 @@ fun domainModule() = module {
 
     single { KoreaderApi(get(), get()) }
     factory { BuildRuleInputs(get(), get(), get(), get(), get(), get()) }
-    factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { PrepareShelfCbz(get(), get()) }
+    factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
     factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
@@ -116,7 +118,7 @@ fun domainModule() = module {
     single<ChapterRepository> { ChapterRepositoryImpl(get()) }
     factory { DeleteChapter(get()) }
     factory { GetAvailableScanlators(get()) }
-    factory { GetChapter(get(), get(), get()) }
+    factory { GetChapter(get(), get(), get(), get()) }
     factory { InsertChapter(get()) }
     factory { UpdateChapter(get()) }
 
