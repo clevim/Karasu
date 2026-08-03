@@ -289,11 +289,11 @@ class MangaHeaderHolder(
         if (binding != null) {
             binding.chaptersTitle.text =
                 itemView.context.getString(MR.plurals.chapters_plural, count, count)
-            binding.filtersText.text = presenter.currentFilters()
+            binding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
         } else if (chapterBinding != null) {
             chapterBinding.chaptersTitle.text =
                 itemView.context.getString(MR.plurals.chapters_plural, count, count)
-            chapterBinding.filtersText.text = presenter.currentFilters()
+            chapterBinding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
         }
     }
 
@@ -307,7 +307,7 @@ class MangaHeaderHolder(
                 val count = presenter.chapters.size
                 chapterBinding.chaptersTitle.text =
                     itemView.context.getString(MR.plurals.chapters_plural, count, count)
-                chapterBinding.filtersText.text = presenter.currentFilters()
+                chapterBinding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
                 if (adapter.preferences.themeMangaDetails().get()) {
                     val accentColor = adapter.delegate.accentColor() ?: return
                     chapterBinding.filterButton.imageTintList = ColorStateList.valueOf(accentColor)

@@ -70,7 +70,11 @@ AND H.history_last_read > 0
 LEFT JOIN scanlators_view AS S
 ON C.manga_id = S.manga_id
 AND C.scanlator = S.name
-WHERE lower(M.title) LIKE '%' || :search || '%'
+-- Reading something straight from a source still records where you stopped, but it is not on the
+-- shelf, so it does not belong in a list of what you are keeping up with. Adding it to the library
+-- is what makes it appear here. The other branches of these queries already worked this way.
+WHERE M.favorite = 1
+AND lower(M.title) LIKE '%' || :search || '%'
 AND (
     :apply_filter = 0 OR S.name IS NULL
 )
@@ -102,7 +106,8 @@ AND max_last_read.history_last_read > 0
 LEFT JOIN scanlators_view AS S
 ON C.manga_id = S.manga_id
 AND C.scanlator = S.name
-WHERE lower(M.title) LIKE '%' || :search || '%'
+WHERE M.favorite = 1
+AND lower(M.title) LIKE '%' || :search || '%'
 AND (
     :apply_filter = 0 OR S.name IS NULL
 )
@@ -152,7 +157,8 @@ AND max_last_read.history_last_read > 0
 LEFT JOIN scanlators_view AS S
 ON C.manga_id = S.manga_id
 AND C.scanlator = S.name
-WHERE lower(title) LIKE '%' || :search || '%'
+WHERE M.favorite = 1
+AND lower(title) LIKE '%' || :search || '%'
 AND (
     :apply_filter = 0 OR S.name IS NULL
 )

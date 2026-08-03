@@ -816,6 +816,12 @@
     <string name="rule_value_yes">Yes</string>
     <string name="rule_value_no">No</string>
 
+    <string name="missing_chapters">Missing chapters</string>
+    <string name="missing_chapters_none">No chapters are missing</string>
+    <string name="missing_chapter_range">Chapters %1$d–%2$d</string>
+    <string name="missing_chapter_single">Chapter %1$d</string>
+    <string name="merge_into_existing">Merge into the one you have</string>
+    <string name="merged_into">Merged into %1$s</string>
     <string name="merged_sources">Merged sources</string>
     <string name="no_merged_sources">No merged sources yet</string>
     <string name="merged_source_summary">%1$d new chapters, %2$d already covered</string>

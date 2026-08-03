@@ -11,9 +11,10 @@ import java.util.concurrent.ConcurrentHashMap
  * source, this manga, just now, while someone was waiting for a page. It is worth acting on the
  * first time it happens and worthless a day later, so it lives in memory and expires on its own.
  *
- * Two things read this. The merged-source fallback uses it to stop paying a broken source's
- * timeout on every chapter open, and the broken-sources screen uses it to say that a source is
- * failing to serve pages, which no library update would ever have noticed.
+ * Three things read this. The merged-source fallback uses it to stop paying a broken source's
+ * timeout on every chapter open, the broken-sources screen uses it to say that a source is failing
+ * to serve pages — which no library update would ever have noticed — and global search uses it to
+ * put the sources that are down at the back of the queue.
  */
 class ReadFailures {
 
@@ -30,6 +31,9 @@ class ReadFailures {
     // this session, so it stays tiny; give it a size cap if that ever stops being true.
     private val failures = ConcurrentHashMap<Pair<Long, Long>, ReadFailure>()
 
+    /** Source id to when it last failed at anything, for the "is this source up" question. */
+    private val sourceFailures = ConcurrentHashMap<Long, Long>()
+
     fun record(mangaId: Long, sourceId: Long, mangaTitle: String, message: String?) {
         failures[mangaId to sourceId] = ReadFailure(
             mangaId = mangaId,
@@ -38,12 +42,33 @@ class ReadFailures {
             message = message,
             at = System.currentTimeMillis(),
         )
+        recordSource(sourceId)
     }
 
     /** Called when a source serves a chapter, which is the only thing that clears its record. */
     fun clear(mangaId: Long, sourceId: Long) {
         failures.remove(mangaId to sourceId)
+        clearSource(sourceId)
     }
+
+    /**
+     * A source that failed with no particular manga behind it — a search that timed out, say.
+     *
+     * Kept apart from the per-manga records above because the two answer different questions. That
+     * a source can't serve *this* manga says nothing about the rest of it: the entry may simply be
+     * gone. That a source is down says nothing about which manga you asked it for.
+     */
+    fun recordSource(sourceId: Long) {
+        sourceFailures[sourceId] = System.currentTimeMillis()
+    }
+
+    fun clearSource(sourceId: Long) {
+        sourceFailures.remove(sourceId)
+    }
+
+    /** Whether [sourceId] failed recently enough that it isn't worth going to first. */
+    fun isSourceFailing(sourceId: Long): Boolean =
+        sourceFailures[sourceId]?.let { System.currentTimeMillis() - it < COOLDOWN_MS } == true
 
     /**
      * Whether [sourceId] failed [mangaId] recently enough to still be worth avoiding.

@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.withPermit
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import karasu.domain.manga.failures.ReadFailures
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.InsertManga
 import karasu.domain.manga.interactor.UpdateManga
@@ -50,6 +51,7 @@ open class GlobalSearchPresenter(
     private val getManga: GetManga by injectLazy()
     private val insertManga: InsertManga by injectLazy()
     private val updateManga: UpdateManga by injectLazy()
+    private val readFailures: ReadFailures by injectLazy()
 
     /**
      * Enabled sources.
@@ -110,10 +112,22 @@ open class GlobalSearchPresenter(
         }
     }
 
+    /**
+     * Puts the sources known to be down at the back of the queue.
+     *
+     * Search runs behind a semaphore, so a source that will time out doesn't just fail — it holds
+     * a permit for the whole timeout while sources that would have answered wait behind it. They
+     * are still queried, just last: dropping them would silently hide a source that has recovered,
+     * and the results list re-sorts as answers arrive anyway, so this only changes what is asked
+     * first, never what is shown.
+     */
+    private fun List<CatalogueSource>.healthyFirst(): List<CatalogueSource> =
+        sortedBy { readFailures.isSourceFailing(it.id) }
+
     private fun getSourcesToQuery(): List<CatalogueSource> {
-        if (sourcesToUse != null) return sourcesToUse
+        if (sourcesToUse != null) return sourcesToUse.healthyFirst()
         val filter = extensionFilter
-        val enabledSources = getEnabledSources()
+        val enabledSources = getEnabledSources().healthyFirst()
         if (filter.isNullOrEmpty()) {
             return enabledSources
         }
@@ -182,7 +196,12 @@ open class GlobalSearchPresenter(
                         }
                         val mangas = try {
                             source.getSearchManga(1, query, source.getFilterList())
+                                .also { readFailures.clearSource(source.id) }
                         } catch (error: Exception) {
+                            // Remembering this is what makes the ordering above self-correcting:
+                            // the next search puts whatever just timed out at the back instead of
+                            // making the user wait through it again.
+                            readFailures.recordSource(source.id)
                             MangasPage(emptyList(), false)
                         }
                             .mangas.take(10)

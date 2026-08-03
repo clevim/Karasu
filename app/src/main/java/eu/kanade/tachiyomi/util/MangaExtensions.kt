@@ -31,6 +31,7 @@ import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.system.setCustomTitleAndMessage
+import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.util.view.setAction
@@ -50,6 +51,7 @@ import karasu.domain.category.interactor.GetCategories
 import karasu.domain.category.interactor.SetMangaCategories
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.merged.interactor.MergedSources
 import karasu.domain.manga.interactor.UpdateManga
 import karasu.domain.manga.models.MangaUpdate
 import karasu.domain.track.interactor.InsertTrack
@@ -369,6 +371,42 @@ private suspend fun Manga.showSetCategoriesSheet(
     }
 }
 
+/**
+ * Links [newManga]'s source into the copy already in the library, instead of adding a second entry.
+ *
+ * The two lossy answers this sits next to are what makes it worth offering: adding splits your read
+ * progress across two entries of the same series, and migrating discards one of the two sources at
+ * exactly the moment you learned you have both. A merge keeps the entry you have, gains whatever
+ * chapters the new source carries that yours doesn't, and leaves it standing by as the source the
+ * reader falls back to when the first one breaks.
+ */
+private suspend fun mergeIntoLibraryManga(
+    libraryManga: Manga,
+    newManga: Manga,
+    activity: Activity,
+    sourceManager: SourceManager,
+    mergedSources: MergedSources = Injekt.get(),
+    mergedSourceSync: MergedSourceSync = Injekt.get(),
+) {
+    val mangaId = libraryManga.id ?: return
+    val added = mergedSources.addAtEnd(
+        mangaId = mangaId,
+        source = newManga.source,
+        url = newManga.url,
+        ownSource = libraryManga.source,
+    )
+    // A new merge has no chapters stored under it yet, so without this the entry gains nothing
+    // until the next library update reaches it.
+    if (added) {
+        runCatching { mergedSourceSync.await(mangaId) }
+    }
+    withUIContext {
+        activity.toast(
+            activity.getString(MR.strings.merged_into, sourceManager.getOrStub(libraryManga.source).name),
+        )
+    }
+}
+
 private suspend fun showAddDuplicateDialog(
     newManga: Manga,
     libraryManga: Manga,
@@ -404,11 +442,21 @@ private suspend fun showAddDuplicateDialog(
         migrateManga(libraryManga.source, !replace)
     }
 
+    // Merging needs a row to point at: the merge stores a source and a url, and the sync resolves
+    // them back to the row holding that source's chapters. Search inserts a row for every result
+    // it shows, so this is all but always true — but an un-persisted manga would merge to nothing.
+    val canMerge = libraryManga.id != null && newManga.id != null
+
     activity.materialAlertDialog().apply {
         setCustomTitleAndMessage(0, activity.getString(MR.strings.confirm_manga_add_duplicate, source.name))
         setItems(
             arrayOf(
                 activity.getString(MR.strings.show_, libraryManga.seriesType(activity, sourceManager)).asButton(activity),
+                // Ahead of "add" and "migrate" because it is usually the right answer and the
+                // other two are the lossy ones: a second entry splits your read progress in half,
+                // and migrating throws one source away. Merging keeps both and reads whichever
+                // works — which is the whole point of the fallback.
+                activity.getString(MR.strings.merge_into_existing).asButton(activity, !canMerge),
                 activity.getString(MR.strings.add_to_library).asButton(activity),
                 activity.getString(MR.strings.migrate).asButton(activity, !newManga.initialized),
             ),
@@ -418,8 +466,15 @@ private suspend fun showAddDuplicateDialog(
                     MangaDetailsController(libraryManga)
                         .withFadeTransaction(),
                 )
-                1 -> scope.launchIO { addManga() }
-                2 -> {
+                1 -> if (canMerge) {
+                    scope.launchIO {
+                        mergeIntoLibraryManga(libraryManga, newManga, activity, sourceManager)
+                    }
+                } else {
+                    return@setItems
+                }
+                2 -> scope.launchIO { addManga() }
+                3 -> {
                     if (!newManga.initialized) {
                         activity.toast(MR.strings.must_view_details_before_migration, Toast.LENGTH_LONG)
                         return@setItems

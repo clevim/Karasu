@@ -1271,6 +1271,10 @@ class MangaDetailsController :
             !presenter.manga.isLocal() && presenter.manga.favorite
         menu.findItem(R.id.action_merged_sources)?.isVisible = !presenter.isLockedFromSearch &&
             !presenter.manga.isLocal() && presenter.manga.favorite
+        // Only worth an entry when there is something to see: most manga have no gaps, and a menu
+        // item that always answers "nothing is missing" is one nobody reads twice.
+        menu.findItem(R.id.action_missing_chapters)?.isVisible =
+            !presenter.isLockedFromSearch && presenter.chapterGaps.isNotEmpty()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -1293,6 +1297,7 @@ class MangaDetailsController :
                     )
                 }
             R.id.action_merged_sources -> if (!isNotOnline()) showMergedSourcesDialog()
+            R.id.action_missing_chapters -> showMissingChaptersDialog()
             R.id.action_mark_all_as_read -> {
                 activity!!.materialAlertDialog()
                     .setMessage(MR.strings.mark_all_chapters_as_read)
@@ -1762,6 +1767,37 @@ class MangaDetailsController :
             true
         }
         return popup
+    }
+
+    /**
+     * Lists what the chapter list skips over, and offers merging as the way to fill it.
+     *
+     * There is no "fetch chapter 23" button because there is nowhere to fetch it from: a gap is a
+     * number nothing you already have carries. Another source might, which is what the merge
+     * button is for — and it is also why the gaps are recomputed after every merge.
+     */
+    private fun showMissingChaptersDialog() {
+        val activity = activity ?: return
+        val gaps = presenter.chapterGaps
+        if (gaps.isEmpty()) {
+            activity.toast(MR.strings.missing_chapters_none)
+            return
+        }
+        val items = gaps.map { gap ->
+            when (gap.from) {
+                gap.to -> activity.getString(MR.strings.missing_chapter_single, gap.from)
+                else -> activity.getString(MR.strings.missing_chapter_range, gap.from, gap.to)
+            }
+        }.toTypedArray()
+
+        activity.materialAlertDialog().apply {
+            setTitle(activity.getString(MR.strings.missing_chapters))
+            setItems(items, null)
+            setPositiveButton(MR.strings.merged_sources) { _, _ ->
+                if (!isNotOnline()) showMergedSourcesDialog()
+            }
+            setNegativeButton(AR.string.cancel, null)
+        }.show()
     }
 
     private fun showMergedSourcesDialog() {

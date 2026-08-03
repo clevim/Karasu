@@ -87,4 +87,10 @@
         android:title="@string/merged_sources"
         app:showAsAction="never" />
 
+    <item
+        android:id="@+id/action_missing_chapters"
+        android:icon="@drawable/ic_warning_white_24dp"
+        android:title="@string/missing_chapters"
+        app:showAsAction="never" />
+
 </menu>

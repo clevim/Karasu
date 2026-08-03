@@ -12,6 +12,16 @@
 kls_database.db
 weblate.conf
 
+# Assinatura. O CI usa secrets.SIGNING_KEY, então nada disso deveria existir aqui —
+# mas uma chave vazada não tem como ser desfeita.
+*.jks
+*.keystore
+keystore.properties
+
+# Android Studio profiler e heap dumps (o LeakCanary do debug gera .hprof sozinho)
+captures/
+*.hprof
+
 # Claude Code / ferramentas locais — não versionar
 .claude/
 CLAUDE.md

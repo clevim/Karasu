@@ -27,6 +27,21 @@ class MergedSources(private val repository: MergedMangaRepository) {
         invalidate()
     }
 
+    /**
+     * Links [source] to [mangaId] behind every merge it already has, and says whether it did.
+     *
+     * Callers follow a true with a sync, since a brand new merge has no chapters stored yet.
+     * Re-adding a source, or merging a manga with itself, is a no-op rather than an error: both
+     * arrive from a user tapping something twice, not from a bug worth surfacing.
+     */
+    suspend fun addAtEnd(mangaId: Long, source: Long, url: String, ownSource: Long? = null): Boolean {
+        if (source == ownSource) return false
+        val existing = await(mangaId)
+        if (existing.any { it.source == source }) return false
+        add(mangaId, source, url, (existing.maxOfOrNull { it.priority } ?: 0) + 1)
+        return true
+    }
+
     suspend fun reorder(mangaId: Long, source: Long, priority: Int) =
         repository.updatePriority(mangaId, source, priority)
 

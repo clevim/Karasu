@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.manga
 
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.core.net.toFile
@@ -94,6 +95,8 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.category.interactor.ApplyCategoryRules
 import karasu.domain.category.interactor.GetCategories
+import karasu.domain.chapter.interactor.ChapterGap
+import karasu.domain.chapter.interactor.findChapterGaps
 import karasu.domain.chapter.interactor.GetAvailableScanlators
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.chapter.interactor.UpdateChapter
@@ -364,6 +367,7 @@ class MangaDetailsPresenter(
         // Find downloaded chapters
         setDownloadedChapters(chapters, queue)
         allChapterScanlators = allChapters.mapNotNull { it.chapter.scanlator }.toSet()
+        chapterGaps = findChapterGaps(allChapters.map { it.chapter.chapter_number })
 
         this.chapters = applyChapterFilters(chapters)
     }
@@ -447,6 +451,30 @@ class MangaDetailsPresenter(
      */
     fun getNextUnreadChapter(): ChapterItem? {
         return chapterSort.getNextUnreadChapter(chapters)
+    }
+
+    /**
+     * Chapter numbers absent from this manga's whole list, recomputed whenever the list is.
+     *
+     * Taken from [allChapters] rather than [chapters]: with "unread only" on, everything already
+     * read would read as a hole. Merged sources are already folded in by then, so a number here is
+     * one that nothing you have carries — not one the primary source happens to be short of.
+     */
+    var chapterGaps: List<ChapterGap> = emptyList()
+        private set
+
+    /**
+     * The line under the chapter count: the active filters, and how much the list is short of.
+     *
+     * Shares the filter line rather than adding a row of its own, because for most manga there are
+     * no gaps and an empty row would be permanent furniture for a rare event.
+     */
+    fun chapterListSubtitle(context: Context): String {
+        val filters = currentFilters()
+        val missing = chapterGaps.sumOf { it.size }
+        if (missing == 0) return filters
+        val gapText = context.getString(MR.plurals.missing_chapters_count, missing, missing)
+        return if (filters.isBlank()) gapText else "$filters • $gapText"
     }
 
     fun anyRead(): Boolean = allChapters.any { it.read }
@@ -680,9 +708,7 @@ class MangaDetailsPresenter(
      */
     fun addMergedSource(source: Long, url: String) {
         presenterScope.launchIO {
-            val existing = mergedSources.await(mangaId)
-            if (source == manga.source || existing.any { it.source == source }) return@launchIO
-            mergedSources.add(mangaId, source, url, (existing.maxOfOrNull { it.priority } ?: 0) + 1)
+            if (!mergedSources.addAtEnd(mangaId, source, url, ownSource = manga.source)) return@launchIO
             // Only a new source needs the network: its chapters aren't stored yet.
             try {
                 mergedSourceSync.await(mangaId)
