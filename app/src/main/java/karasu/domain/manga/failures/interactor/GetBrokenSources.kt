@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.SourceManager
 import karasu.domain.manga.failures.FailureCause
 import karasu.domain.manga.failures.MangaUpdateFailureRepository
+import karasu.domain.manga.failures.ReadFailures
 import karasu.domain.manga.failures.causeOf
 import karasu.domain.manga.interactor.GetLibraryManga
 
@@ -23,6 +24,15 @@ enum class BreakageKind {
 
     /** Still installed and offered, but its updates keep failing. */
     FAILING,
+
+    /**
+     * Failed to serve pages while someone was reading, just now.
+     *
+     * Last because it is the least final — a source can fail one chapter and be fine on the next
+     * — but it is the only kind a library update would never have found, since updates only ever
+     * ask for chapter lists.
+     */
+    READ_FAILING,
 }
 
 data class BrokenEntry(
@@ -68,6 +78,7 @@ class GetBrokenSources(
     private val failureRepository: MangaUpdateFailureRepository,
     private val sourceManager: SourceManager,
     private val extensionManager: ExtensionManager,
+    private val readFailures: ReadFailures,
 ) {
 
     suspend fun await(minimumFailures: Int = DEFAULT_MINIMUM_FAILURES): List<BrokenSource> {
@@ -107,6 +118,7 @@ class GetBrokenSources(
                     ),
                 )
             }
+            .plus(readFailureRows())
             .groupBy { (sourceId, kind, _) -> sourceId to kind }
             .map { (key, group) ->
                 val (sourceId, kind) = key
@@ -119,6 +131,30 @@ class GetBrokenSources(
             }
             .sortedWith(compareBy({ it.kind.ordinal }, { it.sourceName }))
     }
+
+    /**
+     * Sources that failed to serve a page recently, as their own rows.
+     *
+     * Not folded into the library pass above, because these are keyed by the source that actually
+     * failed rather than the source a library entry sits on. A merged source has its own manga row
+     * and usually isn't in the library at all, so going through the library would drop exactly the
+     * failures this is here to surface. A single failure counts: unlike an update, someone was
+     * waiting for it.
+     */
+    private fun readFailureRows(): List<Triple<Long, BreakageKind, BrokenEntry>> =
+        readFailures.recent().map { failure ->
+            Triple(
+                failure.sourceId,
+                BreakageKind.READ_FAILING,
+                BrokenEntry(
+                    mangaId = failure.mangaId,
+                    title = failure.mangaTitle,
+                    failures = 1,
+                    lastMessage = failure.message,
+                    lastAttempt = failure.at,
+                ),
+            )
+        }
 
     companion object {
         /**

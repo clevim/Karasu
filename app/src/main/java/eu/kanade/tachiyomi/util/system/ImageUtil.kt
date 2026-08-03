@@ -80,11 +80,6 @@ object ImageUtil {
         }
     }
 
-    fun getExtensionFromMimeType(mime: String?, openStream: () -> InputStream): String {
-        val type = mime?.let { ImageType.entries.find { it.mime == mime } } ?: findImageType(openStream)
-        return type?.extension ?: "jpg"
-    }
-
     fun isAnimatedAndSupported(source: BufferedSource): Boolean {
         return try {
             val type = getImageType(source.peek().inputStream()) ?: return false
@@ -554,7 +549,7 @@ object ImageUtil {
         val options = extractImageOptions(imageSource).apply {
             inJustDecodeBounds = false
         }
-        val splitDataList = options.splitData
+        val splitDataList = options.splitData(bitmapRegionDecoder)
 
         return try {
             splitDataList.forEach { splitData ->
@@ -593,39 +588,149 @@ object ImageUtil {
     private fun splitImageName(fileName: String, index: Int) =
         "${fileName}__${"%03d".format(Locale.ENGLISH, index + 1)}.jpg"
 
-    private val BitmapFactory.Options.splitData
-        get(): List<SplitData> {
-            val imageHeight = outHeight
-            val imageWidth = outWidth
+    private fun BitmapFactory.Options.splitData(decoder: BitmapRegionDecoder): List<SplitData> {
+        val imageHeight = outHeight
+        val imageWidth = outWidth
 
-            val optimalImageHeight = displayMaxHeightInPx * 4
+        val optimalImageHeight = displayMaxHeightInPx * 4
 
-            // -1 so it doesn't try to split when imageHeight = optimalImageHeight
-            val partCount = (imageHeight - 1) / optimalImageHeight + 1
-            val optimalSplitHeight = imageHeight / partCount
+        // -1 so it doesn't try to split when imageHeight = optimalImageHeight
+        val partCount = (imageHeight - 1) / optimalImageHeight + 1
+        val optimalSplitHeight = imageHeight / partCount
 
-            Logger.d {
-                "Splitting image with height of $imageHeight into $partCount part with estimated ${optimalSplitHeight}px height per split"
-            }
-
-            return mutableListOf<SplitData>().apply {
-                val range = 0 until partCount
-                for (index in range) {
-                    // Only continue if the list is empty or there is image remaining
-                    if (isNotEmpty() && imageHeight <= last().bottomOffset) break
-
-                    val topOffset = index * optimalSplitHeight
-                    var splitHeight = min(optimalSplitHeight, imageHeight - topOffset)
-
-                    if (index == range.last) {
-                        val remainingHeight = imageHeight - (topOffset + splitHeight)
-                        splitHeight += remainingHeight
-                    }
-
-                    add(SplitData(index, topOffset, splitHeight, imageWidth))
-                }
-            }
+        Logger.d {
+            "Splitting image with height of $imageHeight into $partCount part with estimated ${optimalSplitHeight}px height per split"
         }
+
+        // An offset picked by arithmetic lands wherever it lands — through a face as readily as
+        // through the gap above it. Nudging it onto the nearest gutter is what keeps a panel whole.
+        val window = (optimalSplitHeight * GUTTER_SEARCH_WINDOW).roundToInt().coerceAtLeast(1)
+
+        var topOffset = 0
+        return (0 until partCount).map { index ->
+            val bottomOffset = if (index == partCount - 1) {
+                imageHeight
+            } else {
+                val ideal = (index + 1) * optimalSplitHeight
+                // A piece may move onto a gutter but never grow past the height the plain
+                // arithmetic guaranteed. Past that the webtoon viewer hands it to SSIV, which does
+                // not tile a bitmap, and a piece over the texture limit does not render at all —
+                // a cut through a panel is a blemish, a page that never appears is a bug.
+                val ceiling = min(topOffset + optimalImageHeight, imageHeight)
+                // And never less than half a piece, or two neighbouring cuts landing on the same
+                // gutter would leave a sliver of a page between them.
+                val floor = min(topOffset + optimalSplitHeight / 2, ceiling)
+                val gutter = findGutter(
+                    decoder,
+                    Rect(0, floor, imageWidth, ceiling),
+                    ideal.coerceAtLeast(floor),
+                    window,
+                )
+                (gutter ?: ideal).coerceIn(floor, ceiling)
+            }
+            SplitData(index, topOffset, bottomOffset - topOffset, imageWidth)
+                .also { topOffset = bottomOffset }
+        }
+    }
+
+    /**
+     * The row within [window] pixels of [ideal] where cutting severs least, or null if the whole
+     * window is artwork. Only the columns inside [box] are looked at, so a margin that was going to
+     * be cropped away cannot hide a gutter behind a speck of dirt.
+     *
+     * A gutter is a band of rows that is one flat colour all the way across — the gap between two
+     * panels. Cutting inside such a band cannot split a face or a speech balloon, because there is
+     * nothing there to split, and that holds whether the strip's background is white or black.
+     *
+     * A single flat row is not enough: one can occur where a cut grazes the inside of a balloon or
+     * a solid fill that art continues below. Only bands at least [MIN_GUTTER_ROWS] scan lines thick
+     * count, which is what the old "flattest row anywhere in the window" rule got wrong.
+     */
+    fun findGutter(decoder: BitmapRegionDecoder, box: Rect, ideal: Int, window: Int): Int? {
+        val top = (ideal - window).coerceAtLeast(box.top)
+        val bottom = (ideal + window).coerceAtMost(box.bottom)
+        if (bottom - top < GUTTER_SAMPLE_STEP * MIN_GUTTER_ROWS) return null
+
+        val strip = scan(decoder, Rect(box.left, top, box.right, bottom)) ?: return null
+        return try {
+            val line = IntArray(strip.width)
+            val shades = IntArray(strip.height)
+            val noise = IntArray(strip.height)
+            for (y in 0 until strip.height) {
+                strip.getPixels(line, 0, strip.width, 0, y, strip.width, 1)
+                measure(line, shades, noise, y)
+            }
+            gutterRow(shades, noise, strip.width, (ideal - top) / GUTTER_SAMPLE_STEP)
+                .takeIf { it >= 0 }
+                ?.let { (top + it * GUTTER_SAMPLE_STEP).coerceIn(top, bottom) }
+        } finally {
+            strip.recycle()
+        }
+    }
+
+    /**
+     * The column near [ideal] where a double-page spread's two pages meet, or null when nothing
+     * there is empty.
+     *
+     * The same rule as [findGutter], turned ninety degrees. A scan's seam is almost never exactly
+     * at the arithmetic middle — the pages are rarely photographed dead centre, and one of them
+     * usually carries more margin than the other — so halving a spread by arithmetic is what puts
+     * the cut through a balloon that straddles the fold.
+     */
+    fun findSeam(decoder: BitmapRegionDecoder, box: Rect, ideal: Int, window: Int): Int? {
+        val left = (ideal - window).coerceAtLeast(box.left)
+        val right = (ideal + window).coerceAtMost(box.right)
+        if (right - left < GUTTER_SAMPLE_STEP * MIN_GUTTER_ROWS) return null
+
+        val strip = scan(decoder, Rect(left, box.top, right, box.bottom)) ?: return null
+        return try {
+            val line = IntArray(strip.height)
+            val shades = IntArray(strip.width)
+            val noise = IntArray(strip.width)
+            for (x in 0 until strip.width) {
+                strip.getPixels(line, 0, 1, x, 0, 1, strip.height)
+                measure(line, shades, noise, x)
+            }
+            gutterRow(shades, noise, strip.height, (ideal - left) / GUTTER_SAMPLE_STEP)
+                .takeIf { it >= 0 }
+                ?.let { (left + it * GUTTER_SAMPLE_STEP).coerceIn(left, right) }
+        } finally {
+            strip.recycle()
+        }
+    }
+
+    private fun scan(decoder: BitmapRegionDecoder, region: Rect): Bitmap? = try {
+        decoder.decodeRegion(region, BitmapFactory.Options().apply { inSampleSize = GUTTER_SAMPLE_STEP })
+    } catch (e: Exception) {
+        Logger.w(e) { "Could not scan for a gutter, cutting at the even split" }
+        null
+    }
+
+    /**
+     * Records what colour a line of pixels mostly is, and how much of it is something else.
+     *
+     * The count of odd pixels rather than the line's full range, because the range is decided by
+     * the single worst pixel: one speck of dirt, a page number, a watermark or a JPEG ring along a
+     * panel border was enough to disqualify an otherwise empty gutter, and disqualifying gutters is
+     * exactly how a cut ends up in the artwork instead.
+     */
+    private fun measure(line: IntArray, shades: IntArray, noise: IntArray, index: Int) {
+        // Green alone tracks brightness closely enough to spot a flat line, and is a third of the
+        // work of a real luminance.
+        val histogram = IntArray(256)
+        for (pixel in line) histogram[(pixel shr 8) and 0xFF]++
+
+        var shade = 0
+        for (level in histogram.indices) {
+            if (histogram[level] > histogram[shade]) shade = level
+        }
+        var odd = 0
+        for (level in histogram.indices) {
+            if (abs(level - shade) > FLAT_TOLERANCE) odd += histogram[level]
+        }
+        shades[index] = shade
+        noise[index] = odd
+    }
 
     data class SplitData(
         val index: Int,
@@ -904,4 +1009,90 @@ object ImageUtil {
 
         return maxOf(width, height) > GLUtil.DEVICE_TEXTURE_LIMIT
     }
+}
+
+/** How far either side of an even split a gutter is worth looking for. */
+private const val GUTTER_SEARCH_WINDOW = 0.3f
+
+/**
+ * Gutter scans run at 1/4 scale.
+ *
+ * Was 1/8, which needed a 24px gap before three scan lines of it survived the downscale. Plenty of
+ * webtoons and nearly every print page gutter is thinner than that, and every one of those was a
+ * gutter the scan could not see and a cut that landed in the art below it.
+ */
+private const val GUTTER_SAMPLE_STEP = 4
+
+/** How far a pixel may sit from the line's own colour and still count as part of the empty space. */
+private const val FLAT_TOLERANCE = 12
+
+/** The fraction of a line that may be something other than empty space and still be a gutter. */
+private const val FLAT_NOISE = 0.02f
+
+/**
+ * The most ink the fallback line may cross, as a fraction of its length.
+ *
+ * A line an eighth of the way inked is a page edge, a border, or the gap under a panel with a
+ * signature in it — cutting there clips a corner. Anything busier is artwork and gets left to the
+ * caller's arithmetic split, which is no worse.
+ */
+private const val QUIET_NOISE = 0.12f
+
+/**
+ * Scan lines — 12 source pixels — of unbroken flat colour before a gap counts as a gutter.
+ *
+ * ponytail: a fixed count rather than a fraction of the page. Gutters are drawn at a roughly
+ * constant size whatever the strip's dimensions are, so scaling this with the page would only make
+ * it wrong at both ends.
+ */
+private const val MIN_GUTTER_ROWS = 3
+
+/**
+ * The scan line to cut on: the middle of the gutter band nearest [idealRow], or -1 if there is none.
+ *
+ * [shades] holds what colour each line mostly is and [noise] how many of its [length] pixels are
+ * not that colour. A band is a run of lines that are each empty *and* the same shade as each other
+ * — a line that is empty on its own but a different colour from the run above it starts a new band
+ * rather than extending one, so a panel edge cannot be mistaken for the gap beside it.
+ *
+ * With no band anywhere in the window the quietest line wins, as long as it is quiet enough to be
+ * background with something small in it. Below that bar it returns -1 and the caller cuts where its
+ * arithmetic said: no line here is better than the split, and pretending otherwise is what put cuts
+ * across faces in the first place.
+ */
+internal fun gutterRow(shades: IntArray, noise: IntArray, length: Int, idealRow: Int): Int {
+    val empty = length * FLAT_NOISE
+    var best = -1
+    var bestDistance = Int.MAX_VALUE
+    var start = -1
+
+    fun closeBand(end: Int) {
+        if (start >= 0 && end - start >= MIN_GUTTER_ROWS) {
+            val centre = (start + end - 1) / 2
+            val distance = abs(centre - idealRow)
+            if (distance < bestDistance) {
+                bestDistance = distance
+                best = centre
+            }
+        }
+        start = -1
+    }
+
+    for (y in shades.indices) {
+        val flat = noise[y] <= empty
+        val joins = flat && start >= 0 && abs(shades[y] - shades[start]) <= FLAT_TOLERANCE
+        if (!joins) closeBand(y)
+        if (flat && start < 0) start = y
+    }
+    closeBand(shades.size)
+    if (best >= 0) return best
+
+    val quiet = length * QUIET_NOISE
+    for (y in shades.indices) {
+        if (noise[y] > quiet) continue
+        val closer = best < 0 || noise[y] < noise[best] ||
+            (noise[y] == noise[best] && abs(y - idealRow) < abs(best - idealRow))
+        if (closer) best = y
+    }
+    return best
 }

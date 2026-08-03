@@ -5,7 +5,9 @@ import eu.kanade.tachiyomi.core.preference.Preference
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.json.Json
 import okhttp3.Cookie
 import okhttp3.HttpUrl
@@ -45,6 +47,14 @@ class FlareSolverr(
 
     val isEnabled: Boolean
         get() = endpointProvider().isNotBlank()
+
+    /**
+     * Whether [host] has been cleared by FlareSolverr before, and so is worth going straight to.
+     *
+     * [userAgents] only ever gains a host after a solve that produced real cookies, and it is
+     * persisted, so it doubles as the list of hosts the WebView is known to fail on.
+     */
+    fun hasSolved(host: String): Boolean = isEnabled && userAgents[host] != null
 
     /**
      * Asks FlareSolverr to clear the challenge for [url], storing the resulting cookies.
@@ -90,7 +100,16 @@ class FlareSolverr(
             return null
         }
 
-        cookieJar.saveFromResponse(url, solution.toCookies(url))
+        // A solve that came back without a single usable cookie cleared nothing. Pinning the agent
+        // anyway would send a desktop User-Agent backed by no clearance to that host for good —
+        // [userAgents] is persisted — and hand the WebView a fingerprint it cannot back up either.
+        val cookies = solution.toCookies(url)
+        if (cookies.isEmpty()) {
+            Logger.e { "FlareSolverr returned no usable cookies for $host" }
+            return null
+        }
+
+        cookieJar.saveFromResponse(url, cookies)
         userAgents[host] = userAgent
         solvedAt[host] = System.nanoTime()
         return userAgent
@@ -148,13 +167,18 @@ class FlareSolverr(
         fun toCookies(url: HttpUrl): List<Cookie> = cookies.mapNotNull { it.toCookie(url) }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     @Serializable
     data class SolvedCookie(
         val name: String,
         val value: String,
         val domain: String = "",
         val path: String = "/",
-        // Chrome DevTools format: epoch *seconds* as a double, or <= 0 for a session cookie.
+        // Epoch *seconds*, or <= 0 for a session cookie. FlareSolverr 3.x speaks Selenium's cookie
+        // format and calls this `expiry`; `expires` is the Chrome DevTools name. Reading only one
+        // of them meant every cookie parsed as a session cookie, so the cf_clearance that cost a
+        // 40s solve died with the process while the User-Agent pinned to it was kept forever.
+        @JsonNames("expiry")
         val expires: Double = -1.0,
         val httpOnly: Boolean = false,
         val secure: Boolean = false,

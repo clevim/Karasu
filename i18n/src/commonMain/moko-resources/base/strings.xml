@@ -378,6 +378,14 @@
     <string name="pages_">Pages %1$s</string>
     <string name="next_chapter_not_found">Next chapter not found</string>
     <string name="decode_image_error">The image couldn\'t be loaded</string>
+    <string name="try_another_source">Try another source</string>
+    <string name="broken_source_read_failing">Failing while reading</string>
+    <string name="merge_source_missing">extension not installed</string>
+    <string name="merge_entry_gone">entry no longer on this source</string>
+    <string name="merge_never_synced">no chapters pulled in yet</string>
+    <string name="merge_likely_wrong_manga">chapter numbers don\'t match — wrong entry?</string>
+    <string name="no_other_source_available">No other source has this chapter</string>
+    <string name="now_reading_from">Now reading from %1$s</string>
     <string name="use_image_as_cover">Use this image as cover art?</string>
     <string name="reading_mode">Reading mode</string>
     <string name="changing_will_reset_reading_mode">Changing this will reset the reading mode for this series</string>
@@ -694,32 +702,48 @@
     <string name="koreader_connection_failed">Could not reach Yatagarasu: %1$s</string>
     <string name="koreader_set_url_first">Enter the Yatagarasu address first</string>
     <string name="koreader_what_to_send">What to send</string>
-    <string name="koreader_categories_summary">Only manga in these categories are sent</string>
+    <string name="koreader_send_to_shelf">Send to Yatagarasu</string>
+    <string name="koreader_on_shelf">On Yatagarasu</string>
+    <string name="koreader_added_to_shelf">Will be sent to Yatagarasu</string>
+    <string name="koreader_removed_from_shelf">No longer sent to Yatagarasu</string>
+    <string name="koreader_marked_manga">Marked manga</string>
+    <string name="koreader_marked_manga_summary">%1$d marked. Mark one from its page, next to "In library".</string>
+    <string name="koreader_marked_manga_empty">Nothing marked yet. Open a manga and use "Send to Yatagarasu" next to "In library".</string>
     <string name="koreader_filter">Extra filter</string>
-    <string name="koreader_filter_summary">Narrow the categories down with conditions</string>
-    <string name="koreader_filter_explainer">On top of the categories above, only entries matching
+    <string name="koreader_filter_summary">Narrow the marked manga down with conditions</string>
+    <string name="koreader_filter_explainer">On top of the manga you marked, only entries matching
         all of these are sent.</string>
-    <string name="koreader_filter_empty">No filter, so every entry in the chosen categories can be
+    <string name="koreader_filter_empty">No filter, so every marked entry can be
         sent. Add a condition to narrow it down.</string>
     <string name="koreader_chapters_per_manga">Chapters per manga</string>
     <string name="koreader_max_manga">Manga on the server</string>
     <string name="koreader_needs_cbz">Chapters are sent from your downloads, so "Save chapters as
         CBZ" must be on. Anything not downloaded yet is queued and sent on the next sync.</string>
     <string name="koreader_pages">Pages on the device</string>
-    <string name="koreader_optimize_pages">Split long pages</string>
-    <string name="koreader_optimize_pages_summary">Cuts webtoon strips into screen-sized pages,
-        along the gutters between panels. Pages that already fit are sent untouched.</string>
+    <string name="koreader_optimize_pages">Fit pages to the device</string>
+    <string name="koreader_optimize_pages_summary">Cuts webtoon strips into screen-sized pages along
+        the gutters between panels, splits double-page spreads in two, and trims dead margins. Pages
+        that already fit are sent untouched.</string>
     <string name="koreader_device_width">Screen width</string>
-    <string name="koreader_device_width_summary">Pages wider than the screen are shrunk to fit,
-        which the device would do anyway</string>
+    <string name="koreader_device_width_summary">Sets the size and shape pages are fitted to. Pages
+        are never enlarged past their original size.</string>
     <string name="koreader_device_width_original">Send at full size</string>
-    <string name="koreader_device_width_1072">1072 px (Paperwhite, Clara)</string>
-    <string name="koreader_device_width_1236">1236 px (Paperwhite 5, Oasis, Libra)</string>
-    <string name="koreader_device_width_1440">1440 px (Sage, Elipsa)</string>
+    <string name="koreader_device_width_600">600 px (Kindle 8/10, Kobo Nia, Touch)</string>
+    <string name="koreader_device_width_758">758 px (Paperwhite 1/2)</string>
+    <string name="koreader_device_width_1072">1072 px (Paperwhite 3/4, Kindle 11, Clara)</string>
+    <string name="koreader_device_width_1236">1236 px (Paperwhite 5, Signature Edition)</string>
+    <string name="koreader_device_width_1264">1264 px (Oasis 2/3, Colorsoft, Libra)</string>
+    <string name="koreader_device_width_1272">1272 px (Paperwhite 6)</string>
+    <string name="koreader_device_width_1404">1404 px (Elipsa, Aura ONE, reMarkable)</string>
+    <string name="koreader_device_width_1440">1440 px (Sage, Forma)</string>
     <string name="koreader_device_width_1860">1860 px (Scribe)</string>
+    <string name="koreader_device_width_1986">1986 px (Scribe 3, Scribe Colorsoft)</string>
     <string name="koreader_grayscale">Send in black and white</string>
     <string name="koreader_grayscale_summary">Smaller files on a screen that cannot show colour
-        anyway</string>
+        anyway, and stretches the contrast of washed-out scans so they read on e-ink</string>
+    <string name="koreader_right_to_left">Right to left</string>
+    <string name="koreader_right_to_left_summary">Reading direction used when a double-page spread
+        is split in two. On for manga, off for western comics.</string>
     <string name="koreader_reading">Reading back</string>
     <string name="koreader_mark_read">Mark chapters read from KOReader</string>
     <string name="koreader_mark_read_summary">A chapter finished on the device is marked read here</string>
@@ -1100,6 +1124,7 @@
         queue. You can also double tap or press and hold for quicker access</string>
     <string name="couldnt_download_low_space">Couldn\'t download chapters due to low disk space</string>
     <string name="download_notifier_split_page_not_found">Page %d not found while splitting</string>
+    <string name="download_notifier_not_an_image">The source sent something that is not an image</string>
     <string name="download_notifier_split_failed">Couldn\'t split downloaded image</string>
     <string name="download_with_id">Auto-append ID</string>
     <string name="download_with_id_details">May fix issue with downloaded chapters conflicts with one another when they have the same name</string>

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
+import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.source.MergedSourceFallback
@@ -17,6 +18,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runInterruptible
@@ -36,6 +40,35 @@ class HttpPageLoader(
 ) : PageLoader() {
 
     override val isLocal: Boolean = false
+
+    private val _servingSource = MutableStateFlow(source)
+
+    /**
+     * The source the pages currently in hand came from, which is the one their images are
+     * fetched against. Starts as [source] and moves on as sources fail — see [switchSource].
+     *
+     * A flow rather than a plain field because the reader shows it, and the switch can happen
+     * several pages into a chapter that is already on screen.
+     */
+    val servingSource: StateFlow<HttpSource> = _servingSource.asStateFlow()
+
+    private var activeSource: HttpSource
+        get() = _servingSource.value
+        set(value) {
+            _servingSource.value = value
+        }
+
+    /** Sources already known to be broken for this chapter, so [switchSource] never retries one. */
+    private val triedSources = mutableSetOf<Long>()
+
+    /**
+     * Whether this manga is merged, and so has somewhere else to be read from.
+     *
+     * Drives whether the error view offers to switch: on an unmerged manga the button would never
+     * have anywhere to go. Known only once [getPages] has run, which is before anything can fail.
+     */
+    var canSwitchSource: Boolean = false
+        private set
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -98,9 +131,13 @@ class HttpPageLoader(
             when (val mangaId = chapter.chapter.manga_id) {
                 // Never persisted, so it can't have merged sources to fall back to.
                 null -> source.getPageList(chapter.chapter)
-                else -> mergedSourceFallback.getPageList(mangaId, chapter.chapter, source)
+                else -> mergedSourceFallback.getPages(mangaId, chapter.chapter, source)
+                    .also { activeSource = it.source }
+                    .pages
             }
         }
+        triedSources += activeSource.id
+        canSwitchSource = chapter.chapter.manga_id?.let { mergedSourceFallback.hasAlternates(it) } == true
         return pages.mapIndexed { index, page ->
             // Don't trust sources and use our own indexing
             ReaderPage(index, page.url, page.imageUrl)
@@ -193,29 +230,71 @@ class HttpPageLoader(
      * Loads the page, retrieving the image URL and downloading the image if necessary.
      * Downloaded images are stored in the chapter cache.
      *
+     * A source that can hand out a page list and then fail on the images it points at is the
+     * common case this guards against — a dead image host, hotlink protection, an error page
+     * served with a 200. Anything that goes wrong here moves the whole chapter onto the next
+     * source in the same language rather than leaving the reader on a broken page.
+     *
      * @param page the page whose source image has to be downloaded.
      */
     private suspend fun _loadPage(page: ReaderPage) {
-        try {
-            if (page.imageUrl.isNullOrEmpty()) {
-                page.status = Page.State.LoadPage
-                page.imageUrl = source.getImageUrl(page)
-            }
-            val imageUrl = page.imageUrl!!
-
-            if (!chapterCache.isImageInCache(imageUrl)) {
-                page.status = Page.State.DownloadImage
-                val imageResponse = source.getImage(page)
-                chapterCache.putImageToCache(imageUrl, imageResponse)
-            }
-
-            page.stream = { chapterCache.getImageFile(imageUrl).inputStream() }
-            page.status = Page.State.Ready
-        } catch (e: Throwable) {
-            page.status = Page.State.Error
-            if (e is CancellationException) {
+        while (true) {
+            try {
+                loadPageFrom(activeSource, page)
+                return
+            } catch (e: CancellationException) {
+                page.status = Page.State.Error
                 throw e
+            } catch (e: Throwable) {
+                Logger.w(e) { "Page ${page.number} failed on ${activeSource.name}" }
+                if (!switchSource()) {
+                    page.status = Page.State.Error
+                    return
+                }
             }
         }
+    }
+
+    private suspend fun loadPageFrom(source: HttpSource, page: ReaderPage) {
+        if (page.imageUrl.isNullOrEmpty()) {
+            page.status = Page.State.LoadPage
+            page.imageUrl = source.getImageUrl(page)
+        }
+        val imageUrl = page.imageUrl!!
+
+        if (!chapterCache.isImageInCache(imageUrl)) {
+            page.status = Page.State.DownloadImage
+            val imageResponse = source.getImage(page)
+            chapterCache.putImageToCache(imageUrl, imageResponse)
+        }
+
+        page.stream = { chapterCache.getImageFile(imageUrl).inputStream() }
+        page.status = Page.State.Ready
+    }
+
+    /**
+     * Switches source because the user asked, not because a page threw.
+     *
+     * The automatic switch only fires on an error, which leaves the case where the source answers
+     * fine but serves the wrong thing — pages out of order, a watermark over everything, a scan so
+     * bad it's unreadable. Nothing here can detect that; the user can.
+     *
+     * @return the source now being read, or null when there was nowhere else to go.
+     */
+    suspend fun switchSourceManually(page: ReaderPage): HttpSource? {
+        if (!switchSource()) return null
+        retryPage(page)
+        return activeSource
+    }
+
+    /** Moves this chapter onto the next source that can serve it, and says whether there was one. */
+    private suspend fun switchSource(): Boolean {
+        val mangaId = chapter.chapter.manga_id ?: return false
+        val pages = chapter.pages ?: return false
+        val next = mergedSourceFallback
+            .switchSource(mangaId, chapter.chapter, source, pages, triedSources)
+            ?: return false
+        activeSource = next
+        return true
     }
 }

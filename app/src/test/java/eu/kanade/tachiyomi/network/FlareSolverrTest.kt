@@ -61,6 +61,38 @@ class FlareSolverrTest {
     }
 
     @Test
+    fun `flaresolverr 3_x expiry field is honoured`() {
+        // Captured from a live FlareSolverr 3.4.6: it speaks Selenium's cookie format, where the
+        // expiry is an integer under `expiry`. Reading only `expires` made every cookie a session
+        // cookie, so the clearance died with the process.
+        val parsed = parse(
+            """
+            {
+              "status": "ok",
+              "message": "Challenge solved!",
+              "solution": {
+                "url": "https://manga.example.com/",
+                "status": 200,
+                "cookies": [
+                  {
+                    "name": "cf_clearance", "value": "abc123",
+                    "domain": ".example.com", "path": "/",
+                    "expiry": 1816906932,
+                    "httpOnly": true, "secure": true, "sameSite": "None"
+                  }
+                ],
+                "userAgent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/142.0.0.0"
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val cookie = parsed.solution!!.toCookies(url).single()
+        assertTrue(cookie.persistent)
+        assertEquals(1816906932000L, cookie.expiresAt)
+    }
+
+    @Test
     fun `unknown fields and failures do not blow up`() {
         // Newer FlareSolverr versions add fields; ignoring them must not fail the whole parse.
         val parsed = parse(

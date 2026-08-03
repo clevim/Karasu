@@ -281,7 +281,7 @@ class WebtoonPageHolder(
         } else {
             viewer.activity.viewModel.getChapterUrl(page?.chapter?.chapter)
         }
-        return errorLayout!!.configureView(imageUrl)
+        return errorLayout!!.configureView(imageUrl, page, scope)
     }
 
     private fun removeErrorLayout() {

@@ -4,7 +4,9 @@ import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.source.SourceManager
 import karasu.domain.chapter.interactor.GetChapter
+import karasu.domain.manga.failures.isEntryGone
 import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
 import kotlinx.coroutines.CancellationException
 
@@ -21,6 +23,7 @@ class MergedSourceSync(
     private val mergedSources: MergedSources,
     private val getManga: GetManga,
     private val getChapter: GetChapter,
+    private val health: MergedSourceHealth,
 ) {
     /**
      * @return the chapters the merged sources gained that the merged list actually shows, so
@@ -37,11 +40,16 @@ class MergedSourceSync(
                 // Syncs against the child's own row, so it only ever deletes its own
                 // chapters — the primary's list is untouched.
                 added += syncChaptersWithSource(source.getChapterList(child), child, source).first
+                health.recordAlive(mangaId, merge.source)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 // One dead source must not fail the manga's whole update.
                 Logger.w(e) { "Failed to refresh merged source ${merge.source} for manga $mangaId" }
+                // This walk is the only thing that regularly asks these sources anything, so it is
+                // also the only place that can tell a merge pointing at a pulled entry from one
+                // whose source is merely having a bad day.
+                if (isEntryGone(e)) health.recordGone(mangaId, merge.source)
             }
         }
         if (added.isEmpty()) return emptyList()

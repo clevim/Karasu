@@ -4,8 +4,6 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.res.ColorStateList
 import android.view.View
-import android.widget.TextView
-import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
 import androidx.core.view.isVisible
@@ -81,17 +79,17 @@ class ChapterHolder(
             chapterSource?.name?.let { statuses.add(it) }
         }
 
-        // With sources in more than one language the same chapter number appears once per
-        // language, so every row says which one it is — a flag when there is one for that
-        // language, its name when there isn't.
-        val flag = if (presenter.showChapterLanguages) {
-            LocaleHelper.getFlagDrawable(itemView.context, chapterSource?.lang)
+        // With sources in more than one language a row stands for every language that translated
+        // the chapter, so it carries one flag each — or the language's name where there is no
+        // flag for it.
+        val languages = if (presenter.showChapterLanguages) {
+            chapter.languageSources(presenter).map { it.first.lang }
         } else {
-            null
+            emptyList()
         }
-        if (presenter.showChapterLanguages && flag == null) {
-            chapterSource?.lang?.let { statuses.add(LocaleHelper.getLocalizedDisplayName(it)) }
-        }
+        val flags = languages.mapNotNull { LocaleHelper.getFlagDrawable(itemView.context, it) }
+        languages.filter { LocaleHelper.getFlagDrawable(itemView.context, it) == null }
+            .forEach { statuses.add(LocaleHelper.getLocalizedDisplayName(it)) }
 
         if (binding.frontView.translationX == 0f) {
             binding.read.setImageResource(
@@ -108,8 +106,12 @@ class ChapterHolder(
             hideStatus = isLocked,
             isDetails = true,
         )
-        binding.chapterScanlator.text = statuses.joinToString(" • ")
-        binding.chapterScanlator.setLanguageFlag(flag)
+        binding.chapterScanlator.text = flaggedText(
+            itemView.context,
+            flags,
+            binding.chapterScanlator.textSize,
+            statuses.joinToString(" • "),
+        )
 
         val status = when {
             adapter.isSelected(flexibleAdapterPosition) -> Download.State.CHECKED
@@ -121,19 +123,6 @@ class ChapterHolder(
         if (flexibleAdapterPosition == 1) {
             if (!adapter.hasShownSwipeTut.get()) showSlideAnimation()
         }
-    }
-
-    /**
-     * Draws the flag inline with the status line, sized off the text rather than the drawable's
-     * own intrinsic size — the flag assets are authored at wildly different sizes.
-     */
-    private fun TextView.setLanguageFlag(drawableRes: Int?) {
-        val flag = drawableRes?.let { AppCompatResources.getDrawable(context, it) }?.apply {
-            val height = textSize.toInt()
-            setBounds(0, 0, height * 3 / 2, height)
-        }
-        setCompoundDrawablesRelative(flag, null, null, null)
-        compoundDrawablePadding = 4.dpToPx
     }
 
     private fun showSlideAnimation() {

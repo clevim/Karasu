@@ -588,7 +588,7 @@ class PagerPageHolder(
         } else {
             viewer.activity.viewModel.getChapterUrl(page.chapter.chapter)
         }
-        return errorLayout!!.configureView(imageUrl)
+        return errorLayout!!.configureView(imageUrl, page, scope)
     }
 
     private suspend fun mergeOrSplitPages(imageSource: BufferedSource, imageSource2: BufferedSource?): BufferedSource {

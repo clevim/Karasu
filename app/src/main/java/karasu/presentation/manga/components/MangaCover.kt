@@ -16,6 +16,7 @@ import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import eu.kanade.tachiyomi.R
 import karasu.util.rememberResourceBitmapPainter
+import karasu.domain.manga.models.MangaCover as MangaCoverModel
 
 @Composable
 fun MangaCover(
@@ -29,8 +30,12 @@ fun MangaCover(
     onState: ((AsyncImagePainter.State) -> Unit)? = null,
 ) {
     AsyncImage(
-        model = data,
+        // A source lists an entry before it says where the cover is, and the fetcher answers a
+        // blank url with "Invalid image". That is not known yet, not broken, so it gets the
+        // placeholder — the grid layouts have no url guard of their own the way the list one does.
+        model = data?.takeUnless { it is MangaCoverModel && it.url.isBlank() },
         placeholder = ColorPainter(Color(0x1F888888)),
+        fallback = ColorPainter(Color(0x1F888888)),
         error = rememberResourceBitmapPainter(id = R.drawable.cover_error),
         contentDescription = contentDescription,
         contentScale = contentScale,

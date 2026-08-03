@@ -67,29 +67,50 @@ class GetChapterMergeTest {
     }
 
     @Test
-    fun `keeps both rows when the merged source is in another language`() {
+    fun `collapses another language into one row that keeps both translations`() {
         val own = chapters("a", 1..3)
         val other = chapters("b", 1..3)
 
         val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
 
-        assertEquals(6, merged.size, "a chapter in another language is another thing to read")
+        assertEquals(3, merged.size, "the same chapter number is one row whoever translated it")
+        val first = merged.first { it.chapter_number == 1f }
+        assertEquals("a/1", first.url, "the manga's own language wins the row")
         assertEquals(
             listOf("a/1", "b/1"),
-            merged.filter { it.chapter_number == 1f }.map { it.url },
-            "the manga's own language comes first for the same number",
+            first.alternates.map { it.url },
+            "both translations stay reachable, own language first",
         )
     }
 
     @Test
-    fun `read state does not leak between languages`() {
-        val own = chapters("a", 5..5).onEach { it.read = true }
+    fun `does not offer a choice between two sources in the same language`() {
+        val own = chapters("a", 5..5)
         val other = chapters("b", 5..5)
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
+
+        assertTrue(merged.single().alternates.isEmpty(), "same language is the same read")
+    }
+
+    @Test
+    fun `a chapter only one source has offers no choice`() {
+        val own = chapters("a", 1..1)
+        val other = chapters("b", 2..2)
 
         val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
 
-        assertTrue(merged.first { it.url == "a/5" }.read)
-        assertFalse(merged.first { it.url == "b/5" }.read, "the translation has not been read")
+        assertTrue(merged.all { it.alternates.isEmpty() })
+    }
+
+    @Test
+    fun `read state carries across languages`() {
+        val own = chapters("a", 5..5)
+        val other = chapters("b", 5..5).onEach { it.read = true }
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
+
+        assertTrue(merged.single().read, "reading the chapter in any language reads the chapter")
     }
 
     @Test
@@ -131,6 +152,25 @@ class GetChapterMergeTest {
 
         assertFalse(ownRow.read, "the database row must not be flipped by a read-time merge")
         assertEquals(ownOrder, ownRow.source_order)
+    }
+
+    @Test
+    fun `opening another language swaps that row in without moving it`() {
+        val own = chapters("a", 1..2).onEachIndexed { i, it -> it.id = i.toLong() }
+        val other = chapters("b", 1..2).onEachIndexed { i, it -> it.id = 10L + i }
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "pt-BR", other)))
+        val swapped = merged.withAlternate(11L)
+
+        assertEquals(merged.size, swapped.size)
+        assertEquals("b/2", swapped.first { it.chapter_number == 2f }.url, "the picked translation")
+        assertEquals("a/1", swapped.first { it.chapter_number == 1f }.url, "the other rows stay")
+        assertEquals(
+            merged.map { it.source_order },
+            swapped.map { it.source_order },
+            "the row keeps its place in the list",
+        )
+        assertSame(merged, merged.withAlternate(0L), "a chapter already in the list costs nothing")
     }
 
     private fun chapters(prefix: String, range: IntRange): List<Chapter> =

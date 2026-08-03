@@ -171,6 +171,7 @@ class MangaHeaderHolder(
             applyBlur()
             mangaCover.setOnClickListener { adapter.delegate.zoomImageFromThumb(coverCard) }
             trackButton.setOnClickListener { adapter.delegate.showTrackingSheet() }
+            shelfButton.setOnClickListener { adapter.delegate.toggleShelf() }
             if (startExpanded) {
                 expandDesc()
             } else {
@@ -387,6 +388,22 @@ class MangaHeaderHolder(
                 if (tracked) R.drawable.ic_check_24dp else R.drawable.ic_sync_24dp,
             )
             checked(tracked)
+        }
+
+        val onShelf = presenter.isOnShelf() && !item.isLocked
+
+        with(binding.shelfButton) {
+            // Nothing to send to until a server is configured, and a button that only ever says
+            // "set this up elsewhere first" is worse than no button.
+            isVisible = presenter.hasShelf() && manga.favorite && !item.isLocked
+            text = itemView.context.getString(
+                if (onShelf) MR.strings.koreader_on_shelf else MR.strings.koreader_send_to_shelf,
+            )
+            icon = ContextCompat.getDrawable(
+                itemView.context,
+                if (onShelf) R.drawable.ic_check_24dp else R.drawable.ic_send_to_reader_24dp,
+            )
+            checked(onShelf)
         }
 
         with(binding.startReadingButton) {

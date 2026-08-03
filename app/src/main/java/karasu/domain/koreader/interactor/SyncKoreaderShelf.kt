@@ -157,7 +157,7 @@ class SyncKoreaderShelf(
 
     /**
      * The chapters that should be on the shelf right now: the next unread ones of the most
-     * recently updated manga in the chosen categories, capped by both limits.
+     * recently updated manga marked for the shelf, capped by both limits.
      */
     private suspend fun wantedChapters(): List<Candidate> {
         val perManga = preferences.chaptersPerManga().get().coerceAtLeast(1)
@@ -184,10 +184,10 @@ class SyncKoreaderShelf(
     suspend fun countSelectedManga(conditions: List<RuleCondition>): Int =
         selectedManga(conditions).size
 
-    /** Manga in the chosen categories that also satisfy [conditions], most recently updated first. */
+    /** The manga marked for the shelf that also satisfy [conditions], most recently updated first. */
     private suspend fun selectedManga(conditions: List<RuleCondition>): List<LibraryManga> {
-        val categories = preferences.syncCategories().get().mapNotNull { it.toIntOrNull() }.toSet()
-        if (categories.isEmpty()) return emptyList()
+        val marked = preferences.shelfManga().get().mapNotNull { it.toLongOrNull() }.toSet()
+        if (marked.isEmpty()) return emptyList()
 
         // Only built when there is something to evaluate, since it reads the whole library's
         // failure counts and possibly its trackers.
@@ -195,7 +195,7 @@ class SyncKoreaderShelf(
         val now = System.currentTimeMillis()
 
         return getLibraryManga.await()
-            .filter { it.category in categories }
+            .filter { it.manga.id in marked }
             .filter { row ->
                 if (conditions.isEmpty()) return@filter true
                 val input = inputs[row.manga.id] ?: return@filter false

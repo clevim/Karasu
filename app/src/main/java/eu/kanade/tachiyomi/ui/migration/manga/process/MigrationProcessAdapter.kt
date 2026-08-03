@@ -62,6 +62,7 @@ class MigrationProcessAdapter(
 
     interface MigrationProcessInterface {
         fun onMenuItemClick(position: Int, item: MenuItem)
+        fun searchManually(position: Int)
         fun enableButtons()
         fun removeManga(item: MigrationProcessItem)
         fun noMigration()
@@ -71,18 +72,24 @@ class MigrationProcessAdapter(
     fun sourceFinished() {
         menuItemListener.updateCount()
         if (itemCount == 0) menuItemListener.noMigration()
-        if (allMangasDone()) menuItemListener.enableButtons()
+        // Unconditional: this re-reads [allMangasDone], so it has to run when the answer turns
+        // false as well — a pick in flight used to leave the buttons armed from the last time.
+        menuItemListener.enableButtons()
     }
 
-    fun allMangasDone() = (
-        items.all {
-            it.manga.migrationStatus != MigrationStatus
-                .RUNNUNG
-        } && items.any { it.manga.migrationStatus == MigrationStatus.MANGA_FOUND }
-        )
+    /**
+     * Whether the batch buttons should work: every entry has a target picked.
+     *
+     * It used to be enough for one entry to have found something, which was fair when the search
+     * ran on its own and answered for all of them. Now the targets are picked by hand, so that
+     * rule would arm the button after the first pick and migrate 1 of 40 while the other 39
+     * silently stayed behind. Entries you do not want go out with skip, not by being left blank.
+     */
+    fun allMangasDone() = items.isNotEmpty() &&
+        items.all { it.manga.migrationStatus == MigrationStatus.MANGA_FOUND }
 
     fun mangasSkipped() =
-        (items.count { it.manga.migrationStatus == MigrationStatus.MANGA_NOT_FOUND })
+        (items.count { it.manga.migrationStatus != MigrationStatus.MANGA_FOUND })
 
     suspend fun performMigrations(copy: Boolean) {
         withContext(Dispatchers.IO) {

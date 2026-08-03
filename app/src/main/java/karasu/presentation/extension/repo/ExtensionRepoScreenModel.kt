@@ -8,10 +8,10 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.util.system.launchIO
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.extension.repo.interactor.CreateExtensionRepo
@@ -32,8 +32,10 @@ class ExtensionRepoScreenModel : StateScreenModel<ExtensionRepoScreenModel.State
     private val replaceExtensionRepo: ReplaceExtensionRepo by injectLazy()
     private val updateExtensionRepo: UpdateExtensionRepo by injectLazy()
 
-    private val internalEvent: MutableStateFlow<ExtensionRepoEvent> = MutableStateFlow(ExtensionRepoEvent.NoOp)
-    val event: StateFlow<ExtensionRepoEvent> = internalEvent.asStateFlow()
+    // A StateFlow replays its last value and swallows a repeat of it, so the same failure twice in
+    // a row showed one toast and adding a repo after an error re-fired the stale event.
+    private val eventChannel = Channel<ExtensionRepoEvent>(Channel.BUFFERED)
+    val event: Flow<ExtensionRepoEvent> = eventChannel.receiveAsFlow()
 
     init {
         screenModelScope.launchIO {
@@ -48,17 +50,19 @@ class ExtensionRepoScreenModel : StateScreenModel<ExtensionRepoScreenModel.State
         screenModelScope.launchIO {
             when (val result = createExtensionRepo.await(url)) {
                 is CreateExtensionRepo.Result.Success -> {
-                    internalEvent.value = ExtensionRepoEvent.Success
+                    eventChannel.send(ExtensionRepoEvent.Success)
                     extensionManager.findAvailableExtensions()
                 }
-                is CreateExtensionRepo.Result.Error,
                 is CreateExtensionRepo.Result.InvalidUrl,
-                -> internalEvent.value = ExtensionRepoEvent.InvalidUrl
-                is CreateExtensionRepo.Result.RepoAlreadyExists -> internalEvent.value = ExtensionRepoEvent.RepoAlreadyExists
+                is CreateExtensionRepo.Result.Error,
+                -> eventChannel.send(ExtensionRepoEvent.InvalidUrl)
+                is CreateExtensionRepo.Result.RepoAlreadyExists ->
+                    eventChannel.send(ExtensionRepoEvent.RepoAlreadyExists)
                 is CreateExtensionRepo.Result.DuplicateFingerprint -> {
-                    internalEvent.value = ExtensionRepoEvent.ShowDialog(RepoDialog.Conflict(result.oldRepo, result.newRepo))
+                    eventChannel.send(
+                        ExtensionRepoEvent.ShowDialog(RepoDialog.Conflict(result.oldRepo, result.newRepo)),
+                    )
                 }
-                else -> internalEvent.value = ExtensionRepoEvent.NoOp
             }
         }
     }
@@ -111,7 +115,6 @@ sealed class ExtensionRepoEvent {
     data object InvalidUrl : LocalizedMessage(MR.strings.invalid_repo_url)
     data object RepoAlreadyExists : LocalizedMessage(MR.strings.repo_already_exists)
     data class ShowDialog(val dialog: RepoDialog) : ExtensionRepoEvent()
-    data object NoOp : ExtensionRepoEvent()
     data object Success : ExtensionRepoEvent()
 }
 

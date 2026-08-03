@@ -224,6 +224,7 @@ private fun BreakageKind.label() = when (this) {
     BreakageKind.SOURCE_MISSING -> MR.strings.broken_source_missing
     BreakageKind.SOURCE_OBSOLETE -> MR.strings.broken_source_obsolete
     BreakageKind.FAILING -> MR.strings.broken_source_failing
+    BreakageKind.READ_FAILING -> MR.strings.broken_source_read_failing
 }
 
 /** Null when there is nothing useful to add beyond the raw message. */

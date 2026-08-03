@@ -118,8 +118,13 @@ class MigrationProcessHolder(
                     } else {
                         binding.migrationMangaCardTo.coverThumbnail.setImageDrawable(null)
                         binding.migrationMangaCardTo.progress.isVisible = false
+                        // Not "no alternatives found" any more: nothing was searched, so the
+                        // empty slot says what fills it. Tapping it is the whole flow.
                         binding.migrationMangaCardTo.title.text =
-                            view.context.getString(MR.strings.no_alternatives_found)
+                            view.context.getString(MR.strings.search_manually)
+                        binding.migrationMangaCardTo.root.setOnClickListener {
+                            adapter.menuItemListener.searchManually(flexibleAdapterPosition)
+                        }
                     }
                     binding.migrationMenu.isVisible = true
                     binding.skipManga.isVisible = false

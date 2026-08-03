@@ -2,15 +2,14 @@ package eu.kanade.tachiyomi.ui.setting.controllers
 
 import android.content.Context
 import android.text.format.DateUtils
+import android.view.View
 import androidx.preference.PreferenceScreen
-import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.bindTo
 import eu.kanade.tachiyomi.ui.setting.editTextPreference
 import eu.kanade.tachiyomi.ui.setting.infoPreference
 import eu.kanade.tachiyomi.ui.setting.intListPreference
-import eu.kanade.tachiyomi.ui.setting.multiSelectListPreferenceMat
 import eu.kanade.tachiyomi.ui.setting.onChange
 import eu.kanade.tachiyomi.ui.setting.onClick
 import eu.kanade.tachiyomi.ui.setting.preference
@@ -21,13 +20,11 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import karasu.data.koreader.KoreaderApi
-import karasu.domain.category.interactor.GetCategories
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.injectLazy
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
@@ -36,7 +33,19 @@ class SettingsKoreaderController : SettingsLegacyController() {
 
     private val koreaderPreferences: KoreaderPreferences by injectLazy()
     private val koreaderApi: KoreaderApi by injectLazy()
-    private val getCategories: GetCategories by injectLazy()
+
+    /**
+     * Leaving this screen syncs.
+     *
+     * Every setting here changes what belongs on the shelf, and the answer to "what belongs on the
+     * shelf" is worth nothing twelve hours later — a category picked or a screen width chosen wants
+     * to be acted on now, on chapters that have been downloaded for weeks. Doing it on the way out
+     * rather than on each toggle means changing three settings is one sync, not three.
+     */
+    override fun onDestroyView(view: View) {
+        super.onDestroyView(view)
+        KoreaderSyncJob.startIfAutomatic(applicationContext ?: return)
+    }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.koreader
@@ -69,19 +78,13 @@ class SettingsKoreaderController : SettingsLegacyController() {
         preferenceCategory {
             titleRes = MR.strings.koreader_what_to_send
 
-            // ponytail: blocking, like every other category picker in settings. The whole
-            // preference tree is built synchronously, so loading this asynchronously would mean
-            // rebuilding the screen around a state holder for one small select on screen open.
-            val categories = listOf(Category.createDefault(context)) +
-                runBlocking { getCategories.await() }
-
-            multiSelectListPreferenceMat(activity) {
-                bindTo(koreaderPreferences.syncCategories())
-                titleRes = MR.strings.categories
-                summaryRes = MR.strings.koreader_categories_summary
-                entries = categories.map { it.name }
-                entryValues = categories.map { it.id.toString() }
-                noSelectionRes = MR.strings.none
+            // Which manga get sent is decided one entry at a time from its own page, so all this
+            // screen can usefully say is how many are marked.
+            val markedCount = koreaderPreferences.shelfManga().get().size
+            infoPreference(MR.strings.koreader_marked_manga_empty).apply {
+                if (markedCount > 0) {
+                    summary = context.getString(MR.strings.koreader_marked_manga_summary, markedCount)
+                }
             }
             intListPreference(activity) {
                 bindTo(koreaderPreferences.chaptersPerManga())
@@ -119,17 +122,28 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 summaryRes = MR.strings.koreader_device_width_summary
                 entriesRes = arrayOf(
                     MR.strings.koreader_device_width_original,
+                    MR.strings.koreader_device_width_600,
+                    MR.strings.koreader_device_width_758,
                     MR.strings.koreader_device_width_1072,
                     MR.strings.koreader_device_width_1236,
+                    MR.strings.koreader_device_width_1264,
+                    MR.strings.koreader_device_width_1272,
+                    MR.strings.koreader_device_width_1404,
                     MR.strings.koreader_device_width_1440,
                     MR.strings.koreader_device_width_1860,
+                    MR.strings.koreader_device_width_1986,
                 )
-                entryValues = listOf(0, 1072, 1236, 1440, 1860)
+                entryValues = listOf(0, 600, 758, 1072, 1236, 1264, 1272, 1404, 1440, 1860, 1986)
             }
             switchPreference {
                 bindTo(koreaderPreferences.grayscalePages())
                 titleRes = MR.strings.koreader_grayscale
                 summaryRes = MR.strings.koreader_grayscale_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.rightToLeft())
+                titleRes = MR.strings.koreader_right_to_left
+                summaryRes = MR.strings.koreader_right_to_left_summary
             }
         }
 

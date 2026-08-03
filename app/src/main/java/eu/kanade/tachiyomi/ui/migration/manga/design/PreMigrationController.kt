@@ -108,7 +108,7 @@ class PreMigrationController(bundle: Bundle? = null) :
         }
     }
 
-    override fun startMigration(extraParam: String?) {
+    override fun startMigration() {
         val listOfSources = adapter?.items?.filter {
             it.sourceEnabled
         }?.joinToString("/") { it.source.id.toString() } ?: ""
@@ -116,10 +116,7 @@ class PreMigrationController(bundle: Bundle? = null) :
 
         router.replaceTopController(
             MigrationListController.create(
-                MigrationProcedureConfig(
-                    config.toList(),
-                    extraSearchParams = extraParam,
-                ),
+                MigrationProcedureConfig(config.toList()),
             ).withFadeTransaction().tag(MigrationListController.TAG),
         )
     }
@@ -218,7 +215,7 @@ class PreMigrationController(bundle: Bundle? = null) :
             router.pushController(
                 if (skipPre) {
                     MigrationListController.create(
-                        MigrationProcedureConfig(mangaIds, null),
+                        MigrationProcedureConfig(mangaIds),
                     )
                 } else {
                     create(mangaIds)

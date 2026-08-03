@@ -193,6 +193,15 @@
                 android:text="@string/tracking"
                 app:icon="@drawable/ic_sync_24dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/shelf_button"
+                style="@style/Widget.Tachiyomi.Button.OutlinedButton.Icon"
+                android:layout_marginStart="6dp"
+                android:text="@string/koreader_send_to_shelf"
+                android:visibility="gone"
+                app:icon="@drawable/ic_send_to_reader_24dp"
+                tools:visibility="visible" />
+
             <ImageView
                 android:id="@+id/webview_button"
                 style="@style/Theme.Widget.CustomImageButton"

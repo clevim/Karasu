@@ -19,19 +19,21 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
     fun apiKey() = preferenceStore.getString("koreader_api_key", "")
 
     /**
-     * Categories whose manga get pushed.
+     * Ids of the manga that get pushed, as strings.
      *
-     * Reusing categories rather than a per-manga flag keeps this out of the database entirely,
-     * and matches how "download new chapters" and library updates already scope themselves.
+     * Picked one entry at a time from its details screen rather than by category: what belongs on
+     * a device with room for ten things is a per-manga decision, and expressing it as a category
+     * meant maintaining a category that exists only for this. A preference rather than a database
+     * column keeps it out of the schema — a set of ids is exactly what the sync needs to read.
      */
-    fun syncCategories() = preferenceStore.getStringSet("koreader_sync_categories", emptySet())
+    fun shelfManga() = preferenceStore.getStringSet("koreader_shelf_manga", emptySet())
 
     /**
      * Extra conditions a manga must also satisfy, as a serialised `List<RuleCondition>`.
      *
-     * Categories say roughly what you care about; this narrows it to what is worth carrying on a
+     * Marking says roughly what you care about; this narrows it to what is worth carrying on a
      * device with limited room — "and it has unread chapters", "and I actually started it".
-     * Blank means the categories alone decide.
+     * Blank means the marked manga alone decide.
      */
     fun selectionConditions() = preferenceStore.getString("koreader_selection_conditions", "")
 
@@ -64,11 +66,28 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
      *
      * A page wider than the screen is detail the device throws away on every render, so shrinking
      * it to fit costs nothing visible and cuts the file — and the transfer — substantially.
+     *
+     * The matching screen height is looked up from this, so it also decides the shape pages are
+     * cut to. Every e-ink device worth listing has a distinct width, which is why there is no
+     * second setting for the height.
      */
     fun deviceScreenWidth() = preferenceStore.getInt("koreader_device_width", 0)
 
-    /** Drops colour, which a greyscale screen cannot show but a JPEG still pays to store. */
+    /**
+     * Drops colour, which a greyscale screen cannot show but a JPEG still pays to store.
+     *
+     * Doubles as the "this is an e-ink screen" signal: it also turns on the contrast stretch that
+     * makes washed-out scans readable on a display with no backlight.
+     */
     fun grayscalePages() = preferenceStore.getBoolean("koreader_grayscale_pages", false)
+
+    /**
+     * Which half of a double-page spread is shown first once it is cut in two.
+     *
+     * On by default because the shelf carries manga. Wrong for a western comic, where it would
+     * hand you the right-hand page before the left one.
+     */
+    fun rightToLeft() = preferenceStore.getBoolean("koreader_right_to_left", true)
 
     /**
      * When the last sync finished, and what it did.

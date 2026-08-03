@@ -49,6 +49,7 @@ import karasu.domain.library.custom.interactor.GetCustomManga
 import karasu.domain.library.custom.interactor.RelinkCustomManga
 import karasu.domain.manga.MangaRepository
 import karasu.domain.manga.failures.MangaUpdateFailureRepository
+import karasu.domain.manga.failures.ReadFailures
 import karasu.domain.manga.failures.interactor.GetBrokenSources
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
@@ -56,6 +57,7 @@ import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.InsertManga
 import karasu.domain.manga.interactor.UpdateManga
 import karasu.domain.manga.merged.MergedMangaRepository
+import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
 import karasu.domain.recents.interactor.GetRecents
 import karasu.domain.source.browse.filter.FilterSerializer
@@ -106,12 +108,18 @@ fun domainModule() = module {
 
     single<MangaUpdateFailureRepository> { MangaUpdateFailureRepositoryImpl(get()) }
     factory { UpdateFailures(get()) }
-    factory { GetBrokenSources(get(), get(), get(), get()) }
+    // In-memory, so every reader and the broken-sources screen have to be looking at the same one.
+    single { ReadFailures() }
+    factory { GetBrokenSources(get(), get(), get(), get(), get()) }
 
     single<MergedMangaRepository> { MergedMangaRepositoryImpl(get()) }
-    factory { MergedSources(get()) }
-    factory { MergedSourceFallback(get(), get(), get()) }
-    factory { MergedSourceSync(get(), get(), get(), get()) }
+    // Both hold a cache that only pays off — and, for MergedSources, only invalidates correctly —
+    // when every caller shares the one instance.
+    single { MergedSources(get()) }
+    single { MergedSourceFallback(get(), get(), get(), get()) }
+    // Holds what the last sync learned about each merge, so it can't be per-injection either.
+    single { MergedSourceHealth(get(), get(), get(), get()) }
+    factory { MergedSourceSync(get(), get(), get(), get(), get()) }
 
     factory { SetMangaCategories(get()) }
 

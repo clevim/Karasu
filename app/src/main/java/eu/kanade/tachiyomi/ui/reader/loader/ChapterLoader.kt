@@ -6,7 +6,9 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.LocalSource
+import eu.kanade.tachiyomi.source.MergedSourceFallback
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.util.system.withIOContext
@@ -14,6 +16,8 @@ import karasu.core.archive.util.archiveReader
 import karasu.core.archive.util.epubReader
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Loader used to retrieve the [PageLoader] for a given chapter.
@@ -24,6 +28,8 @@ class ChapterLoader(
     private val downloadProvider: DownloadProvider,
     private val manga: Manga,
     private val source: Source,
+    private val sourceManager: SourceManager = Injekt.get(),
+    private val mergedSourceFallback: MergedSourceFallback = Injekt.get(),
 ) {
 
     /**
@@ -73,11 +79,19 @@ class ChapterLoader(
     /**
      * Returns the page loader to use for this [chapter].
      */
-    private fun getPageLoader(chapter: ReaderChapter): PageLoader {
+    private suspend fun getPageLoader(chapter: ReaderChapter): PageLoader {
         val dbChapter = chapter.chapter
-        val isDownloaded = downloadManager.isChapterDownloaded(dbChapter, manga, skipCache = true)
+        if (downloadManager.isChapterDownloaded(dbChapter, manga, skipCache = true)) {
+            return DownloadPageLoader(chapter, manga, source, downloadManager, downloadProvider)
+        }
+        // A chapter borrowed from a merged source is stored under that source's own manga row, and
+        // only that source can serve it: fetching its pages and images with this manga's source
+        // uses the wrong client and headers, which is why the same chapter opens fine from the
+        // merged source's own manga page. Downloads are unaffected — they are stored under this
+        // manga whoever served them, so the check above stays on it.
+        val owner = manga.id?.let { mergedSourceFallback.ownerOf(it, dbChapter) }
+        val source = owner?.let { sourceManager.get(it.source) } ?: source
         return when {
-            isDownloaded -> DownloadPageLoader(chapter, manga, source, downloadManager, downloadProvider)
             source is HttpSource -> HttpPageLoader(chapter, source)
             source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                 when (format) {

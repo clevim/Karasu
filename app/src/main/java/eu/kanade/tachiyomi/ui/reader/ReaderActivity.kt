@@ -94,6 +94,7 @@ import eu.kanade.tachiyomi.ui.main.SearchActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.AddToLibraryFirst
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.Error
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.Success
+import eu.kanade.tachiyomi.ui.reader.loader.HttpPageLoader
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
@@ -205,6 +206,9 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
     private var menuTemporarilyVisible = false
 
     private var coroutine: Job? = null
+
+    /** Watches the current chapter's loader for the source it is serving from. */
+    private var servingSourceJob: Job? = null
 
     private var fromUrl = false
 
@@ -1373,8 +1377,24 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         intentPageNumber?.let { moveToPageIndex(it) }
         intentPageNumber = null
         val chapter = viewerChapters.currChapter.chapter
-        binding.toolbar.subtitle =
-            chapter.preferredChapterName(this, viewModel.manga!!, preferences)
+        val chapterName = chapter.preferredChapterName(this, viewModel.manga!!, preferences)
+        binding.toolbar.subtitle = chapterName
+
+        // Which source is actually being read. Merged manga borrow chapters from other sources and
+        // fall back to yet others when one breaks mid-chapter, so without this the pages just
+        // silently come from somewhere else. Named only when it isn't the manga's own source —
+        // on every unmerged manga that is always the case and the name would be pure noise.
+        servingSourceJob?.cancel()
+        servingSourceJob = (viewerChapters.currChapter.pageLoader as? HttpPageLoader)?.let { loader ->
+            lifecycleScope.launchUI {
+                loader.servingSource.collect { source ->
+                    binding.toolbar.subtitle = when (source.id) {
+                        viewModel.manga?.source -> chapterName
+                        else -> "$chapterName • ${source.name}"
+                    }
+                }
+            }
+        }
 
         listOfNotNull(getTitleTextView(), getSubtitleTextView()).forEach { textView ->
             textView.ellipsize = TextUtils.TruncateAt.MARQUEE

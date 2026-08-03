@@ -2,14 +2,12 @@ package eu.kanade.tachiyomi.network
 
 import android.content.Context
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
-import eu.kanade.tachiyomi.network.interceptor.IgnoreGzipInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import java.io.File
 import java.util.concurrent.TimeUnit
 import okhttp3.Cache
 import okhttp3.OkHttpClient
-import okhttp3.brotli.BrotliInterceptor
 
 class NetworkHelper(
     val context: Context,
@@ -46,8 +44,9 @@ class NetworkHelper(
                     if (flareSolverr.isEnabled) flareSolverr.userAgents[host] else null
                 },
             )
-            .addNetworkInterceptor(IgnoreGzipInterceptor())
-            .addNetworkInterceptor(BrotliInterceptor)
+            // No IgnoreGzip/Brotli here: KeiSource (extension-lib 1.6) asserts they are absent on
+            // the host client and refuses to build on top of it otherwise. Sources that want
+            // brotli or zstd add OkHttp's own CompressionInterceptor to their own client.
 
         block(builder)
 

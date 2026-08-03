@@ -97,20 +97,22 @@ private const val OWN_PRIORITY = Int.MIN_VALUE
  * Chapter numbers are Float here but REAL in the database, so two rows for the same chapter
  * can differ in the last bits. Chapters are never a thousandth apart in practice.
  */
-private fun Chapter.numberKey(): Int = (chapter_number * 1000f).roundToInt()
+internal fun chapterNumberKey(number: Float): Int = (number * 1000f).roundToInt()
+
+private fun Chapter.numberKey(): Int = chapterNumberKey(chapter_number)
 
 /**
- * Folds the [extra] sources' chapter lists into [own], keeping one row per chapter number
- * *per language*.
+ * Folds the [extra] sources' chapter lists into [own], keeping one row per chapter number.
  *
- * Within a language the row kept for a number is the one from the highest-priority source that
- * has it, so a manga whose primary covers 1-15 and whose same-language merged source covers
- * 1-20 shows its own 1-15 plus only the new 16-20. The choice is deterministic: the same row
- * keeps being shown, so read state stays attached to it instead of flickering between sources.
+ * The row kept for a number is the one from the highest-priority source that has it, so a manga
+ * whose primary covers 1-15 and whose merged source covers 1-20 shows its own 1-15 plus only the
+ * new 16-20. The choice is deterministic: the same row keeps being shown, so read state stays
+ * attached to it instead of flickering between sources.
  *
- * Across languages nothing is deduplicated. Chapter 5 in English and chapter 5 in Portuguese
- * are different things to read, and collapsing them would silently throw away whichever source
- * lost the tie — which is the whole point of merging a source in another language.
+ * Sources in different languages collapse into that same single row rather than one row per
+ * language — chapter 5 is chapter 5 whoever translated it. The losing languages are not thrown
+ * away though: the surviving row lists them in [Chapter.alternates], which is what lets the
+ * chapter list show a flag per language and offer the choice when the row is opened.
  */
 internal fun mergeChapters(
     own: List<Chapter>,
@@ -131,14 +133,19 @@ internal fun mergeChapters(
     val (numbered, unnumbered) = ranked.partition { it.chapter.isRecognizedNumber }
 
     val merged = numbered
-        .groupBy { it.chapter.numberKey() to it.lang }
+        .groupBy { it.chapter.numberKey() }
         .map { (_, group) ->
-            group.minBy { it.priority }.chapter.copy().apply {
+            val ordered = group.sortedBy { it.priority }
+            // One entry per language: two sources in the same language are the same read, and
+            // offering to pick between them would be a choice about nothing.
+            val languages = ordered.distinctBy { it.lang }.map { it.chapter }
+            ordered.first().chapter.copy().apply {
                 // Read state lives on whichever row the user happened to open. OR it across
                 // the group so that reordering the sources later — which can change the
                 // winning row — never makes finished chapters look unread again.
                 read = group.any { it.chapter.read }
                 bookmark = group.any { it.chapter.bookmark }
+                if (languages.size > 1) alternates = languages
             }
         }
 
@@ -150,3 +157,23 @@ internal fun mergeChapters(
 }
 
 private data class Ranked(val priority: Int, val lang: String, val chapter: Chapter)
+
+/**
+ * [this] with the row that stands for [chapterId] replaced by that chapter itself.
+ *
+ * [mergeChapters] keeps one row per chapter number, so the translations that lost the row exist
+ * only inside [Chapter.alternates] — opening one would otherwise not be in the list at all. The
+ * row's place in the list is kept, so only the language of that one chapter changes.
+ *
+ * Returns the list unchanged when [chapterId] is already a row of its own, which is every
+ * unmerged manga.
+ */
+fun List<Chapter>.withAlternate(chapterId: Long): List<Chapter> {
+    if (any { it.id == chapterId }) return this
+    return map { row ->
+        row.alternates.find { it.id == chapterId }
+            ?.copy()
+            ?.apply { source_order = row.source_order }
+            ?: row
+    }
+}

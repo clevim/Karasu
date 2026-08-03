@@ -33,7 +33,6 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.manga.chapter.ChapterItem
 import eu.kanade.tachiyomi.ui.reader.chapter.ReaderChapterItem
 import eu.kanade.tachiyomi.ui.reader.loader.ChapterLoader
-import eu.kanade.tachiyomi.ui.reader.loader.DownloadPageLoader
 import eu.kanade.tachiyomi.ui.reader.loader.HttpPageLoader
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
@@ -77,6 +76,7 @@ import karasu.domain.category.interactor.GetCategories
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.chapter.interactor.InsertChapter
 import karasu.domain.chapter.interactor.UpdateChapter
+import karasu.domain.chapter.interactor.withAlternate
 import karasu.domain.chapter.models.ChapterUpdate
 import karasu.domain.download.DownloadPreferences
 import karasu.domain.history.interactor.GetHistory
@@ -256,7 +256,9 @@ class ReaderViewModel(
 
     private suspend fun getChapterList(): List<ReaderChapter> {
         val manga = manga!!
-        val dbChapters = getChapter.awaitAll(manga.id!!, true)
+        // The requested chapter can be a translation the merged list folded into another row, so
+        // swap that row for the one actually asked for before looking it up.
+        val dbChapters = getChapter.awaitAll(manga.id!!, true).withAlternate(chapterId)
 
         val selectedChapter = dbChapters.find { it.id == chapterId }
             ?: error("Requested chapter of id $chapterId not found in chapter list")
@@ -271,7 +273,7 @@ class ReaderViewModel(
         val manga = manga ?: return emptyList()
         chapterItems = withContext(Dispatchers.IO) {
             val chapterSort = ChapterSort(manga, chapterFilter, preferences)
-            val dbChapters = getChapter.awaitAll(manga)
+            val dbChapters = getChapter.awaitAll(manga).withAlternate(chapterId)
             chapterSort.getChaptersSorted(
                 dbChapters,
                 filterForReader = true,
@@ -542,13 +544,23 @@ class ReaderViewModel(
     private fun downloadNextChapters() {
         val manga = manga ?: return
         viewModelScope.launchNonCancellableIO {
-            if (getCurrentChapter()?.pageLoader !is DownloadPageLoader) return@launchNonCancellableIO
-            val nextChapter = state.value.viewerChapters?.nextChapter?.chapter ?: return@launchNonCancellableIO
             val chaptersNumberToDownload = preferences.autoDownloadWhileReading().get()
             if (chaptersNumberToDownload == 0 || !manga.favorite) return@launchNonCancellableIO
-            val isNextChapterDownloaded = downloadManager.isChapterDownloaded(nextChapter, manga)
-            if (isNextChapterDownloaded) {
+            val nextChapter = state.value.viewerChapters?.nextChapter?.chapter ?: return@launchNonCancellableIO
+
+            if (downloadManager.isChapterDownloaded(nextChapter, manga)) {
+                // Topping up a buffer that already exists: the next chapter is in hand, so the
+                // setting's count is spent on the ones after it.
                 downloadAutoNextChapters(chaptersNumberToDownload, nextChapter.id)
+            } else {
+                // Reading online built no buffer at all before, because this whole method bailed
+                // unless the chapter in hand was already downloaded — so the setting only ever
+                // maintained a run that was offline already, and never started one. Enqueuing is
+                // safe either way: DownloadJob holds the queue until the network matches
+                // `downloadOnlyOverWifi`.
+                val ahead = listOf(ChapterItem(nextChapter, manga)) +
+                    getNextUnreadChaptersSorted(nextChapter.id)
+                downloadChapters(ahead.take(chaptersNumberToDownload))
             }
         }
     }

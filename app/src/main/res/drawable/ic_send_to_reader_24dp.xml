@@ -1,0 +1,28 @@
+<!--
+  An e-reader with a page dropping into it: the shelf is a device you send chapters to, so the
+  glyph is the device plus the direction, the same way the share icon is a node plus its arrows.
+  Outline weight matches ic_heart_outline_24dp so it sits next to it without looking heavier.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal"
+    android:autoMirrored="true">
+
+    <!-- The device: a portrait slab with a rounded bezel. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M17,1.5H7A2.5,2.5 0,0 0,4.5 4v16A2.5,2.5 0,0 0,7 22.5h10A2.5,2.5 0,0 0,19.5 20V4A2.5,2.5 0,0 0,17 1.5zM17,20.5H7A0.5,0.5 0,0 1,6.5 20V4A0.5,0.5 0,0 1,7 3.5h10A0.5,0.5 0,0 1,17.5 4v16A0.5,0.5 0,0 1,17 20.5z" />
+
+    <!-- The page arriving: arrow down into the middle of the screen. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12.75,6.5h-1.5v5.19l-1.72,-1.72 -1.06,1.06L12,14.56l3.53,-3.53 -1.06,-1.06 -1.72,1.72z" />
+
+    <!-- The shelf line the page lands on. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M8.5,16.5h7v1.5h-7z" />
+</vector>

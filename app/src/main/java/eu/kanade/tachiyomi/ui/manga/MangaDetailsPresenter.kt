@@ -41,6 +41,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.SourceNotFoundException
 import eu.kanade.tachiyomi.source.getExtension
+import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.base.presenter.BaseCoroutinePresenter
@@ -75,6 +76,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -96,10 +98,13 @@ import karasu.domain.chapter.interactor.GetAvailableScanlators
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.chapter.interactor.UpdateChapter
 import karasu.domain.history.interactor.GetHistory
+import karasu.domain.koreader.KoreaderPreferences
 import karasu.domain.library.custom.model.CustomMangaInfo
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.merged.interactor.MergeHealth
+import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
 import karasu.domain.manga.models.MangaUpdate
 import karasu.domain.manga.models.MergedMangaSource
@@ -126,6 +131,7 @@ class MangaDetailsPresenter(
     private val getChapter: GetChapter by injectLazy()
     private val mergedSourceSync: MergedSourceSync by injectLazy()
     private val mergedSources: MergedSources by injectLazy()
+    private val mergedSourceHealth: MergedSourceHealth by injectLazy()
     private val applyCategoryRules: ApplyCategoryRules by injectLazy()
     private val updateFailures: UpdateFailures by injectLazy()
     private val getManga: GetManga by injectLazy()
@@ -137,6 +143,7 @@ class MangaDetailsPresenter(
     private val getHistory: GetHistory by injectLazy()
 
     private val networkPreferences: NetworkPreferences by injectLazy()
+    private val koreaderPreferences: KoreaderPreferences by injectLazy()
 
 //    private val currentMangaInternal: MutableStateFlow<Manga?> = MutableStateFlow(null)
 //    val currentManga get() = currentMangaInternal.asStateFlow()
@@ -240,11 +247,13 @@ class MangaDetailsPresenter(
             withUIContext {
                 controller.updateHeader()
             }
-            val tasks = listOf(
-                async { if (fetchMangaNeeded) fetchMangaFromSource() },
-                async { if (fetchChaptersNeeded) fetchChaptersFromSource(false) },
-            )
-            tasks.awaitAll()
+            if (fetchMangaNeeded || fetchChaptersNeeded) {
+                fetchMangaUpdateFromSource(
+                    fetchDetails = fetchMangaNeeded,
+                    fetchChapters = fetchChaptersNeeded,
+                    manualFetch = false,
+                )
+            }
             isLoading = false
             withUIContext {
                 controller.updateChapters()
@@ -307,24 +316,43 @@ class MangaDetailsPresenter(
     var showChapterLanguages = false
         private set
 
+    /**
+     * The manga row each chapter can come from, keyed by that row's id.
+     *
+     * Same keys as [chapterSources]: the merged source's own row is where a borrowed chapter's
+     * url — and therefore the source that can open it — lives.
+     */
+    private var chapterMangas: Map<Long, Manga> = emptyMap()
+
+    /** The manga row [chapter] belongs to: this one, or the merged source's it came from. */
+    fun chapterManga(chapter: Chapter): Manga = chapter.manga_id?.let { chapterMangas[it] } ?: manga
+
+    /** The source that can serve [chapter]. This manga's source would build a url it never had. */
+    fun chapterSource(chapter: Chapter): HttpSource? =
+        sourceManager.get(chapterManga(chapter).source) as? HttpSource
+
     private suspend fun refreshChapterSources() {
         if (!mergedSources.hasMerges(mangaId)) {
             chapterSources = emptyMap()
+            chapterMangas = emptyMap()
             showChapterLanguages = false
             return
         }
 
         val own = sourceManager.getOrStub(manga.source)
+        val mangas = mutableMapOf(mangaId to manga)
         val sources = buildMap {
             put(mangaId, ChapterSource(own.name, own.lang))
             mergedSources.await(mangaId).forEach { merge ->
-                val childId = getManga.awaitByUrlAndSource(merge.url, merge.source)?.id
-                    ?: return@forEach
+                val child = getManga.awaitByUrlAndSource(merge.url, merge.source) ?: return@forEach
+                val childId = child.id ?: return@forEach
                 val source = sourceManager.getOrStub(merge.source)
                 put(childId, ChapterSource(source.name, source.lang))
+                mangas[childId] = child
             }
         }
         chapterSources = sources
+        chapterMangas = mangas
         showChapterLanguages = sources.values.distinctBy { it.lang }.size > 1
     }
 
@@ -399,10 +427,10 @@ class MangaDetailsPresenter(
     }
 
     fun getChapterUrl(chapter: Chapter): String? {
-        val source = source as? HttpSource ?: return null
+        val source = chapterSource(chapter) ?: return null
         val chapterUrl = try { source.getChapterUrl(chapter) } catch (_: Exception) { null }
         return chapterUrl.takeIf { !it.isNullOrBlank() }
-            ?: try { source.getChapterUrl(manga, chapter) } catch (_: Exception) { null }
+            ?: try { source.getChapterUrl(chapterManga(chapter), chapter) } catch (_: Exception) { null }
     }
 
     private fun getScrollType(chapters: List<ChapterItem>) {
@@ -485,93 +513,164 @@ class MangaDetailsPresenter(
         return dbManga
     }
 
-    private suspend fun fetchMangaFromSource() {
-        try {
-            withIOContext {
-                val networkManga = source.getMangaDetails(manga.copy())
-                manga.prepareCoverUpdate(coverCache, networkManga, false)
-                manga.copyFrom(networkManga)
-                manga.initialized = true
+    /**
+     * Refreshes details and/or chapters from the source.
+     *
+     * One combined [Source.getMangaUpdate] call rather than a detail fetch and a chapter fetch
+     * racing each other: an extension-lib 1.6 source answers both from a single request, and
+     * hitting it twice concurrently for the same manga is what that API exists to avoid. A source
+     * that cannot answer both at once is asked separately, which is what 1.5 sources did anyway.
+     */
+    private suspend fun fetchMangaUpdateFromSource(
+        fetchDetails: Boolean = true,
+        fetchChapters: Boolean = true,
+        manualFetch: Boolean = true,
+    ) {
+        if (!fetchDetails && !fetchChapters) return
+        withIOContext {
+            val existingChapters = if (fetchChapters) {
+                getChapter.awaitAll(mangaId, false)
+            } else {
+                emptyList()
+            }
 
-                updateManga.await(manga.toMangaUpdate())
+            if (fetchDetails && fetchChapters) {
+                try {
+                    val update = source.getMangaUpdate(
+                        manga = manga.copy(),
+                        chapters = existingChapters,
+                        fetchDetails = true,
+                        fetchChapters = true,
+                    )
+                    applyMangaDetailsUpdate(update.manga)
+                    applyChapterListUpdate(update.chapters, manualFetch)
+                    return@withIOContext
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Fall through to the separate calls, which report their own failures.
+                }
+            }
 
-                presenterScope.launchNonCancellableIO {
-                    val request =
-                        ImageRequest.Builder(preferences.context).data(manga.cover())
-                            .memoryCachePolicy(CachePolicy.DISABLED)
-                            .diskCachePolicy(CachePolicy.WRITE_ONLY)
-                            .build()
-
-                    if (preferences.context.imageLoader.execute(request) is SuccessResult) {
+            if (fetchDetails) {
+                try {
+                    applyMangaDetailsUpdate(
+                        source.getMangaUpdate(
+                            manga = manga.copy(),
+                            chapters = emptyList(),
+                            fetchDetails = true,
+                            fetchChapters = false,
+                        ).manga,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (e !is HttpException || e.code != 103) {
                         withUIContext {
-                            view?.setPaletteColor()
+                            view?.showError(trimException(e))
                         }
                     }
                 }
             }
-        } catch (e: Exception) {
-            if (e is HttpException && e.code == 103) return
-            withUIContext {
-                view?.showError(trimException(e))
+
+            if (fetchChapters) {
+                try {
+                    applyChapterListUpdate(
+                        source.getMangaUpdate(
+                            manga = manga.copy(),
+                            chapters = existingChapters,
+                            fetchDetails = false,
+                            fetchChapters = true,
+                        ).chapters,
+                        manualFetch,
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    recordChapterFetchFailure(e)
+                }
             }
         }
     }
 
-    private suspend fun fetchChaptersFromSource(manualFetch: Boolean = true) {
-        try {
-            withIOContext {
-                // Merged sources have their own non-favourite manga rows that no update job
-                // walks, so refresh them whenever this manga is refreshed.
-                val mergedAdded = mergedSourceSync.await(manga.id!!)
+    private suspend fun applyMangaDetailsUpdate(networkManga: SManga) {
+        manga.prepareCoverUpdate(coverCache, networkManga, false)
+        manga.copyFrom(networkManga)
+        manga.initialized = true
 
-                val chapters = source.getChapterList(manga.copy())
-                val (ownAdded, removed) = withIOContext { syncChaptersWithSource(chapters, manga, source) }
-                // Merged sources' new chapters appear in this manga's list, so they get the
-                // same auto-download treatment as its own.
-                val added = ownAdded + mergedAdded
-                if (added.isNotEmpty()) {
-                    if (manga.shouldDownloadNewChapters(preferences) && manualFetch) {
-                        downloadChapters(
-                            added.sortedBy { it.chapter_number }
-                                .map { it.toModel() },
-                        )
-                    }
-                    view?.view?.context?.let { mangaShortcutManager.updateShortcuts(it) }
+        updateManga.await(manga.toMangaUpdate())
+
+        presenterScope.launchNonCancellableIO {
+            val request =
+                ImageRequest.Builder(preferences.context).data(manga.cover())
+                    .memoryCachePolicy(CachePolicy.DISABLED)
+                    .diskCachePolicy(CachePolicy.WRITE_ONLY)
+                    .build()
+
+            if (preferences.context.imageLoader.execute(request) is SuccessResult) {
+                withUIContext {
+                    view?.setPaletteColor()
                 }
-                if (removed.isNotEmpty()) {
-                    val removedChaptersId = removed.map { it.id }
-                    val removedChapters = this@MangaDetailsPresenter.chapters.filter {
-                        it.id in removedChaptersId && it.isDownloaded
-                    }
-                    if (removedChapters.isNotEmpty()) {
-                        withUIContext {
-                            view?.showChaptersRemovedPopup(removedChapters)
-                        }
-                    }
+            }
+        }
+    }
+
+    private suspend fun applyChapterListUpdate(networkChapters: List<SChapter>, manualFetch: Boolean) {
+        // Merged sources have their own non-favourite manga rows that no update job
+        // walks, so refresh them whenever this manga is refreshed.
+        val mergedAdded = mergedSourceSync.await(manga.id!!)
+
+        val (ownAdded, removed) = syncChaptersWithSource(networkChapters, manga, source)
+        // Merged sources' new chapters appear in this manga's list, so they get the
+        // same auto-download treatment as its own.
+        val added = ownAdded + mergedAdded
+        if (added.isNotEmpty()) {
+            if (manga.shouldDownloadNewChapters(preferences) && manualFetch) {
+                downloadChapters(
+                    added.sortedBy { it.chapter_number }
+                        .map { it.toModel() },
+                )
+            }
+            view?.view?.context?.let { mangaShortcutManager.updateShortcuts(it) }
+        }
+        if (removed.isNotEmpty()) {
+            val removedChaptersId = removed.map { it.id }
+            val removedChapters = this@MangaDetailsPresenter.chapters.filter {
+                it.id in removedChaptersId && it.isDownloaded
+            }
+            if (removedChapters.isNotEmpty()) {
+                withUIContext {
+                    view?.showChaptersRemovedPopup(removedChapters)
                 }
-                getChapters()
-                getHistory()
-                // A manual refresh that worked is as good a sign as a library update, so it
-                // clears the broken-source count too — otherwise an entry the user just
-                // fixed stays flagged until the next scheduled run.
-                updateFailures.clear(manga.id!!)
-                applyCategoryRules.awaitFor(manga.id!!)
             }
-        } catch (e: Exception) {
-            manga.id?.let {
-                updateFailures.record(it, e, preferences.context.isOnline())
-                // The failure count is a rule input, so recording one has to re-evaluate the entry
-                // the same way the success path does. Without this a rule watching for a broken
-                // source only fires on the next library update, not when the user sees it break.
-                applyCategoryRules.awaitFor(it)
-            }
-            withUIContext {
-                view?.showError(trimException(e))
-            }
+        }
+        getChapters()
+        getHistory()
+        // A manual refresh that worked is as good a sign as a library update, so it
+        // clears the broken-source count too — otherwise an entry the user just
+        // fixed stays flagged until the next scheduled run.
+        updateFailures.clear(manga.id!!)
+        applyCategoryRules.awaitFor(manga.id!!)
+    }
+
+    private suspend fun recordChapterFetchFailure(e: Exception) {
+        manga.id?.let {
+            updateFailures.record(it, e, preferences.context.isOnline())
+            // The failure count is a rule input, so recording one has to re-evaluate the entry
+            // the same way the success path does. Without this a rule watching for a broken
+            // source only fires on the next library update, not when the user sees it break.
+            applyCategoryRules.awaitFor(it)
+        }
+        withUIContext {
+            view?.showError(trimException(e))
         }
     }
 
     suspend fun mergedSources(): List<MergedMangaSource> = mergedSources.await(mangaId)
+
+    /** Only the merges with something wrong with them, keyed by source id. */
+    suspend fun mergedSourceHealth(): Map<Long, MergeHealth> =
+        mergedSourceHealth.await(mangaId).filterValues { it != MergeHealth.OK }
 
     /**
      * Merges [source]'s copy of this manga in, so its chapters join this manga's list.
@@ -624,7 +723,7 @@ class MangaDetailsPresenter(
             // lingering as rows that no longer open. Re-fetch from source when online for an
             // authoritative "available chapters" list; fall back to a local reload otherwise.
             if (preferences.context.isOnline()) {
-                fetchChaptersFromSource(manualFetch = false)
+                fetchMangaUpdateFromSource(fetchDetails = false, fetchChapters = true, manualFetch = false)
             } else {
                 reloadChapters()
             }
@@ -653,11 +752,7 @@ class MangaDetailsPresenter(
 
         presenterScope.launch {
             isLoading = true
-            val tasks = listOf(
-                async { fetchMangaFromSource() },
-                async { fetchChaptersFromSource() },
-            )
-            tasks.awaitAll()
+            fetchMangaUpdateFromSource(fetchDetails = true, fetchChapters = true, manualFetch = true)
             isLoading = false
             withUIContext {
                 view?.updateChapters()
@@ -1104,6 +1199,22 @@ class MangaDetailsPresenter(
         loggedServices.any { service -> tracks.any { it.sync_id == service.id } }
 
     fun hasTrackers(): Boolean = loggedServices.isNotEmpty()
+
+    /** Only worth offering once there is a server to send to, the same test the sync job uses. */
+    fun hasShelf(): Boolean = koreaderPreferences.serverUrl().get().isNotBlank()
+
+    fun isOnShelf(): Boolean = manga.id?.toString() in koreaderPreferences.shelfManga().get()
+
+    /** @return whether the manga is on the shelf afterwards. */
+    fun toggleShelf(): Boolean {
+        val id = manga.id?.toString() ?: return false
+        val pref = koreaderPreferences.shelfManga()
+        val add = id !in pref.get()
+        // Read-modify-write: the set is the whole preference, so dropping the rest of it is the
+        // way this goes wrong.
+        pref.set(if (add) pref.get() + id else pref.get() - id)
+        return add
+    }
 
     // Tracking
     private fun setTrackItems() {

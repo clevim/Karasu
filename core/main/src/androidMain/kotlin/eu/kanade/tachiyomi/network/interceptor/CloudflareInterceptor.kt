@@ -51,9 +51,18 @@ class CloudflareInterceptor(
         request: Request,
         response: Response,
     ): Response {
+        response.close()
+        cookieManager.remove(request.url, COOKIE_NAMES, 0)
+
+        // A host FlareSolverr has cleared before is a host the WebView already lost on, and losing
+        // costs the full 30s latch every single time. Go straight to what worked. Still falls
+        // through to the WebView if FlareSolverr can't answer today — the instance is the user's
+        // own box and is often simply off.
+        if (flareSolverr.hasSolved(request.url.host)) {
+            flareSolverr.solve(request.url)?.let { return chain.proceedAs(request, it) }
+        }
+
         try {
-            response.close()
-            cookieManager.remove(request.url, COOKIE_NAMES, 0)
             val oldCookie = cookieManager.get(request.url)
                 .firstOrNull { it.name == "cf_clearance" }
             resolveWithWebView(request, oldCookie)
@@ -64,21 +73,29 @@ class CloudflareInterceptor(
         // we don't crash the entire app
         catch (e: CloudflareBypassException) {
             // The WebView lost. FlareSolverr drives a real desktop browser, so it clears challenges
-            // the WebView cannot — but only if the user actually runs an instance. The agent it
-            // answers with has to replace ours on the retry, or the fresh cf_clearance is rejected.
+            // the WebView cannot — but only if the user actually runs an instance.
             val userAgent = flareSolverr.solve(request.url)
                 ?: throw IOException(context.getString(MR.strings.failed_to_bypass_cloudflare), e)
 
-            return chain.proceed(
-                request.newBuilder()
-                    .removeHeader("User-Agent")
-                    .addHeader("User-Agent", userAgent)
-                    .build(),
-            )
+            return chain.proceedAs(request, userAgent)
         } catch (e: Exception) {
             throw IOException(e)
         }
     }
+
+    /**
+     * Retries [request] as [userAgent].
+     *
+     * FlareSolverr's `cf_clearance` is only valid together with the browser User-Agent it was
+     * issued to, so ours has to be replaced or the fresh cookie is rejected on arrival.
+     */
+    private fun Interceptor.Chain.proceedAs(request: Request, userAgent: String): Response =
+        proceed(
+            request.newBuilder()
+                .removeHeader("User-Agent")
+                .addHeader("User-Agent", userAgent)
+                .build(),
+        )
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun resolveWithWebView(originalRequest: Request, oldCookie: Cookie?) {
