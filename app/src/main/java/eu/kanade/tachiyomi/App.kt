@@ -30,6 +30,8 @@ import co.touchlab.kermit.Logger
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 // import coil3.request.allowHardware
@@ -307,6 +309,15 @@ open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.F
             memoryCache(
                 MemoryCache.Builder()
                     .maxSizePercent(context)
+                    .build(),
+            )
+
+            // Coil 3 has no default disk cache, and every disk-cache branch in
+            // [MangaCoverFetcher] is dead without one: a cover that falls out of the memory cache
+            // is downloaded again, on the same rate-limited client the source is using.
+            diskCache(
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
                     .build(),
             )
 

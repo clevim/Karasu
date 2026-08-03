@@ -27,6 +27,7 @@ import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
+import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil.Companion.preferredChapterName
 import eu.kanade.tachiyomi.util.lang.chop
@@ -37,6 +38,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.injectLazy
+import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.models.cover
 import karasu.i18n.MR
 import karasu.util.lang.getString
@@ -45,6 +47,8 @@ import android.R as AR
 class LibraryUpdateNotifier(private val context: Context) {
 
     private val preferences: PreferencesHelper by injectLazy()
+    private val getManga: GetManga by injectLazy()
+    private val sourceManager: SourceManager by injectLazy()
 
     /**
      * Pending intent of action that cancels the library update
@@ -187,17 +191,44 @@ class LibraryUpdateNotifier(private val context: Context) {
      * @param updates a list of manga with new updates.
      */
     @OptIn(DelicateCoroutinesApi::class)
+    /**
+     * Names of the sources that lent chapters to this batch, keyed by the manga row they came from.
+     *
+     * Resolved once for the whole batch rather than per chapter: a merged manga contributes a run
+     * of chapters from the same row, and this runs on every library update.
+     */
+    private suspend fun borrowedSourceNames(
+        updates: Map<LibraryManga, Array<Chapter>>,
+    ): Map<Long, String> = updates
+        .flatMap { (manga, chapters) ->
+            chapters.mapNotNull { it.manga_id }.filter { it != manga.manga.id }
+        }
+        .distinct()
+        .mapNotNull { rowId ->
+            getManga.awaitById(rowId)?.let { rowId to sourceManager.getOrStub(it.source).name }
+        }
+        .toMap()
+
     fun showResultNotification(newUpdates: Map<LibraryManga, Array<Chapter>>) {
         // create a copy of the list since it will be cleared by the time it is used
         val updates = newUpdates.toMap()
         GlobalScope.launch {
             val notifications = ArrayList<Pair<Notification, Int>>()
             if (!preferences.hideNotificationContent().get()) {
+                val borrowedFrom = borrowedSourceNames(updates)
                 updates.forEach {
                     val manga = it.key
                     val chapters = it.value
                     val chapterNames = chapters.map { chapter ->
-                        chapter.preferredChapterName(context, manga.manga, preferences)
+                        val name = chapter.preferredChapterName(context, manga.manga, preferences)
+                        // A chapter stored under another row got here from a merged source, which
+                        // means the manga's own source hasn't got it. Saying where it came from is
+                        // the difference between "47 is out" and "47 is out, just not where you
+                        // normally read it".
+                        when (val from = chapter.manga_id?.takeIf { id -> id != manga.manga.id }) {
+                            null -> name
+                            else -> borrowedFrom[from]?.let { source -> "$name ($source)" } ?: name
+                        }
                     }
                     notifications.add(
                         Pair(

@@ -144,12 +144,17 @@ class MangaCoverFetcher(
                 val responseCoverCache = writeResponseToCoverCache(response, coverFile)
                 setRatioAndColorsInScope(mangaId, url, isInLibrary)
                 if (responseCoverCache != null) {
+                    // The cover is on disk now and the body was only peeked, never consumed.
+                    // Leaving it open holds the connection until the GC notices, so browsing a
+                    // page of results burns a socket per cover instead of reusing one.
+                    responseBody.close()
                     return fileLoader(responseCoverCache)
                 }
 
                 // Read from disk cache
                 snapshot = writeToDiskCache(response)
                 if (snapshot != null) {
+                    responseBody.close()
                     return SourceFetchResult(
                         source = snapshot.toImageSource(),
                         mimeType = "image/*",

@@ -114,8 +114,27 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             )
         }
 
+        /**
+         * Sync because something happened that the shelf's answer depends on: chapters finished
+         * downloading, the library found new ones, or the settings that decide what belongs on the
+         * shelf were edited.
+         *
+         * Twelve hours between runs is fine for keeping a shelf current and far too long for
+         * reacting to something the user just did. A periodic job registered with `UPDATE` also
+         * keeps its existing schedule, so changing a category would otherwise not be acted on until
+         * the period happened to come round — which is what left people pressing "Sync now" by hand.
+         *
+         * The same unique work as that button, so a burst of these is still one run. Silent when the
+         * interval is Manual: none of these events is a request to be synced.
+         */
+        fun startIfAutomatic(context: Context) {
+            if (Injekt.get<KoreaderPreferences>().syncInterval().get() <= 0) return
+            startNow(context)
+        }
+
         /** Manual sync ignores the interval but still respects the metered-connection choice. */
         fun startNow(context: Context) {
+            if (Injekt.get<KoreaderPreferences>().serverUrl().get().isBlank()) return
             val request = OneTimeWorkRequestBuilder<KoreaderSyncJob>()
                 .addTag(TAG_MANUAL)
                 .setConstraints(constraints(Injekt.get()))

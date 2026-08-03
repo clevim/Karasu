@@ -8,6 +8,11 @@
 
 </div>
 
+> [!IMPORTANT]
+> **Disclaimer**
+>
+> The developer(s) of this application does not have any affiliation with the content providers available, and this application hosts zero content.
+
 <div align="center">
 
 A free and open source manga reader

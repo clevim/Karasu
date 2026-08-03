@@ -148,6 +148,7 @@ class MangaDetailsAdapter(
         fun copyContentToClipboard(content: String, label: String?, useToast: Boolean = false)
         fun zoomImageFromThumb(thumbView: View)
         fun showTrackingSheet()
+        fun toggleShelf()
         fun updateScroll()
         fun setFavButtonPopup(popupView: View)
     }

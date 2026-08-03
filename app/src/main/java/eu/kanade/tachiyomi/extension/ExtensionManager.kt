@@ -223,28 +223,19 @@ class ExtensionManager(
         }
         val mutInstalledExtensions = installedExtensionsFlow.value.toMutableList()
         var changed = false
-        var hasUpdateCount = 0
         for ((index, installedExt) in mutInstalledExtensions.withIndex()) {
-            val pkgName = installedExt.pkgName
-            val availableExt = availableExtensions.find { it.pkgName == pkgName }
-
-            if (availableExt == null != installedExt.isObsolete) {
-                mutInstalledExtensions[index] = installedExt.copy(isObsolete = true)
-                changed = true
-            }
-            if (availableExt != null) {
-                val hasUpdate = installedExt.updateExists(availableExt)
-                if (installedExt.hasUpdate != hasUpdate) {
-                    mutInstalledExtensions[index] = installedExt.copy(
-                        hasUpdate = hasUpdate,
-                        repoUrl = availableExt.repoUrl,
-                    )
-                    hasUpdateCount++
-                } else {
-                    mutInstalledExtensions[index] = installedExt.copy(
-                        repoUrl = availableExt.repoUrl,
-                    )
-                }
+            val availableExt = availableExtensions.find { it.pkgName == installedExt.pkgName }
+            val updated = installedExt.copy(
+                hasUpdate = availableExt != null && installedExt.updateExists(availableExt),
+                // Obsolete means "the repo no longer lists it", so it has to clear again once the
+                // repo does. Writing it in one copy with the rest is what makes that stick: the
+                // update pass used to overwrite the flag with the old value right after setting it,
+                // leaving working extensions marked obsolete forever.
+                isObsolete = availableExt == null,
+                repoUrl = availableExt?.repoUrl ?: installedExt.repoUrl,
+            )
+            if (updated != installedExt) {
+                mutInstalledExtensions[index] = updated
                 changed = true
             }
         }

@@ -46,6 +46,9 @@ class ChapterImpl : Chapter {
     override var source_order: Int = 0
 
     @Transient
+    override var alternates: List<Chapter> = emptyList()
+
+    @Transient
     override var memo: JsonObject = JsonObject(emptyMap())
 
     override fun equals(other: Any?): Boolean {

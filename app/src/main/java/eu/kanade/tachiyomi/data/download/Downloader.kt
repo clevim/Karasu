@@ -6,6 +6,7 @@ import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.download.model.Download
+import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
@@ -26,6 +27,7 @@ import eu.kanade.tachiyomi.util.system.withIOContext
 import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.util.system.writeText
 import java.io.File
+import java.io.IOException
 import java.util.*
 import java.util.zip.*
 import kotlinx.coroutines.CancellationException
@@ -53,7 +55,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import nl.adaptivity.xmlutil.serialization.XML
-import okhttp3.Response
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
@@ -246,6 +247,10 @@ class Downloader(
             }
             if (areAllDownloadsFinished()) {
                 stop()
+                // The shelf only uploads chapters that are already on disk, and it has just become
+                // true of these. Waiting for the next scheduled run is what made a fresh chapter
+                // take hours to reach the device.
+                KoreaderSyncJob.startIfAutomatic(context)
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
@@ -325,6 +330,15 @@ class Downloader(
      */
     private suspend fun downloadChapter(download: Download) {
         val mangaDir = provider.getMangaDir(download.manga, download.source)
+        // A chapter borrowed from a merged source can only be fetched with that source: its urls
+        // and headers are the ones the images are served against. The directory above stays on
+        // the manga being read, so a merged chapter downloads and deletes like any other.
+        // Reassigned below when the fallback ends up serving the pages from a different source,
+        // because that source's client is the one its image urls answer to.
+        var source = download.manga.id
+            ?.let { mergedSourceFallback.ownerOf(it, download.chapter) }
+            ?.let { sourceManager.get(it.source) as? HttpSource }
+            ?: download.source
 
         val availSpace = DiskUtil.getAvailableStorageSpace(mangaDir)
         val chapName = download.chapter.preferredChapterName(context, download.manga, preferences)
@@ -342,8 +356,10 @@ class Downloader(
                 // Otherwise, pull page list from network and add them to download object
                 val pages = when (val mangaId = download.manga.id) {
                     // Never persisted, so it can't have merged sources to fall back to.
-                    null -> download.source.getPageList(download.chapter)
-                    else -> mergedSourceFallback.getPageList(mangaId, download.chapter, download.source)
+                    null -> source.getPageList(download.chapter)
+                    else -> mergedSourceFallback.getPages(mangaId, download.chapter, source)
+                        .also { source = it.source }
+                        .pages
                 }
 
                 if (pages.isEmpty()) {
@@ -369,29 +385,20 @@ class Downloader(
 
             download.status = Download.State.DOWNLOADING
 
-            // Get all the URLs to the source images, fetch pages if necessary
-            pageList.filter { it.imageUrl.isNullOrEmpty() }.forEach { page ->
-                page.status = Page.State.LoadPage
-                try {
-                    page.imageUrl = download.source.getImageUrl(page)
-                } catch (e: Throwable) {
-                    page.status = Page.State.Error
-                }
-            }
+            // Same-language source fallback as the reader has: a source can serve a good page list
+            // and then fail on the images it points at. The page list came from `source`, so that
+            // is the one already tried, and the pages that did download are kept across the switch.
+            val triedSources = mutableSetOf(source.id)
+            while (true) {
+                downloadPages(pageList, download, source, tmpDir)
+                if (isDownloadSuccessful(download, tmpDir)) break
 
-            // Start downloading images, consider we can have downloaded images already
-            // Concurrently do 2 pages at a time
-            pageList.asFlow()
-                .flatMapMerge(concurrency = 2) { page ->
-                    flow {
-                        withIOContext { getOrDownloadImage(page, download, tmpDir) }
-                        emit(page)
-                    }.flowOn(Dispatchers.IO)
-                }
-                .collect {
-                    // Do when page is downloaded.
-                    notifier.onProgressChange(download)
-                }
+                val mangaId = download.manga.id ?: break
+                source = mergedSourceFallback
+                    .switchSource(mangaId, download.chapter, source, pageList, triedSources)
+                    ?: break
+                Logger.i { "Retrying ${download.chapter.name} from ${source.name}" }
+            }
 
             // Do after download completes
 
@@ -404,7 +411,7 @@ class Downloader(
                 tmpDir,
                 download.manga,
                 download.chapter,
-                download.source,
+                source,
             )
 
             // Only rename the directory if it's downloaded
@@ -425,6 +432,44 @@ class Downloader(
             download.status = Download.State.ERROR
             notifier.onError(error.message, chapName, download.manga.title)
         }
+    }
+
+    /**
+     * Resolves any missing image urls against [source] and downloads every page that isn't on disk.
+     *
+     * Called once per source the chapter is attempted from, so it has to be safe to repeat: a page
+     * already downloaded is found in [tmpDir] and skipped, and an image url is only asked for when
+     * the page hasn't got one — which, after a source switch, is exactly the pages that failed.
+     */
+    private suspend fun downloadPages(
+        pageList: List<Page>,
+        download: Download,
+        source: HttpSource,
+        tmpDir: UniFile,
+    ) {
+        // Get all the URLs to the source images, fetch pages if necessary
+        pageList.filter { it.imageUrl.isNullOrEmpty() }.forEach { page ->
+            page.status = Page.State.LoadPage
+            try {
+                page.imageUrl = source.getImageUrl(page)
+            } catch (e: Throwable) {
+                page.status = Page.State.Error
+            }
+        }
+
+        // Start downloading images, consider we can have downloaded images already
+        // Concurrently do 2 pages at a time
+        pageList.asFlow()
+            .flatMapMerge(concurrency = 2) { page ->
+                flow {
+                    withIOContext { getOrDownloadImage(page, download, source, tmpDir) }
+                    emit(page)
+                }.flowOn(Dispatchers.IO)
+            }
+            .collect {
+                // Do when page is downloaded.
+                notifier.onProgressChange(download)
+            }
     }
 
     private fun isDownloadSuccessful(
@@ -463,6 +508,7 @@ class Downloader(
     private suspend fun getOrDownloadImage(
         page: Page,
         download: Download,
+        source: HttpSource,
         tmpDir: UniFile,
     ) {
         // If the image URL is empty, do nothing
@@ -492,11 +538,11 @@ class Downloader(
                     tmpDir,
                     filename,
                 )
-                else -> downloadImage(page, download.source, tmpDir, filename)
+                else -> downloadImage(page, source, tmpDir, filename)
             }
 
             // When the page is ready, set page path, progress (just in case) and status
-            splitTallImageIfNeeded(page, tmpDir)
+            splitTallImageIfNeeded(filename, tmpDir)
 
             page.uri = file.uri
             page.progress = 100
@@ -531,7 +577,11 @@ class Downloader(
             val file = tmpDir.createFile("$filename.tmp")
             try {
                 response.body.source().saveTo(file!!.openOutputStream())
-                val extension = getImageExtension(response, file)
+                // Thrown rather than stored: the flow below retries three times, which is what
+                // rides out a source that is briefly handing out error pages, and a page that
+                // still fails stays in Error so the chapter is never counted as downloaded.
+                val extension = getImageExtension(file)
+                    ?: throw IOException(context.getString(MR.strings.download_notifier_not_an_image))
                 file.renameTo("$filename.$extension")
             } catch (e: Exception) {
                 response.close()
@@ -573,25 +623,34 @@ class Downloader(
     }
 
     /**
-     * Returns the extension of the downloaded image from the network response, or if it's null,
-     * analyze the file. If everything fails, assume it's a jpg.
+     * The extension for a page that was just downloaded, or null when its bytes are not an image.
      *
-     * @param response the network response of the image.
+     * The bytes decide, and nothing else. A source under load answers a page request with its own
+     * error page — HTML, HTTP 200 — and assuming a jpg when nothing recognised the content is how
+     * one of those ends up stored as a page, counted as downloaded, and carried into the CBZ that
+     * goes to the device, where there is nothing left to display. The declared Content-Type is no
+     * help either: it named the error page as html and was ignored for exactly the same reason.
+     *
+     * Types the decoder cannot name are types the reader cannot draw, so refusing them loses
+     * nothing that used to work.
+     *
      * @param file the file where the image is already downloaded.
      */
-    private fun getImageExtension(response: Response, file: UniFile): String {
-        val mime = response.body.contentType()?.let { ct -> if (ct.type == "image") "image/${ct.subtype}" else null }
+    private fun getImageExtension(file: UniFile): String? =
+        ImageUtil.findImageType { file.openInputStream() }?.extension
 
-        return ImageUtil.getExtensionFromMimeType(mime) { file.openInputStream() }
-    }
-
-    private fun splitTallImageIfNeeded(page: Page, tmpDir: UniFile) {
+    /** @param fileName the page's zero-padded name, without extension, as it was downloaded. */
+    private fun splitTallImageIfNeeded(fileName: String, tmpDir: UniFile) {
         if (!preferences.splitTallImages().get()) return
 
         try {
-            val fileName = "%03d".format(Locale.ENGLISH, page.number)
-            val imageFile = tmpDir.listFiles()?.firstOrNull { it.name.orEmpty().startsWith(fileName) }
-                ?: throw Error(context.getString(MR.strings.download_notifier_split_page_not_found, page.number))
+            // Anchored on "." or "__" rather than a bare prefix: with four-digit names "001" also
+            // prefixes "0010.jpg", and page 1 would be split from page 10's image.
+            val imageFile = tmpDir.listFiles()?.firstOrNull {
+                val name = it.name.orEmpty()
+                name.startsWith("$fileName.") || name.startsWith("${fileName}__")
+            }
+                ?: throw Error(context.getString(MR.strings.download_notifier_split_page_not_found, fileName.toInt()))
 
             // Check if the original page was previously split before then skip.
             if (imageFile.name.orEmpty().startsWith("${fileName}__")) return
@@ -613,7 +672,10 @@ class Downloader(
         val zip = mangaDir.createFile("$dirname.cbz$TMP_DIR_SUFFIX")
         if (zip?.isFile != true) throw Exception("Failed to create CBZ file for downloaded chapter")
         ZipWriter(context, zip!!).use { writer ->
-            tmpDir.listFiles()?.forEach { file ->
+            // listFiles() hands back whatever order the filesystem stored them in, and a reader
+            // that trusts entry order instead of sorting names then shows the chapter shuffled.
+            // Page names are zero-padded to a fixed width, so sorting by name is the page order.
+            tmpDir.listFiles()?.sortedBy { it.name.orEmpty() }?.forEach { file ->
                 writer.write(file)
             }
         }

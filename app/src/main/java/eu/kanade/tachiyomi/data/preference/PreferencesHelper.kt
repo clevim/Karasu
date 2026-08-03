@@ -302,9 +302,6 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
     // TODO: SourcePref
     fun migrationSources() = preferenceStore.getString("migrate_sources", "")
 
-    // TODO: SourcePref
-    fun useSourceWithMost() = preferenceStore.getBoolean("use_source_with_most", false)
-
     fun skipPreMigration() = preferenceStore.getBoolean(Keys.skipPreMigration, false)
 
     fun defaultMangaOrder() = preferenceStore.getString("default_manga_order", "")

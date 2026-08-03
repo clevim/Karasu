@@ -22,6 +22,15 @@ interface Chapter : SChapter, Serializable {
 
     var source_order: Int
 
+    /**
+     * The rows this one stands for when merged sources translate the same chapter number, one per
+     * language and ordered by source priority — this row itself first.
+     *
+     * Empty for everything else, including a chapter only one source has. Read-time only: it is
+     * filled by `mergeChapters` and never stored.
+     */
+    var alternates: List<Chapter>
+
     val isRecognizedNumber: Boolean
         get() = chapter_number >= 0f
 

@@ -27,6 +27,7 @@ import eu.kanade.tachiyomi.data.database.models.LibraryManga
 import eu.kanade.tachiyomi.data.database.models.prepareCoverUpdate
 import eu.kanade.tachiyomi.data.download.DownloadJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
+import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
@@ -204,6 +205,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 // New chapters change the counts category rules read, so re-file the library
                 // before the run ends rather than leaving it stale until the next one.
                 applyCategoryRules.await()
+                // And the shelf is filled from the library, so it is out of date the moment the
+                // library is not. Whether the new chapters are downloaded yet or the sync has to
+                // queue them itself, this is the point at which it can tell.
+                if (target == Target.CHAPTERS) KoreaderSyncJob.startIfAutomatic(context)
                 Result.success()
             } catch (e: Exception) {
                 if (e is CancellationException) {
@@ -287,7 +292,12 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                         )
                         ensureActive()
                         val networkManga = try {
-                            source.getMangaDetails(manga.manga.copy())
+                            source.getMangaUpdate(
+                                manga = manga.manga.copy(),
+                                chapters = emptyList(),
+                                fetchDetails = true,
+                                fetchChapters = false,
+                            ).manga
                         } catch (e: java.lang.Exception) {
                             Logger.e(e)
                             null
@@ -440,7 +450,12 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // walks, so refresh them alongside the manga they belong to.
             val mergedChapters = mergedSourceSync.await(manga.manga.id!!)
 
-            val fetchedChapters = source.getChapterList(manga.manga.copy())
+            val fetchedChapters = source.getMangaUpdate(
+                manga = manga.manga.copy(),
+                chapters = getChapter.awaitAll(manga.manga.id!!, false),
+                fetchDetails = false,
+                fetchChapters = true,
+            ).chapters
 
             val newChapters = if (fetchedChapters.isNotEmpty()) {
                 syncChaptersWithSource(fetchedChapters, manga.manga, source)

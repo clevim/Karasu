@@ -89,6 +89,8 @@ import eu.kanade.tachiyomi.ui.main.SearchActivity
 import eu.kanade.tachiyomi.ui.manga.chapter.ChapterHolder
 import eu.kanade.tachiyomi.ui.manga.chapter.ChapterItem
 import eu.kanade.tachiyomi.ui.manga.chapter.ChaptersSortBottomSheet
+import eu.kanade.tachiyomi.ui.manga.chapter.languageSources
+import eu.kanade.tachiyomi.ui.manga.chapter.showChapterLanguageDialog
 import eu.kanade.tachiyomi.ui.manga.merge.MergeSearchController
 import eu.kanade.tachiyomi.ui.manga.merge.showMergedSourcesDialog
 import eu.kanade.tachiyomi.ui.manga.track.TrackItem
@@ -151,6 +153,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import karasu.domain.manga.merged.interactor.MergeHealth
 import karasu.domain.manga.models.cover
 import karasu.i18n.MR
 import karasu.presentation.core.Constants
@@ -1010,7 +1013,14 @@ class MangaDetailsController :
             }
             return false
         }
-        openChapter(chapter, view)
+        // A row standing for several languages says nothing about which one a tap meant, so ask.
+        // No shared element for the answer: it can be a different row than the one tapped.
+        val languages = chapter.languageSources(presenter)
+        if (languages.size > 1) {
+            (activity as? Activity)?.showChapterLanguageDialog(languages) { openChapter(it) }
+        } else {
+            openChapter(chapter, view)
+        }
 
         return false
     }
@@ -1410,7 +1420,7 @@ class MangaDetailsController :
 
     fun openChapterInWebView(item: ChapterItem) {
         if (isNotOnline()) return
-        val source = presenter.source as? HttpSource ?: return
+        val source = presenter.chapterSource(item.chapter) ?: return
         val url = presenter.getChapterUrl(item.chapter) ?: return
 
         val activity = activity ?: return
@@ -1757,6 +1767,7 @@ class MangaDetailsController :
     private fun showMergedSourcesDialog() {
         viewScope.launchIO {
             val merged = presenter.mergedSources()
+            val health = presenter.mergedSourceHealth()
             withUIContext {
                 val context = activity ?: return@withUIContext
                 // The language is part of a merged source's identity now that two of them can
@@ -1764,7 +1775,11 @@ class MangaDetailsController :
                 // look-alike names.
                 val sources = merged.map {
                     val source = presenter.sourceManager.getOrStub(it.source)
-                    it.source to "${source.name} (${LocaleHelper.getSourceDisplayName(source.lang, context)})"
+                    val label = "${source.name} (${LocaleHelper.getSourceDisplayName(source.lang, context)})"
+                    // A broken merge is invisible otherwise — it just stops contributing, and this
+                    // dialog is the only place anyone would go looking.
+                    val problem = health[it.source]?.label()?.let(context::getString)
+                    it.source to if (problem == null) label else "$label — $problem"
                 }
                 activity?.showMergedSourcesDialog(
                     sources = sources,
@@ -1871,6 +1886,16 @@ class MangaDetailsController :
      */
     override fun copyContentToClipboard(content: String, label: String?, useToast: Boolean) {
         snack = copyToClipboard(content, label, useToast)
+    }
+
+    override fun toggleShelf() {
+        if (needsToBeUnlocked()) return
+        val added = presenter.toggleShelf()
+        // The header only reads the preference when it binds, so it has to be told.
+        adapter?.notifyItemChanged(0)
+        view?.context?.toast(
+            if (added) MR.strings.koreader_added_to_shelf else MR.strings.koreader_removed_from_shelf,
+        )
     }
 
     override fun showTrackingSheet() {
@@ -2158,4 +2183,13 @@ class MangaDetailsController :
             }
         }
     }
+}
+
+/** Null for [MergeHealth.OK], which has nothing to say. */
+private fun MergeHealth.label(): StringResource? = when (this) {
+    MergeHealth.OK -> null
+    MergeHealth.SOURCE_MISSING -> MR.strings.merge_source_missing
+    MergeHealth.ENTRY_GONE -> MR.strings.merge_entry_gone
+    MergeHealth.NEVER_SYNCED -> MR.strings.merge_never_synced
+    MergeHealth.LIKELY_WRONG_MANGA -> MR.strings.merge_likely_wrong_manga
 }
