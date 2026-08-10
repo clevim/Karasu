@@ -261,6 +261,38 @@ fun Manga.prepareCoverUpdate(coverCache: CoverCache, remoteManga: SManga, refres
     }
 }
 
+/**
+ * Takes the cover from a listing the source just returned, when it is not the one already stored.
+ *
+ * Sources move covers — a new CDN, a signed link that ages out — and the stored URL then fetches
+ * nothing, so browsing draws blank tiles for exactly the entries the app already knows while ones
+ * it has never seen draw fine. Opening the manga fixes it only because the details fetch is the
+ * one place that writes the new URL back; a listing carries it too, and is where it is noticed.
+ *
+ * Written to the database rather than only shown, because covers are cached by URL: leaving the
+ * row alone means every other screen goes on asking for the dead one.
+ */
+suspend fun Manga.adoptCoverFrom(
+    remote: SManga,
+    coverCache: CoverCache = Injekt.get(),
+    updateManga: UpdateManga = Injekt.get(),
+) {
+    val newUrl = remote.thumbnail_url
+    if (newUrl.isNullOrEmpty() || newUrl == thumbnail_url) return
+    val mangaId = id ?: return
+    // Clears the old file first: it is keyed by the URL that is about to be replaced, so nothing
+    // would ever go looking for it again.
+    prepareCoverUpdate(coverCache, remote, false)
+    thumbnail_url = newUrl
+    updateManga.await(
+        MangaUpdate(
+            id = mangaId,
+            thumbnailUrl = newUrl,
+            coverLastModified = cover_last_modified,
+        ),
+    )
+}
+
 fun Manga.removeCover(coverCache: CoverCache = Injekt.get(), deleteCustom: Boolean = true) {
     if (isLocal()) return
 

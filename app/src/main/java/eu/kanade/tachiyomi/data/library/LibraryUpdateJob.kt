@@ -17,9 +17,11 @@ import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import androidx.work.WorkerParameters
 import co.touchlab.kermit.Logger
+import dev.icerock.moko.resources.StringResource
 import coil3.imageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import eu.kanade.tachiyomi.appwidget.TachiyomiWidgetManager
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.database.models.Chapter
@@ -63,6 +65,7 @@ import java.io.File
 import java.lang.ref.WeakReference
 import java.util.Date
 import java.util.concurrent.CancellationException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
@@ -95,11 +98,33 @@ import karasu.domain.manga.failures.interactor.GetBrokenSources
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.interval.FetchInterval
 import karasu.domain.manga.models.cover
 import karasu.domain.track.interactor.GetTrack
 import karasu.domain.track.interactor.InsertTrack
 import karasu.i18n.MR
 import karasu.util.lang.getString
+
+/**
+ * Why this manga would be skipped under [restrictions], or null if it would be updated.
+ *
+ * Shared with [ReleaseWatchJob] on purpose. The watcher picks manga by release window and hands
+ * them here to be fetched; if it did not apply the same rules, a manga the user has restricted
+ * would be handed over on every run, skipped on every run, and — because a skipped manga is
+ * never fetched, so its estimate is never rewritten — stay due forever. The watcher's batch
+ * would fill up with entries that can never make progress.
+ */
+internal fun restrictedBy(manga: LibraryManga, restrictions: Set<String>): StringResource? = when {
+    MANGA_NON_COMPLETED in restrictions && manga.manga.status == SManga.COMPLETED ->
+        MR.strings.skipped_reason_completed
+    MANGA_HAS_UNREAD in restrictions && manga.unread != 0 ->
+        MR.strings.skipped_reason_not_caught_up
+    MANGA_NON_READ in restrictions && manga.totalChapters > 0 && !manga.hasRead ->
+        MR.strings.skipped_reason_not_started
+    manga.manga.update_strategy != UpdateStrategy.ALWAYS_UPDATE ->
+        MR.strings.skipped_reason_not_always_update
+    else -> null
+}
 
 class LibraryUpdateJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -117,6 +142,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     private val mergedSourceSync: MergedSourceSync = Injekt.get()
     private val applyCategoryRules: ApplyCategoryRules = Injekt.get()
     private val updateFailures: UpdateFailures = Injekt.get()
+    private val fetchInterval: FetchInterval = Injekt.get()
     private val getBrokenSources: GetBrokenSources = Injekt.get()
     private val updateManga: UpdateManga = Injekt.get()
     private val getTrack: GetTrack = Injekt.get()
@@ -129,18 +155,29 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
     private val mangaToUpdate = mutableListOf<LibraryManga>()
 
-    private val mangaToUpdateMap = mutableMapOf<Long, List<LibraryManga>>()
+    // Every map below is written from the per-source coroutines at the same time, so none of them
+    // can be a plain LinkedHashMap. ConcurrentHashMap rejects null values, hence the empty-string
+    // fallbacks at the write sites: the error file prints the message as-is either way.
+    private val mangaToUpdateMap = ConcurrentHashMap<Long, List<LibraryManga>>()
 
     private val categoryIds = mutableSetOf<Int>()
 
+    // Manga id to when it is next expected to have a chapter. Empty on manual runs, which is
+    // what makes [filterMangaToUpdate] skip nothing there.
+    private var dueDates: Map<Long, Long> = emptyMap()
+
+    // Consecutive failures per manga as they stood when the run started, read once so the
+    // failure path can back a manga off without another query per exception.
+    private var failureCounts: Map<Long, Int> = emptyMap()
+
     // List containing new updates
-    private val newUpdates = mutableMapOf<LibraryManga, Array<Chapter>>()
+    private val newUpdates = ConcurrentHashMap<LibraryManga, Array<Chapter>>()
 
     // List containing failed updates
-    private val failedUpdates = mutableMapOf<Manga, String?>()
+    private val failedUpdates = ConcurrentHashMap<Manga, String>()
 
     // List containing skipped updates
-    private val skippedUpdates = mutableMapOf<Manga, String?>()
+    private val skippedUpdates = ConcurrentHashMap<Manga, String>()
 
     val count = AtomicInteger(0)
 
@@ -176,6 +213,15 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         instance = WeakReference(this)
 
         val target = inputData.getString(KEY_TARGET)?.let { Target.valueOf(it) } ?: Target.CHAPTERS
+
+        // Only the scheduled run skips: pulling to refresh means "ask now", and a user who did
+        // that and got nothing would have no way to tell an up-to-date manga from a skipped one.
+        if (target == Target.CHAPTERS &&
+            tags.contains(WORK_NAME_AUTO) &&
+            preferences.smartLibraryUpdates().get()
+        ) {
+            dueDates = fetchInterval.awaitDue().restrictToScheduledCategories()
+        }
 
         // If this is a chapter update, set the last update time to now
         if (target == Target.CHAPTERS) {
@@ -248,14 +294,20 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
     private suspend fun updateChaptersJob(mangaToAdd: List<LibraryManga>) {
         // Initialize the variables holding the progress of the updates.
-        mangaToUpdate.addAll(mangaToAdd)
-        mangaToUpdateMap.putAll(mangaToAdd.groupBy { it.manga.source })
+        // A manga whose source has been failing is likely to fail again, and a failure costs a
+        // whole timeout with a permit held. Sorting them last means the library that can be
+        // updated is done by the time the broken sources are still waiting to time out.
+        val failures = runCatching { updateFailures.await() }.getOrDefault(emptyMap())
+        failureCounts = failures
+        val ordered = mangaToAdd.sortedBy { failures[it.manga.id] ?: 0 }
+        mangaToUpdate.addAll(ordered)
+        mangaToUpdateMap.putAll(ordered.groupBy { it.manga.source })
         checkIfMassiveUpdate()
         coroutineScope {
             val list = mangaToUpdateMap.keys.map { source ->
                 async {
                     try {
-                        requestSemaphore.withPermit { updateMangaInSource(source) }
+                        updateMangaInSource(source)
                     } catch (e: Exception) {
                         Logger.e(e) { "Unable to update manga" }
                         false
@@ -281,17 +333,17 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         val count = AtomicInteger(0)
         val asyncList = mangaToUpdate.groupBy { it.manga.source }.values.map { list ->
             async {
-                requestSemaphore.withPermit {
-                    list.forEach { manga ->
-                        ensureActive()
-                        val source = sourceManager.get(manga.manga.source) as? CatalogueSource ?: return@async
-                        notifier.showProgressNotification(
-                            manga.manga,
-                            count.andIncrement,
-                            mangaToUpdate.size,
-                        )
-                        ensureActive()
-                        val networkManga = try {
+                list.forEach { manga ->
+                    ensureActive()
+                    val source = sourceManager.get(manga.manga.source) as? CatalogueSource ?: return@async
+                    notifier.showProgressNotification(
+                        manga.manga,
+                        count.andIncrement,
+                        mangaToUpdate.size,
+                    )
+                    ensureActive()
+                    val networkManga = requestSemaphore.withPermit {
+                        try {
                             source.getMangaUpdate(
                                 manga = manga.manga.copy(),
                                 chapters = emptyList(),
@@ -302,25 +354,25 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                             Logger.e(e)
                             null
                         }
-                        if (networkManga != null) {
-                            manga.manga.prepareCoverUpdate(coverCache, networkManga, false)
-                            val thumbnailUrl = manga.manga.thumbnail_url
-                            manga.manga.copyFrom(networkManga)
-                            manga.manga.initialized = true
-                            val request: ImageRequest =
-                                if (thumbnailUrl != manga.manga.thumbnail_url) {
-                                    // load new covers in background
-                                    ImageRequest.Builder(context).data(manga.manga.cover())
-                                        .memoryCachePolicy(CachePolicy.DISABLED).build()
-                                } else {
-                                    ImageRequest.Builder(context).data(manga.manga.cover())
-                                        .memoryCachePolicy(CachePolicy.DISABLED)
-                                        .diskCachePolicy(CachePolicy.WRITE_ONLY)
-                                        .build()
-                                }
-                            context.imageLoader.execute(request)
-                            updateManga.await(manga.manga.toMangaUpdate())
-                        }
+                    }
+                    if (networkManga != null) {
+                        manga.manga.prepareCoverUpdate(coverCache, networkManga, false)
+                        val thumbnailUrl = manga.manga.thumbnail_url
+                        manga.manga.copyFrom(networkManga)
+                        manga.manga.initialized = true
+                        val request: ImageRequest =
+                            if (thumbnailUrl != manga.manga.thumbnail_url) {
+                                // load new covers in background
+                                ImageRequest.Builder(context).data(manga.manga.cover())
+                                    .memoryCachePolicy(CachePolicy.DISABLED).build()
+                            } else {
+                                ImageRequest.Builder(context).data(manga.manga.cover())
+                                    .memoryCachePolicy(CachePolicy.DISABLED)
+                                    .diskCachePolicy(CachePolicy.WRITE_ONLY)
+                                    .build()
+                            }
+                        context.imageLoader.execute(request)
+                        updateManga.await(manga.manga.toMangaUpdate())
                     }
                 }
             }
@@ -401,6 +453,9 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             )
         }
         mangaShortcutManager.updateShortcuts(context)
+        // The run just moved every estimate it touched, which is exactly what the release widget
+        // draws. Nothing else would redraw it until the next hourly tick.
+        with(TachiyomiWidgetManager()) { context.refreshReleases() }
         failedUpdates.clear()
         notifier.cancelProgressNotification()
         if (runExtensionUpdatesAfter && !DownloadJob.isRunning(context)) {
@@ -419,6 +474,16 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
     }
 
+    /**
+     * Updates every manga of one source, one at a time, holding a permit only while a manga is
+     * actually being fetched.
+     *
+     * Each source gets its own coroutine and they all run: the permit caps how many requests are
+     * in flight across the whole library, not how many sources are allowed to make progress. The
+     * old shape gave a permit to a whole source for the length of its queue, so a library with
+     * three sources never had more than three requests going no matter how many manga it held,
+     * and one source with hundreds of entries decided how long the run took.
+     */
     private suspend fun updateMangaInSource(source: Long): Boolean {
         if (mangaToUpdateMap[source] == null) return false
         var count = 0
@@ -427,7 +492,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         while (count < mangaToUpdateMap[source]!!.size) {
             val manga = mangaToUpdateMap[source]!![count]
             val shouldDownload = manga.manga.shouldDownloadNewChapters(preferences)
-            if (updateMangaChapters(manga, this.count.andIncrement, sourceObj, shouldDownload)) {
+            val updated = requestSemaphore.withPermit {
+                updateMangaChapters(manga, this.count.andIncrement, sourceObj, shouldDownload)
+            }
+            if (updated) {
                 hasDownloads = true
             }
             count++
@@ -450,9 +518,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // walks, so refresh them alongside the manga they belong to.
             val mergedChapters = mergedSourceSync.await(manga.manga.id!!)
 
+            val knownChapters = getChapter.awaitAll(manga.manga.id!!, false)
             val fetchedChapters = source.getMangaUpdate(
                 manga = manga.manga.copy(),
-                chapters = getChapter.awaitAll(manga.manga.id!!, false),
+                chapters = knownChapters,
                 fetchDetails = false,
                 fetchChapters = true,
             ).chapters
@@ -463,6 +532,17 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 // A source that returns nothing is the case merging exists for, so the merged
                 // sources' chapters are still handled below.
                 emptyList<Chapter>() to emptyList()
+            }
+
+            // The estimate is refreshed on every successful fetch, so it stays current for a user
+            // who never lets the schedule run. Read back from the database rather than from what
+            // the source just returned: that list is this manga's own rows only, and for a merged
+            // entry the rhythm the user sees is the merged one. The rows also carry `date_fetch`,
+            // already written as each chapter arrived, which is the fallback for sources that
+            // report no upload date.
+            manga.manga.id?.let { id ->
+                val chapters = getChapter.awaitAll(id, false)
+                fetchInterval.record(id, chapters.map { it.date_upload }, chapters.map { it.date_fetch })
             }
 
             // Chapters a merged source brought in show up in this manga's list, so they are
@@ -497,8 +577,14 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             return@coroutineScope hasDownloads
         } catch (e: Exception) {
             if (e !is CancellationException) {
-                failedUpdates[manga.manga] = e.message
-                manga.manga.id?.let { updateFailures.record(it, e, context.isOnline()) }
+                failedUpdates[manga.manga] = e.message.orEmpty()
+                manga.manga.id?.let {
+                    updateFailures.record(it, e, context.isOnline())
+                    // The estimate is only rewritten on success, so without this a manga on a
+                    // broken source would stay permanently due and the watcher would ask about
+                    // it every single run until the source came back.
+                    fetchInterval.backOff(it, (failureCounts[it] ?: 0) + 1)
+                }
                 // A source whose response no longer fits the extension's parser is almost always
                 // fixed by a newer extension, and this run has just proven the network works.
                 // The completion block already knows how to kick that job off.
@@ -519,6 +605,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
     private fun filterMangaToUpdate(mangaToAdd: List<LibraryManga>): List<LibraryManga> {
         val restrictions = preferences.libraryUpdateMangaRestriction().get()
+        val now = Date().time
         return mangaToAdd.filter { manga ->
 
             if (tags.contains(WORK_NAME_AUTO) && manga.manga.isLocal()) {
@@ -530,25 +617,36 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 return@filter true
             }
 
-            when {
-                MANGA_NON_COMPLETED in restrictions && manga.manga.status == SManga.COMPLETED -> {
-                    skippedUpdates[manga.manga] = context.getString(MR.strings.skipped_reason_completed)
-                }
-                MANGA_HAS_UNREAD in restrictions && manga.unread != 0 -> {
-                    skippedUpdates[manga.manga] = context.getString(MR.strings.skipped_reason_not_caught_up)
-                }
-                MANGA_NON_READ in restrictions && manga.totalChapters > 0 && !manga.hasRead -> {
-                    skippedUpdates[manga.manga] = context.getString(MR.strings.skipped_reason_not_started)
-                }
-                manga.manga.update_strategy != UpdateStrategy.ALWAYS_UPDATE -> {
-                    skippedUpdates[manga.manga] = context.getString(MR.strings.skipped_reason_not_always_update)
-                }
-                else -> {
-                    return@filter true
-                }
+            // Not in its release window yet. Deliberately not reported as skipped: this is the
+            // normal state of most of the library on most runs, and a notification listing
+            // hundreds of titles that are simply not due yet is noise, not information.
+            val dueAt = manga.manga.id?.let { dueDates[it] }
+            if (dueAt != null && dueAt > now) {
+                return@filter false
             }
+
+            val reason = restrictedBy(manga, restrictions) ?: return@filter true
+            skippedUpdates[manga.manga] = context.getString(reason)
             return@filter false
         }
+    }
+
+    /**
+     * Drops manga outside the categories the release schedule covers.
+     *
+     * Skipping is the only thing this scoping guards. The estimate itself is built for every
+     * manga that gets fetched, whatever category it is in — it is a by-product of a fetch that
+     * was happening anyway, and it costs nothing to keep. What the selection decides is where
+     * the app is allowed to *act* on that estimate.
+     */
+    private suspend fun Map<Long, Long>.restrictToScheduledCategories(): Map<Long, Long> {
+        val selected = preferences.releaseScheduleCategories().get().map(String::toInt)
+        if (selected.isEmpty() || isEmpty()) return this
+        val scheduled = getLibraryManga.await()
+            .filter { it.category in selected }
+            .mapNotNull { it.manga.id }
+            .toSet()
+        return filterKeys { it in scheduled }
     }
 
     private suspend fun getMangaToUpdate(): List<LibraryManga> {
@@ -658,7 +756,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                     extraDeferredJobs.add(
                         async(Dispatchers.IO) {
                             val hasDLs = try {
-                                requestSemaphore.withPermit { updateMangaInSource(it.key) }
+                                updateMangaInSource(it.key)
                             } catch (e: Exception) {
                                 false
                             }
@@ -751,6 +849,13 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             } else {
                 WorkManager.getInstance(context).cancelAllWorkByTag(WORK_NAME_AUTO)
             }
+            // Wired here rather than at every call site, so background updating is turned on and
+            // off in one place and the two jobs can never disagree about whether it is enabled.
+            ReleaseWatchJob.setupTask(context, interval)
+            // Scheduled from here for the same reason, but deliberately not gated on [interval]:
+            // the digest only reads estimates the app already has and never goes online, so
+            // "manual updates only" is not a statement about it. Its own hour is its off switch.
+            ReleaseDigestJob.setupTask(context)
         }
 
         fun cancelAllWorks(context: Context) {
@@ -792,15 +897,15 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
             val builder = Data.Builder()
             builder.putString(KEY_TARGET, target.name)
-            category?.id?.let { id ->
-                builder.putInt(KEY_CATEGORY, id)
-                if (mangaToUse != null) {
-                    builder.putLongArray(
-                        KEY_MANGAS,
-                        mangaToUse.firstOrNull()?.manga?.id?.let { longArrayOf(it) } ?: longArrayOf(),
-                    )
-                    extraManga = mangaToUse.subList(1, mangaToUse.size).mapNotNull { it.manga.id }
-                }
+            category?.id?.let { builder.putInt(KEY_CATEGORY, it) }
+            // Independent of the category: an explicit list is the whole instruction on its own,
+            // which is how the release watcher hands over the manga whose window just opened.
+            if (mangaToUse != null) {
+                builder.putLongArray(
+                    KEY_MANGAS,
+                    mangaToUse.firstOrNull()?.manga?.id?.let { longArrayOf(it) } ?: longArrayOf(),
+                )
+                extraManga = mangaToUse.drop(1).mapNotNull { it.manga.id }
             }
             val inputData = builder.build()
             val request = OneTimeWorkRequestBuilder<LibraryUpdateJob>()

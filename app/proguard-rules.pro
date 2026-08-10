@@ -62,6 +62,18 @@
 -keepclasseswithmembers class okhttp3.MultipartBody$Builder { *; }
 ##---------------End: proguard configuration for okhttp  ----------
 
+# zstd-kmp (via okhttp-zstd) — used by extension-lib 1.6 CompressionInterceptor.
+# The host never references these classes directly (extensions do, at runtime through
+# ChildFirstPathClassLoader), so R8 strips them in minified builds and the extension
+# dies with NoClassDefFoundError: com/squareup/zstd/okio/OkioZstd.
+# zstd-kmp 0.4.0 ships no consumer ProGuard rules.
+-keep class com.squareup.zstd.** { *; }
+-keepclassmembers class com.squareup.zstd.** {
+    native <methods>;
+    *;
+}
+-dontwarn com.squareup.zstd.**
+
 ##---------------Begin: proguard configuration for kotlinx.serialization  ----------
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt # core serialization annotations

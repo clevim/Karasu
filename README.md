@@ -46,6 +46,31 @@ As of the time of writing, this fork is currently focusing on migrating to a muc
 <details open="">
     <summary><h3>From Karasu</h3></summary>
 
+* **Release calendar.** Karasu learns each series' rhythm from the chapter list its source already
+  returned, and shows what your library is expected to release — on its own screen and on a home
+  screen widget. A series that misses its window says so instead of quietly disappearing, and one
+  with too few chapters to guess from admits it has no estimate.
+* **Updates that ask about the right entries.** Background updating checks what is actually due
+  rather than walking the whole library on a timer, so a weekly series is asked once a week instead
+  of six times for the same answer. A separate, cheap pass catches the handful whose window is open
+  right now. Manual updates always ask, so an estimate can never be why you cannot see a chapter.
+* **Missing chapter detection.** Gaps in the numbering are surfaced as ranges, so you can tell a
+  source that is incomplete from a series that skipped a number.
+* **[Yatagarasu](docs/koreader-sync.md) — KOReader sync.** Push chapters as CBZ to a self-hosted
+  shelf server and read back what you finished on the e-reader. Mark what gets sent from the manga
+  page.
+* **Merged sources.** Read one entry across several sources at once. When a merge is not working,
+  the UI names the reason — extension missing, entry gone, or chapter numbers that do not line up
+  with the other source, which usually means the wrong entry was matched.
+* **Category rules.** An IF / AND / THEN editor that moves entries out of a category on their own.
+  Rules can be exported and imported.
+* **FlareSolverr support.** Optional fallback for Cloudflare challenges the WebView cannot solve.
+* **Its own tracker credentials.** MyAnimeList and AniList authenticate against OAuth apps
+  registered to Karasu on a `karasu://` callback, so the login cannot be captured by another
+  Tachiyomi fork installed on the same device. Shikimori and Bangumi were dropped rather than kept
+  on upstream's credentials.
+* **Protobuf extension index**, with a fallback to the older JSON one.
+* Disk-cached covers.
 * NSFW/SFW library filter (taken from [TachiyomiSY](https://github.com/jobobby04/TachiyomiSY)).
 * Fix backup incompatibility with upstream.
 * New theme.
@@ -62,9 +87,7 @@ As of the time of writing, this fork is currently focusing on migrating to a muc
   [MyAnimeList](https://myanimelist.net/),
   [AniList](https://anilist.co/),
   [Kitsu](https://kitsu.app/explore/anime),
-  [Manga Updates](https://www.mangaupdates.com/),
-  [Shikimori](https://shikimori.one),
-  and [Bangumi](https://bgm.tv/) support.
+  and [Manga Updates](https://www.mangaupdates.com/) support.
 * Categories to organize your library.
 * Light and dark themes.
 * Schedule updating your library for new chapters.
@@ -167,4 +190,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 </pre>
+
+#### Bundled third-party code
+
+`core/injekt` is a vendored copy of [injekt-koin](https://github.com/null2264/injekt-koin) by
+null2264, itself derived from [Injekt](https://github.com/kohesive/injekt) by Jayson Minard and
+Collokia. It is MIT licensed and distributed under its own terms — see
+[core/injekt/LICENSE](core/injekt/LICENSE).
+
+Everything else third-party is a regular dependency and is credited in the app under
+*More → About → Open source licenses*.
 </div>

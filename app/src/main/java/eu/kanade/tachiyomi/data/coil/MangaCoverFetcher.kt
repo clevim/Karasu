@@ -106,9 +106,17 @@ class MangaCoverFetcher(
         )
     }
 
+    /**
+     * An empty file is worse than no file: the cover cache is consulted before the network, so one
+     * truncated write — a 304 with nothing in it, a connection dropped mid-body — is a tile that
+     * stays blank forever, on every screen, because nothing ever goes back to the source for it.
+     * Only opening the manga clears it, since the details fetch is write-only and skips this read.
+     */
+    private fun File.hasCover() = exists() && length() > 0
+
     private suspend fun httpLoader(): FetchResult {
         val coverFile = coverFileLazy.value
-        if (coverFile?.exists() == true && options.diskCachePolicy.readEnabled) {
+        if (coverFile?.hasCover() == true && options.diskCachePolicy.readEnabled) {
             if (!isInLibrary) {
                 coverFile.setLastModified(Date().time)
             }
@@ -229,7 +237,7 @@ class MangaCoverFetcher(
                 }
                 remove(diskCacheKey)
             }
-            cacheFile.takeIf { it.exists() }
+            cacheFile.takeIf { it.hasCover() }
         } catch (e: Exception) {
             Logger.e(e) { "Failed to write snapshot data to cover cache ${cacheFile.name}" }
             null
@@ -242,7 +250,7 @@ class MangaCoverFetcher(
             response.peekBody(Long.MAX_VALUE).source().use { input ->
                 writeSourceToCoverCache(input, cacheFile)
             }
-            cacheFile.takeIf { it.exists() }
+            cacheFile.takeIf { it.hasCover() }
         } catch (e: Exception) {
             Logger.e(e) { "Failed to write response data to cover cache ${cacheFile.name}" }
             null
@@ -256,6 +264,8 @@ class MangaCoverFetcher(
             cacheFile.sink().buffer().use { output ->
                 output.writeAll(input)
             }
+            // A source that answers with nothing leaves a file that exists and decodes to nothing.
+            if (!cacheFile.hasCover()) cacheFile.delete()
         } catch (e: Exception) {
             cacheFile.delete()
             throw e

@@ -199,12 +199,11 @@
         <activity
             android:name=".ui.security.BiometricActivity" />
         <!--
-            The tracker OAuth callbacks below stay on the "tachiyomi" scheme on purpose: the
-            client IDs are still upstream's, so the redirect has to be the one registered
-            against them. Moving these to "karasu" means registering our own OAuth apps at
-            AniList, MyAnimeList, Shikimori and Bangumi first. Downside of staying: another
-            Tachiyomi fork on the same device makes Android ask which app should take the
-            callback.
+            The tracker OAuth callbacks below use the "karasu" scheme, which no other Tachiyomi
+            fork claims, so the callback lands here and only here. Each host must match the
+            redirect registered against that tracker's client ID, and those are validated on the
+            tracker's side: changing one of these strings without changing the registration
+            breaks the login, and it cannot be fixed from this end.
         -->
         <activity
             android:name=".ui.setting.track.MyAnimeListLoginActivity"
@@ -218,7 +217,7 @@
 
                 <data
                     android:host="myanimelist-auth"
-                    android:scheme="tachiyomi" />
+                    android:scheme="karasu" />
             </intent-filter>
         </activity>
         <activity
@@ -233,40 +232,9 @@
 
                 <data
                     android:host="anilist-auth"
-                    android:scheme="tachiyomi" />
+                    android:scheme="karasu" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.setting.track.ShikimoriLoginActivity"
-            android:label="Shikimori"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="shikimori-auth"
-                    android:scheme="tachiyomi" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".ui.setting.track.BangumiLoginActivity"
-            android:label="Bangumi"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="bangumi-auth"
-                    android:scheme="tachiyomi" />
-            </intent-filter>
-        </activity>
-
         <activity
             android:name=".extension.util.ExtensionInstallActivity"
             android:icon="@mipmap/ic_launcher"
@@ -317,6 +285,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/updates_grid_glance_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".appwidget.ReleasesGlanceReceiver"
+            android:enabled="@bool/glance_appwidget_available"
+            android:exported="false"
+            android:label="@string/release_calendar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/releases_glance_widget_info" />
         </receiver>
 
         <service
