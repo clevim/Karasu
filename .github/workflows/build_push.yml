@@ -43,11 +43,17 @@ jobs:
         run: |
           ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.0"
 
-      - name: Setup Gradle
-        uses: null2264/actions/gradle-java-setup@363cb9cf3d66bd9c72ed6860142c6b2c121d7e94
+      - name: Setup JDK
+        uses: actions/setup-java@v5
         with:
-          java: 17
-          distro: temurin
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: true
+          cache-read-only: ${{ github.ref_name != github.event.repository.default_branch }}
 
       - name: Setup CHANGELOG parser
         uses: taiki-e/install-action@parse-changelog
@@ -155,15 +161,30 @@ jobs:
           echo "STAGE=${stage}" >> $GITHUB_OUTPUT
 
       - name: Sign APK
-        uses: null2264/actions/android-signer@363cb9cf3d66bd9c72ed6860142c6b2c121d7e94
         if: env.VERSION_TAG != ''
-        with:
-          releaseDir: app/build/outputs/apk/standard/${{ steps.version_stage.outputs.STAGE }}
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          keyAlias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-          summarise: true
+        env:
+          RELEASE_DIR: app/build/outputs/apk/standard/${{ steps.version_stage.outputs.STAGE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          BUILD_TOOLS="${ANDROID_SDK_ROOT}/build-tools/35.0.0"
+          echo "$SIGNING_KEY" | base64 -d > /tmp/signingkey.jks
+          for apk in "$RELEASE_DIR"/app-standard-*.apk; do
+            "$BUILD_TOOLS/zipalign" -p -f 4 "$apk" "$apk.aligned"
+            "$BUILD_TOOLS/apksigner" sign \
+              --ks /tmp/signingkey.jks \
+              --out "${apk%.apk}-signed.apk" \
+              --ks-key-alias "$ALIAS" \
+              --ks-pass "pass:$KEY_STORE_PASSWORD" \
+              --key-pass "pass:$KEY_PASSWORD" \
+              "$apk.aligned"
+            rm "$apk.aligned"
+            echo "signed \`$(basename "${apk%.apk}-signed.apk")\`" >> $GITHUB_STEP_SUMMARY
+          done
+          rm /tmp/signingkey.jks
 
       - name: Clean up build artifacts
         if: env.VERSION_TAG != ''
