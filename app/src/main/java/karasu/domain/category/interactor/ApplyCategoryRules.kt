@@ -15,6 +15,8 @@ import karasu.domain.library.LibraryPreferences
 import karasu.domain.manga.MangaRepository
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interval.FetchInterval
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.track.interactor.GetTrack
 import kotlinx.serialization.json.Json
 
@@ -40,6 +42,7 @@ class ApplyCategoryRules(
     private val libraryPreferences: LibraryPreferences,
     private val getTrack: GetTrack,
     private val trackManager: TrackManager,
+    private val fetchInterval: FetchInterval,
 ) {
 
     suspend fun await(now: Long = System.currentTimeMillis()) = run(mangaId = null, now = now)
@@ -76,10 +79,11 @@ class ApplyCategoryRules(
         val rows = getLibraryManga.await()
             .filter { mangaId == null || it.manga.id == mangaId }
 
-        // All three are one lookup for the whole pass rather than per manga.
+        // All of these are one lookup for the whole pass rather than per manga.
         val failures = updateFailures.await()
         val obsoleteSources = obsoleteSources()
         val trackers = trackerSnapshots(rules.values)
+        val estimates = releaseEstimates(rules.values)
 
         val moved = mutableSetOf<Long>()
         rows.forEach { row ->
@@ -92,6 +96,8 @@ class ApplyCategoryRules(
                 failures = failures[id] ?: 0,
                 obsolete = row.manga.source in obsoleteSources,
                 tracker = trackers[id],
+                estimate = estimates[id],
+                now = now,
             )
             val target = rule.evaluate(input, now) ?: return@forEach
             if (target == from) return@forEach
@@ -135,6 +141,25 @@ class ApplyCategoryRules(
     }
 
     /**
+     * Release estimates per manga, but only if some rule actually asks about the schedule.
+     *
+     * Same bargain as [trackerSnapshots]: its own table, its own query, and a library whose
+     * rules are all about chapter counts never pays for it.
+     */
+    private suspend fun releaseEstimates(
+        rules: Collection<CategoryRule>,
+    ): Map<Long, ReleaseEstimate> {
+        val usesSchedule = rules.any { rule ->
+            rule.transitions.any { transition ->
+                transition.conditions.any { it.field in SCHEDULE_FIELDS }
+            }
+        }
+        if (!usesSchedule) return emptyMap()
+
+        return fetchInterval.awaitAll()
+    }
+
+    /**
      * How many entries [transitions] would move out of [categoryId] if they ran right now.
      *
      * Writes nothing. This is what the editor shows so a rule can be checked against the real
@@ -152,6 +177,7 @@ class ApplyCategoryRules(
         val failures = updateFailures.await()
         val obsolete = obsoleteSources()
         val trackers = trackerSnapshots(listOf(rule))
+        val estimates = releaseEstimates(listOf(rule))
 
         return getLibraryManga.await().count { row ->
             val id = row.manga.id ?: return@count false
@@ -160,6 +186,8 @@ class ApplyCategoryRules(
                 failures = failures[id] ?: 0,
                 obsolete = row.manga.source in obsolete,
                 tracker = trackers[id],
+                estimate = estimates[id],
+                now = now,
             )
             val target = rule.evaluate(input, now) ?: return@count false
             target != categoryId && (target == DEFAULT_CATEGORY || target in existingIds)
@@ -176,6 +204,8 @@ class ApplyCategoryRules(
         failures: Int,
         obsolete: Boolean,
         tracker: TrackerRuleSnapshot?,
+        estimate: ReleaseEstimate?,
+        now: Long,
     ) = RuleInput(
         unread = unread,
         read = read,
@@ -188,6 +218,8 @@ class ApplyCategoryRules(
         updateFailures = failures,
         trackerStatus = tracker?.status,
         trackerScore = tracker?.score,
+        nextRelease = estimate?.nextRelease,
+        releaseStalled = estimate?.isStalled(now),
     )
 
     private fun Category.parseRule(): CategoryRule? {
@@ -211,6 +243,12 @@ class ApplyCategoryRules(
             RuleField.TRACKED,
             RuleField.TRACKER_STATUS,
             RuleField.TRACKER_SCORE,
+        )
+
+        /** The fields whose answers require reading the release estimates. */
+        val SCHEDULE_FIELDS = setOf(
+            RuleField.DAYS_UNTIL_RELEASE,
+            RuleField.RELEASE_STALLED,
         )
 
         val json = Json { ignoreUnknownKeys = true }

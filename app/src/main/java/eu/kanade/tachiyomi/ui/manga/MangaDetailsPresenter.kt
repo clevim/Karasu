@@ -106,6 +106,8 @@ import karasu.domain.library.custom.model.CustomMangaInfo
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.interval.FetchInterval
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.merged.interactor.MergeHealth
 import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
@@ -133,6 +135,7 @@ class MangaDetailsPresenter(
     private val getCategories: GetCategories by injectLazy()
     private val getChapter: GetChapter by injectLazy()
     private val mergedSourceSync: MergedSourceSync by injectLazy()
+    private val fetchInterval: FetchInterval by injectLazy()
     private val mergedSources: MergedSources by injectLazy()
     private val mergedSourceHealth: MergedSourceHealth by injectLazy()
     private val applyCategoryRules: ApplyCategoryRules by injectLazy()
@@ -165,6 +168,40 @@ class MangaDetailsPresenter(
     var isLockedFromSearch = false
     var hasRequested = false
     var isLoading = false
+
+    /**
+     * When this manga is next expected to release, for the line beside the chapter count.
+     *
+     * Null until the app has seen enough chapters to tell, which is most of what a freshly added
+     * entry looks like. The header simply hides the line then rather than guessing.
+     */
+    var releaseEstimate: ReleaseEstimate? = null
+        private set
+
+    private suspend fun loadReleaseEstimate() {
+        val id = manga.id
+        releaseEstimate = if (id != null && inReleaseSchedule(id)) fetchInterval.awaitAll()[id] else null
+    }
+
+    /**
+     * Whether the release calendar covers this manga.
+     *
+     * An estimate is measured for anything that gets fetched, whatever category it sits in — it is
+     * a by-product of a fetch that was happening anyway. What the calendar's category selection
+     * decides is where the app is allowed to *act* on it, and printing a date beside the chapter
+     * count is acting on it: it would promise a schedule this app is not actually watching.
+     */
+    private suspend fun inReleaseSchedule(mangaId: Long): Boolean {
+        if (!manga.favorite) return false
+        val selected = preferences.releaseScheduleCategories().get().mapNotNull(String::toIntOrNull)
+        if (selected.isEmpty()) return true
+        return getCategories.awaitByMangaId(mangaId)
+            .mapNotNull { it.id }
+            // An uncategorised manga sits in the default category, which is how the library and
+            // the watcher both count it.
+            .ifEmpty { listOf(0) }
+            .any { it in selected }
+    }
     var scrollType = 0
 
     private val loggedServices by lazy { Injekt.get<TrackManager>().services.filter { it.isLogged } }
@@ -247,6 +284,7 @@ class MangaDetailsPresenter(
 
         presenterScope.launch {
             isLoading = true
+            loadReleaseEstimate()
             withUIContext {
                 controller.updateHeader()
             }
@@ -649,6 +687,18 @@ class MangaDetailsPresenter(
         val mergedAdded = mergedSourceSync.await(manga.id!!)
 
         val (ownAdded, removed) = syncChaptersWithSource(networkChapters, manga, source)
+
+        // Refreshing by hand teaches the schedule as much as the update job does, and for
+        // someone who updates only from this screen it is the only thing that ever does. The
+        // merged list, like the job uses: a merged entry's rhythm is the one the user sees.
+        val storedChapters = getChapter.awaitAll(manga.id!!, false)
+        fetchInterval.record(
+            mangaId = manga.id!!,
+            uploadDates = storedChapters.map { it.date_upload },
+            fetchDates = storedChapters.map { it.date_fetch },
+        )
+        loadReleaseEstimate()
+
         // Merged sources' new chapters appear in this manga's list, so they get the
         // same auto-download treatment as its own.
         val added = ownAdded + mergedAdded

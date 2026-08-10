@@ -214,6 +214,27 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
 
     fun libraryUpdateDeviceRestriction() = preferenceStore.getStringSet("library_update_restriction", setOf(DEVICE_ONLY_ON_WIFI))
 
+    /** Let the scheduled update skip manga that are not due yet. Manual updates always ask. */
+    fun smartLibraryUpdates() = preferenceStore.getBoolean("smart_library_updates", true)
+
+    /** How often to look for manga whose release window is open, in hours. 0 disables it. */
+    fun releaseWatchInterval() = preferenceStore.getInt("release_watch_interval", 3)
+
+    /**
+     * Hour of the day to post the summary of what releases today. Negative disables it.
+     *
+     * Off by default: a notification nobody asked for is one the user meets by being interrupted.
+     * Midnight is a valid hour, which is why "off" is -1 rather than the 0 used elsewhere.
+     */
+    fun releaseDigestHour() = preferenceStore.getInt("release_digest_hour", -1)
+
+    /**
+     * Categories the release schedule covers: what the calendar lists, what gets the extra
+     * in-window checks, and what the scheduled update is allowed to skip. Empty means all of
+     * them. Anything outside keeps the plain behaviour of being checked on every scheduled run.
+     */
+    fun releaseScheduleCategories() = preferenceStore.getStringSet("release_schedule_categories", emptySet())
+
     fun libraryUpdateMangaRestriction() = preferenceStore.getStringSet("library_update_manga_restriction", setOf(MANGA_HAS_UNREAD, MANGA_NON_COMPLETED, MANGA_NON_READ))
 
     fun libraryUpdateCategories() = preferenceStore.getStringSet("library_update_categories", emptySet())

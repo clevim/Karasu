@@ -5,6 +5,7 @@ import androidx.core.net.toUri
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.TrackManager
+import eu.kanade.tachiyomi.data.track.TrackPreferences
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListItem
 import eu.kanade.tachiyomi.data.track.myanimelist.dto.MALListItemStatus
@@ -39,15 +40,23 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
 
     suspend fun getAccessToken(authCode: String): MALOAuth {
         return withIOContext {
+            // Sending an empty verifier gets a 400 whose body blames the request in general. This
+            // is the one case where we already know the answer, so say it instead of asking.
+            val verifier = codeVerifier
+            check(verifier.isNotEmpty()) { "Login expired before it finished, please sign in again" }
+
             val formBody: RequestBody = FormBody.Builder()
                 .add("client_id", CLIENT_ID)
                 .add("code", authCode)
-                .add("code_verifier", codeVerifier)
+                .add("code_verifier", verifier)
                 .add("grant_type", "authorization_code")
                 .build()
             client.newCall(POST("$BASE_OAUTH_URL/token", body = formBody))
                 .awaitSuccess()
-                .parseAs()
+                .parseAs<MALOAuth>()
+                // One authorization code, one verifier. Keeping it around only leaves a stale
+                // secret on disk and lets a replayed callback look like a fresh login.
+                .also { codeVerifier = "" }
         }
     }
 
@@ -232,14 +241,26 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
     }
 
     companion object {
-        private const val CLIENT_ID = "9e6656c53d1910999cc3c537e0e6256a"
+        // Karasu's own MyAnimeList client, registered as an android app: public, no secret, PKCE.
+        // Its single registered redirect is karasu://myanimelist-auth, which is why neither the
+        // authorize URL nor the token exchange sends redirect_uri.
+        private const val CLIENT_ID = "2fd75c9c4d50cd157b1479216400f7f5"
 
         private const val BASE_OAUTH_URL = "https://myanimelist.net/v1/oauth2"
         private const val BASE_API_URL = "https://api.myanimelist.net/v2"
 
         private const val LIST_PAGINATION_AMOUNT = 250
 
-        private var codeVerifier: String = ""
+        private val trackPreferences: TrackPreferences by injectLazy()
+
+        /**
+         * Backed by a preference rather than a field: see [TrackPreferences.trackCodeVerifier].
+         * The read and the write are separated by a trip through the browser, which is long
+         * enough for this process to be killed and restarted.
+         */
+        private var codeVerifier: String
+            get() = trackPreferences.trackCodeVerifier(TrackManager.MYANIMELIST).get()
+            set(value) = trackPreferences.trackCodeVerifier(TrackManager.MYANIMELIST).set(value)
 
         fun authUrl(): Uri = "$BASE_OAUTH_URL/authorize".toUri().buildUpon()
             .appendQueryParameter("client_id", CLIENT_ID)

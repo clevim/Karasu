@@ -191,9 +191,14 @@ suspend fun syncChaptersWithSource(
             updateChapter.awaitAll(toChange)
         }
 
-        // Fix order in source.
+        // Fix order in source. Only the chapters that moved: the rest already hold the order
+        // this would write, and a manga with two thousand chapters is two thousand no-op
+        // UPDATEs inside the transaction on every sync that changed anything at all.
+        val reorderedUrls = (toAdd.map { it.url } + toChange.mapNotNull { change ->
+            dbChapters.find { it.id == change.id }?.url
+        }).toSet()
         sourceChapters.forEach { chapter ->
-            if (chapter.manga_id == null) return@forEach
+            if (chapter.manga_id == null || chapter.url !in reorderedUrls) return@forEach
             chaptersQueries.fixSourceOrder(
                 url = chapter.url,
                 mangaId = chapter.manga_id!!,

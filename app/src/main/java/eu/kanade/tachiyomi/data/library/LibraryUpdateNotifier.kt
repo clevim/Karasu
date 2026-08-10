@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.os.SystemClock
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -50,6 +51,10 @@ class LibraryUpdateNotifier(private val context: Context) {
     private val getManga: GetManga by injectLazy()
     private val sourceManager: SourceManager by injectLazy()
 
+    /** Written from every update coroutine; a lost write only costs one extra notification. */
+    @Volatile
+    private var lastProgressAt = 0L
+
     /**
      * Pending intent of action that cancels the library update
      */
@@ -87,7 +92,17 @@ class LibraryUpdateNotifier(private val context: Context) {
      * @param current the current progress.
      * @param total the total progress.
      */
+    /**
+     * Rate limited because it is called once per manga from several coroutines at once: with a
+     * fast source that is dozens of binder round trips a second for a bar nobody can read at
+     * that speed. The last entry always posts so the bar never stops short of the total.
+     */
     fun showProgressNotification(manga: Manga, current: Int, total: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (current > 0 && current < total - 1 && now - lastProgressAt < PROGRESS_INTERVAL_MS) {
+            return
+        }
+        lastProgressAt = now
         context.notificationManager.notify(
             Notifications.ID_LIBRARY_PROGRESS,
             progressNotificationBuilder
@@ -383,6 +398,7 @@ class LibraryUpdateNotifier(private val context: Context) {
     }
 
     companion object {
+        private const val PROGRESS_INTERVAL_MS = 200L
         private const val MAX_CHAPTERS = 5
         private const val TITLE_MAX_LEN = 45
         private const val ICON_SIZE = 192

@@ -25,6 +25,19 @@ class TrackPreferences(
 
     fun trackToken(sync: TrackService) = preferenceStore.getString(trackToken(sync.id), "")
 
+    /**
+     * The PKCE code verifier of a login that is currently out in the browser.
+     *
+     * On disk rather than in memory because the flow leaves the app: the browser opens, and
+     * nothing stops Android from reclaiming this process while it is in the background. It comes
+     * back through the callback in a *new* process, where an in-memory verifier is an empty
+     * string, and the token endpoint answers that with a 400 nobody can read.
+     */
+    fun trackCodeVerifier(syncId: Long) = preferenceStore.getString(
+        Preference.privateKey("track_code_verifier_$syncId"),
+        "",
+    )
+
     fun anilistScoreType() = preferenceStore.getString("anilist_score_type", Anilist.POINT_10)
 
     fun autoUpdateTrack() = preferenceStore.getBoolean("pref_auto_update_manga_sync_key", true)

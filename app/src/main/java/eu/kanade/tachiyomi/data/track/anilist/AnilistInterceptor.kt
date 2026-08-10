@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.track.anilist
 
 import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.track.anilist.dto.ALOAuth
+import java.io.IOException
 import okhttp3.Interceptor
 import okhttp3.Response
 
@@ -10,37 +11,39 @@ class AnilistInterceptor(private val anilist: Anilist, private var token: String
     /**
      * OAuth object used for authenticated requests.
      *
-     * Anilist returns the date without milliseconds. We fix that and make the token expire 1 minute
-     * before its original expiration date.
+     * Expires a minute early, so a request is never sent on a token that dies in flight. The
+     * stored value is already epoch millis — [AnilistApi.createOAuth] builds it from the clock —
+     * so the old conversion to milliseconds pushed expiry tens of thousands of years out and the
+     * app could never notice a token going stale, only the 401s that follow.
      */
     private var oauth: ALOAuth? = null
         set(value) {
-            field = value?.copy(expires = value.expires * 1000 - 60 * 1000)
+            field = value?.copy(expires = value.expires - 60 * 1000)
         }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
         if (token.isNullOrEmpty()) {
-            throw Exception("Not authenticated with Anilist")
+            throw IOException("Anilist: not authenticated")
         }
         if (oauth == null) {
             oauth = anilist.loadOAuth()
         }
-        // Refresh access token if null or expired.
-        if (oauth!!.isExpired()) {
-            anilist.logout()
-            throw Exception("Token expired")
-        }
+        // Read back through the field rather than from loadOAuth, so the minute the setter takes
+        // off is applied. Null here is a stored token that would not parse: loadOAuth swallows
+        // that and returns null, and the check has to happen before the token is used, not after.
+        val currAuth = oauth ?: throw IOException("Anilist: no authentication token")
 
-        // Throw on null auth.
-        if (oauth == null) {
-            throw Exception("No authentication token")
+        // No refresh token in the implicit flow, so an expired token is the end of the session.
+        if (currAuth.isExpired()) {
+            anilist.logout()
+            throw IOException("Anilist: login has expired")
         }
 
         // Add the authorization header to the original request.
         val authRequest = originalRequest.newBuilder()
-            .addHeader("Authorization", "Bearer ${oauth!!.accessToken}")
+            .addHeader("Authorization", "Bearer ${currAuth.accessToken}")
             .header("User-Agent", "clevim/Karasu/${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})")
             .build()
 

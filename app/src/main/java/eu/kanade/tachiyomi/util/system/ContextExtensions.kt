@@ -276,7 +276,11 @@ fun Context.openInBrowser(uri: Uri, @ColorInt toolbarColor: Int? = null, forceBr
         if (forceBrowser) {
             val packages = getCustomTabsPackages().maxByOrNull { it.preferredOrder }
             val processName = packages?.activityInfo?.processName
-            if (processName == null) {
+            // The test was inverted: it pinned the intent to a package only in the one case where
+            // there was none to pin it to, so `forceBrowser` forced nothing. The tracker logins
+            // are the callers that need it — the page has to open somewhere that can hand the
+            // OAuth redirect back to this app.
+            if (processName != null) {
                 intent.intent.`package` = processName
             }
         }

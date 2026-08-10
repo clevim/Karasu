@@ -13,6 +13,8 @@ fun RuleField.label(): StringResource = when (this) {
     RuleField.TOTAL_CHAPTERS -> MR.strings.rule_field_total_chapters
     RuleField.DAYS_SINCE_READ -> MR.strings.rule_field_days_since_read
     RuleField.DAYS_SINCE_UPDATE -> MR.strings.rule_field_days_since_update
+    RuleField.DAYS_UNTIL_RELEASE -> MR.strings.rule_field_days_until_release
+    RuleField.RELEASE_STALLED -> MR.strings.rule_field_release_stalled
     RuleField.STATUS -> MR.strings.rule_field_status
     RuleField.SOURCE_MISSING -> MR.strings.rule_field_source_missing
     RuleField.SOURCE_OBSOLETE -> MR.strings.rule_field_source_obsolete
@@ -36,9 +38,11 @@ fun RuleField.isComparable(): Boolean = when (this) {
     RuleField.TOTAL_CHAPTERS,
     RuleField.DAYS_SINCE_READ,
     RuleField.DAYS_SINCE_UPDATE,
+    RuleField.DAYS_UNTIL_RELEASE,
     RuleField.UPDATE_FAILURES,
     RuleField.TRACKER_SCORE,
     -> true
+    RuleField.RELEASE_STALLED,
     RuleField.STATUS,
     RuleField.SOURCE_MISSING,
     RuleField.SOURCE_OBSOLETE,

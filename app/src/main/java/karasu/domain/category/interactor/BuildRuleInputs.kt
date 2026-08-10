@@ -8,6 +8,7 @@ import karasu.domain.category.models.RuleField
 import karasu.domain.category.models.RuleInput
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interval.FetchInterval
 import karasu.domain.track.interactor.GetTrack
 
 /**
@@ -24,25 +25,35 @@ class BuildRuleInputs(
     private val extensionManager: ExtensionManager,
     private val getTrack: GetTrack,
     private val trackManager: TrackManager,
+    private val fetchInterval: FetchInterval,
 ) {
 
     /**
      * @param conditions every condition that will be evaluated, used only to decide which
      *   optional inputs are worth loading.
      */
-    suspend fun await(conditions: Collection<RuleCondition>): Map<Long, RuleInput> {
+    suspend fun await(
+        conditions: Collection<RuleCondition>,
+        now: Long = System.currentTimeMillis(),
+    ): Map<Long, RuleInput> {
         val failures = updateFailures.await()
         val obsoleteSources = extensionManager.installedExtensionsFlow.value
             .filter { it.isObsolete }
             .flatMap { extension -> extension.sources.map { it.id } }
             .toSet()
         val trackers = trackerSnapshots(conditions)
+        val estimates = if (conditions.any { it.field in SCHEDULE_FIELDS }) {
+            fetchInterval.awaitAll()
+        } else {
+            emptyMap()
+        }
 
         return getLibraryManga.await()
             .distinctBy { it.manga.id }
             .mapNotNull { row ->
                 val id = row.manga.id ?: return@mapNotNull null
                 val tracker = trackers[id]
+                val estimate = estimates[id]
                 id to RuleInput(
                     unread = row.unread,
                     read = row.read,
@@ -55,6 +66,8 @@ class BuildRuleInputs(
                     updateFailures = failures[id] ?: 0,
                     trackerStatus = tracker?.status,
                     trackerScore = tracker?.score,
+                    nextRelease = estimate?.nextRelease,
+                    releaseStalled = estimate?.isStalled(now),
                 )
             }
             .toMap()
@@ -79,6 +92,12 @@ class BuildRuleInputs(
             RuleField.TRACKED,
             RuleField.TRACKER_STATUS,
             RuleField.TRACKER_SCORE,
+        )
+
+        /** The fields whose answers require reading the release estimates. */
+        val SCHEDULE_FIELDS = setOf(
+            RuleField.DAYS_UNTIL_RELEASE,
+            RuleField.RELEASE_STALLED,
         )
     }
 }

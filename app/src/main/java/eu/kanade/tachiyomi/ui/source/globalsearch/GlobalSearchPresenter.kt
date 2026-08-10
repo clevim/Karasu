@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.source.globalsearch
 
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.database.models.adoptCoverFrom
 import eu.kanade.tachiyomi.data.database.models.create
 import eu.kanade.tachiyomi.data.database.models.removeCover
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -317,6 +318,7 @@ open class GlobalSearchPresenter(
                     return localManga
                 }
         }
+        localManga.adoptCoverFrom(sManga, coverCache, updateManga)
         return localManga
     }
 }

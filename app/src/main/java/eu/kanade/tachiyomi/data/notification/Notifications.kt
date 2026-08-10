@@ -60,6 +60,13 @@ object Notifications {
     const val ID_LIBRARY_SKIPPED = -104
 
     /**
+     * Its own channel rather than [CHANNEL_NEW_CHAPTERS]: "a chapter arrived" and "a chapter is
+     * expected today" are different enough that muting one should not mute the other.
+     */
+    const val CHANNEL_RELEASE_DIGEST = "release_digest_channel"
+    const val ID_RELEASE_DIGEST = -105
+
+    /**
      * Notification channel and ids used by the library updater.
      */
     private const val GROUP_EXTENSION_UPDATES = "group_extension_updates"
@@ -167,6 +174,13 @@ object Notifications {
             NotificationChannel(
                 CHANNEL_NEW_CHAPTERS,
                 context.getString(MR.strings.new_chapters),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                group = GROUP_LIBRARY
+            },
+            NotificationChannel(
+                CHANNEL_RELEASE_DIGEST,
+                context.getString(MR.strings.release_calendar),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
                 group = GROUP_LIBRARY

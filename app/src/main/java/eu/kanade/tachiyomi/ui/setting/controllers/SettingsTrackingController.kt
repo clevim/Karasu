@@ -13,9 +13,7 @@ import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.data.track.TrackPreferences
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.data.track.anilist.AnilistApi
-import eu.kanade.tachiyomi.data.track.bangumi.BangumiApi
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
-import eu.kanade.tachiyomi.data.track.shikimori.ShikimoriApi
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.add
@@ -105,12 +103,6 @@ class SettingsTrackingController :
                 dialog.targetController = this@SettingsTrackingController
                 dialog.showDialog(router)
             }
-            trackPreference(trackManager.shikimori) {
-                activity?.openInBrowser(ShikimoriApi.authUrl(), trackManager.shikimori.getLogoColor(), true)
-            }
-            trackPreference(trackManager.bangumi) {
-                activity?.openInBrowser(BangumiApi.authUrl(), trackManager.bangumi.getLogoColor(), true)
-            }
             infoPreference(MR.strings.tracking_info)
         }
         preferenceCategory {
@@ -163,8 +155,6 @@ class SettingsTrackingController :
         super.onActivityResumed(activity)
         updatePreference(trackManager.myAnimeList)
         updatePreference(trackManager.aniList)
-        updatePreference(trackManager.shikimori)
-        updatePreference(trackManager.bangumi)
     }
 
     private fun updatePreference(service: TrackService) {

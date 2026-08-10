@@ -1,22 +1,23 @@
 package eu.kanade.tachiyomi.ui.setting.track
 
 import android.net.Uri
-import androidx.lifecycle.lifecycleScope
-import eu.kanade.tachiyomi.util.system.launchIO
 
 class AnilistLoginActivity : BaseOAuthLoginActivity() {
 
     override fun handleResult(data: Uri?) {
-        val regex = "(?:access_token=)(.*?)(?:&)".toRegex()
-        val matchResult = regex.find(data?.fragment.toString())
-        if (matchResult?.groups?.get(1) != null) {
-            lifecycleScope.launchIO {
-                trackManager.aniList.login(matchResult.groups[1]!!.value)
-                returnToSettings()
-            }
+        // Anilist uses the implicit flow, so the token arrives in the fragment. The trailing "&"
+        // the old pattern required is not guaranteed to be there: it is absent when access_token
+        // is the last parameter, and then a perfectly good token was read as no token at all.
+        val token = data?.fragment
+            ?.split("&")
+            ?.firstOrNull { it.startsWith("access_token=") }
+            ?.substringAfter("=")
+            ?.takeIf { it.isNotEmpty() }
+
+        if (token == null) {
+            cancelLogin(trackManager.aniList)
         } else {
-            trackManager.aniList.logout()
-            returnToSettings()
+            finishLogin(trackManager.aniList) { trackManager.aniList.login(token) }
         }
     }
 }

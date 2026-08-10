@@ -34,7 +34,6 @@ import karasu.domain.extension.repo.ExtensionRepoRepository
 import karasu.domain.extension.repo.interactor.CreateExtensionRepo
 import karasu.domain.extension.repo.interactor.DeleteExtensionRepo
 import karasu.domain.extension.repo.interactor.GetExtensionRepo
-import karasu.domain.extension.repo.interactor.GetExtensionRepoCount
 import karasu.domain.extension.repo.interactor.ReplaceExtensionRepo
 import karasu.domain.extension.repo.interactor.UpdateExtensionRepo
 import karasu.domain.history.HistoryRepository
@@ -53,6 +52,9 @@ import karasu.domain.manga.failures.ReadFailures
 import karasu.domain.manga.failures.interactor.GetBrokenSources
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interval.FetchInterval
+import karasu.domain.manga.interval.GetReleaseSchedule
+import karasu.domain.manga.interval.RecalculateReleaseEstimates
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.InsertManga
 import karasu.domain.manga.interactor.UpdateManga
@@ -74,12 +76,12 @@ fun domainModule() = module {
     factory { TrustExtension(get(), get()) }
 
     single { KoreaderApi(get(), get()) }
-    factory { BuildRuleInputs(get(), get(), get(), get(), get(), get()) }
+    factory { BuildRuleInputs(get(), get(), get(), get(), get(), get(), get()) }
     factory { PrepareShelfCbz(get(), get()) }
     factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
-    factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { DeleteCategories(get()) }
     factory { GetCategories(get()) }
     factory { InsertCategories(get()) }
@@ -90,7 +92,6 @@ fun domainModule() = module {
     factory { CreateExtensionRepo(get()) }
     factory { DeleteExtensionRepo(get()) }
     factory { GetExtensionRepo(get()) }
-    factory { GetExtensionRepoCount(get()) }
     factory { ReplaceExtensionRepo(get()) }
     factory { UpdateExtensionRepo(get(), get()) }
 
@@ -108,6 +109,9 @@ fun domainModule() = module {
 
     single<MangaUpdateFailureRepository> { MangaUpdateFailureRepositoryImpl(get()) }
     factory { UpdateFailures(get()) }
+    factory { FetchInterval(get()) }
+    factory { GetReleaseSchedule(get(), get()) }
+    factory { RecalculateReleaseEstimates(get(), get(), get()) }
     // In-memory, so every reader and the broken-sources screen have to be looking at the same one.
     single { ReadFailures() }
     factory { GetBrokenSources(get(), get(), get(), get(), get()) }

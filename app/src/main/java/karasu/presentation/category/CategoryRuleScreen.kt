@@ -440,10 +440,12 @@ internal fun ConditionRow(
                 }
             }
 
-            // Both fields hide a deliberate exclusion that would otherwise look like a bug.
+            // These fields hide a deliberate exclusion that would otherwise look like a bug.
             val note = when (condition.field) {
                 RuleField.DAYS_SINCE_READ -> MR.strings.rule_field_days_since_read_note
                 RuleField.UPDATE_FAILURES -> MR.strings.rule_field_update_failures_note
+                RuleField.DAYS_UNTIL_RELEASE -> MR.strings.rule_field_days_until_release_note
+                RuleField.RELEASE_STALLED -> MR.strings.rule_field_release_stalled_note
                 else -> null
             }
             note?.let {

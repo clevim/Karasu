@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.ui.source.browse
 import co.touchlab.kermit.Logger
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.data.cache.CoverCache
+import eu.kanade.tachiyomi.data.database.models.adoptCoverFrom
 import eu.kanade.tachiyomi.data.database.models.create
 import eu.kanade.tachiyomi.data.database.models.removeCover
 import eu.kanade.tachiyomi.data.download.DownloadManager
@@ -283,6 +284,7 @@ open class BrowseSourcePresenter(
             // if it later becomes a favorite, updated title will go to db
             localManga.title = sManga.title
         }
+        localManga.adoptCoverFrom(sManga, coverCache, updateManga)
         return localManga
     }
 

@@ -135,7 +135,8 @@ class MyAnimeList(private val context: Context, id: Long) : TrackService(id) {
         } catch (e: Exception) {
             Logger.e(e) { "Unable to login" }
             logout()
-            false
+            // Rethrown so the caller can say why; a silent false is a login nobody can fix.
+            throw e
         }
     }
 

@@ -2,15 +2,10 @@ package eu.kanade.tachiyomi.ui.manga.merge
 
 import android.os.Bundle
 import androidx.core.os.bundleOf
-import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
-import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
 import eu.kanade.tachiyomi.ui.source.globalsearch.GlobalSearchCardAdapter
 import eu.kanade.tachiyomi.ui.source.globalsearch.GlobalSearchController
-import eu.kanade.tachiyomi.ui.source.globalsearch.GlobalSearchPresenter
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 /**
  * Global search that merges the picked result into an existing manga instead of opening it.
@@ -30,23 +25,6 @@ class MergeSearchController(
     constructor(bundle: Bundle) : this(bundle.getString(QUERY))
 
     constructor(manga: Manga) : this(manga.originalTitle)
-
-    /**
-     * Searches every installed source, not just the ones in the languages the user browses.
-     *
-     * Merging is the one place where a source in another language is the point: it is what adds
-     * the chapters the primary doesn't have. Hidden sources stay hidden — that is a deliberate
-     * "never show me this source" rather than a language preference.
-     */
-    override fun createPresenter(): GlobalSearchPresenter {
-        val hidden = Injekt.get<PreferencesHelper>().hiddenSources().get()
-        return GlobalSearchPresenter(
-            initialQuery,
-            sourcesToUse = Injekt.get<SourceManager>().getCatalogueSources()
-                .filterNot { it.id.toString() in hidden }
-                .sortedBy { "(${it.lang}) ${it.name}" },
-        )
-    }
 
     override fun onMangaClick(manga: Manga) {
         val target = targetController as? MangaDetailsController ?: return

@@ -49,6 +49,8 @@ import eu.kanade.tachiyomi.util.view.resetStrokeColor
 import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import android.text.method.LinkMovementMethod
+import eu.kanade.tachiyomi.util.manga.format
+import karasu.domain.manga.interval.releaseLabel
 import karasu.i18n.MR
 import karasu.util.coil.loadManga
 import karasu.util.lang.getString
@@ -290,11 +292,26 @@ class MangaHeaderHolder(
             binding.chaptersTitle.text =
                 itemView.context.getString(MR.plurals.chapters_plural, count, count)
             binding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
+            binding.releaseEstimate.bindReleaseEstimate(presenter)
         } else if (chapterBinding != null) {
             chapterBinding.chaptersTitle.text =
                 itemView.context.getString(MR.plurals.chapters_plural, count, count)
             chapterBinding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
+            chapterBinding.releaseEstimate.bindReleaseEstimate(presenter)
         }
+    }
+
+    /**
+     * Shows when the next chapter is expected, or nothing at all.
+     *
+     * Hidden rather than filled with a placeholder: an entry the app cannot place yet is the
+     * normal state of anything recently added, and "unknown" beside the chapter count would be
+     * noise on every single one of them.
+     */
+    private fun TextView.bindReleaseEstimate(presenter: MangaDetailsPresenter) {
+        val label = presenter.releaseEstimate?.releaseLabel()
+        isVisible = label != null
+        text = label?.format(context).orEmpty()
     }
 
     @SuppressLint("SetTextI18n", "StringFormatInvalid")
@@ -308,6 +325,7 @@ class MangaHeaderHolder(
                 chapterBinding.chaptersTitle.text =
                     itemView.context.getString(MR.plurals.chapters_plural, count, count)
                 chapterBinding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
+                chapterBinding.releaseEstimate.bindReleaseEstimate(presenter)
                 if (adapter.preferences.themeMangaDetails().get()) {
                     val accentColor = adapter.delegate.accentColor() ?: return
                     chapterBinding.filterButton.imageTintList = ColorStateList.valueOf(accentColor)
@@ -472,7 +490,10 @@ class MangaHeaderHolder(
             }
         }
 
-        binding.filtersText.text = presenter.currentFilters()
+        // The same line the tablet header uses: the phone was showing filters only, so a gap in
+        // the chapter numbering never reached the one screen that lists the chapters.
+        binding.filtersText.text = presenter.chapterListSubtitle(itemView.context)
+        binding.releaseEstimate.bindReleaseEstimate(presenter)
 
         if (manga.isLocal()) {
             binding.webviewButton.isVisible = false

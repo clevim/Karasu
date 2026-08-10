@@ -1,8 +1,11 @@
 package eu.kanade.tachiyomi.ui.setting.controllers
 
+import android.content.Context
+import android.text.format.DateFormat
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.library.ReleaseDigestJob
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
 import eu.kanade.tachiyomi.data.preference.DEVICE_ONLY_ON_WIFI
@@ -26,8 +29,11 @@ import eu.kanade.tachiyomi.ui.setting.preference
 import eu.kanade.tachiyomi.ui.setting.preferenceCategory
 import eu.kanade.tachiyomi.ui.setting.switchPreference
 import eu.kanade.tachiyomi.ui.setting.triStateListPreference
+import java.util.Calendar
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
+import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.tachiyomi.util.system.withIOContext
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import kotlinx.coroutines.runBlocking
 import uy.kohesive.injekt.Injekt
@@ -36,6 +42,7 @@ import uy.kohesive.injekt.injectLazy
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.library.LibraryPreferences
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interval.RecalculateReleaseEstimates
 import karasu.domain.ui.UiPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
@@ -50,6 +57,7 @@ class SettingsLibraryController : SettingsLegacyController() {
 
     private val uiPreferences: UiPreferences by injectLazy()
     private val libraryPreferences: LibraryPreferences by injectLazy()
+    private val recalculateReleaseEstimates: RecalculateReleaseEstimates by injectLazy()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.library
@@ -206,6 +214,111 @@ class SettingsLibraryController : SettingsLegacyController() {
             }
 
             switchPreference {
+                bindTo(preferences.smartLibraryUpdates())
+                titleRes = MR.strings.smart_updates
+                summaryRes = MR.strings.smart_updates_summary
+
+                preferences.libraryUpdateInterval().changesIn(viewScope) {
+                    isVisible = it > 0
+                }
+
+                onChange {
+                    viewScope.launchUI { LibraryUpdateJob.setupTask(context) }
+                    true
+                }
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.releaseWatchInterval())
+                titleRes = MR.strings.release_watch_frequency
+                summaryRes = MR.strings.release_watch_frequency_summary
+                entriesRes = arrayOf(
+                    MR.strings.disabled,
+                    MR.strings.every_hour,
+                    MR.strings.every_2_hours,
+                    MR.strings.every_3_hours,
+                    MR.strings.every_6_hours,
+                )
+                entryValues = listOf(0, 1, 2, 3, 6)
+                defaultValue = 3
+
+                preferences.smartLibraryUpdates().changesIn(viewScope) { smart ->
+                    isVisible = smart && preferences.libraryUpdateInterval().get() > 0
+                }
+
+                onChange {
+                    viewScope.launchUI { LibraryUpdateJob.setupTask(context) }
+                    true
+                }
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.releaseDigestHour())
+                titleRes = MR.strings.release_digest
+                summaryRes = MR.strings.release_digest_summary
+                // Hours are formatted through the platform, so a device set to 12 hour time
+                // reads "9:00 AM" without this screen knowing anything about that.
+                entries = listOf(context.getString(MR.strings.disabled)) +
+                    DIGEST_HOURS.map { context.formatHourOfDay(it) }
+                entryValues = listOf(-1) + DIGEST_HOURS
+                defaultValue = -1
+
+                preferences.smartLibraryUpdates().changesIn(viewScope) { isVisible = it }
+
+                onChange {
+                    // Set up after the preference is written, which is why this reads it back
+                    // rather than being handed the new value.
+                    viewScope.launchUI { ReleaseDigestJob.setupTask(context) }
+                    true
+                }
+            }
+
+            preference {
+                key = "recalculate_release_estimates"
+                isPersistent = false
+                titleRes = MR.strings.recalculate_release_estimates
+                summaryRes = MR.strings.recalculate_release_estimates_summary
+
+                preferences.smartLibraryUpdates().changesIn(viewScope) { smart ->
+                    isVisible = smart && preferences.libraryUpdateInterval().get() > 0
+                }
+
+                onClick {
+                    viewScope.launchUI {
+                        // Local pass first: it is instant and free, and it is what fills the
+                        // calendar for a library that already has the chapter history on disk.
+                        activity?.toast(MR.strings.recalculate_release_estimates_running)
+                        val placed = withIOContext { recalculateReleaseEstimates.await() }
+                        activity?.toast(
+                            context.getString(MR.strings.recalculate_release_estimates_done, placed),
+                        )
+                        // Then ask the sources, which is the only way to fill in dates the app
+                        // never received: syncing rewrites date_upload on chapters it already
+                        // has, so a source that started reporting dates backfills the lot. A
+                        // manual run also ignores the release windows, so nothing is skipped for
+                        // not being due. Runs as the ordinary library update — same progress
+                        // notification, same cancel button.
+                        LibraryUpdateJob.startNow(context)
+                    }
+                }
+            }
+
+            multiSelectListPreferenceMat(activity) {
+                bindTo(preferences.releaseScheduleCategories())
+                titleRes = MR.strings.release_schedule_categories
+                summaryRes = MR.strings.release_schedule_categories_summary
+
+                val categories = listOf(Category.createDefault(context)) + dbCategories
+                entries = categories.map { it.name }
+                entryValues = categories.map { it.id.toString() }
+                noSelectionRes = MR.strings.all
+
+                preferences.smartLibraryUpdates().changesIn(viewScope) { smart ->
+                    isVisible = smart && preferences.libraryUpdateInterval().get() > 0
+                }
+            }
+
+            switchPreference {
                 key = Keys.refreshCoversToo
                 titleRes = MR.strings.auto_refresh_covers
                 summaryRes = MR.strings.auto_refresh_covers_summary
@@ -234,5 +347,19 @@ class SettingsLibraryController : SettingsLegacyController() {
                 noSelectionRes = MR.strings.none
             }
         }
+    }
+
+    /** Whole hours, rendered in whatever clock the device is set to. */
+    private fun Context.formatHourOfDay(hour: Int): String {
+        val time = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, 0)
+        }
+        return DateFormat.getTimeFormat(this).format(time.time)
+    }
+
+    private companion object {
+        /** The hours the digest can be scheduled at. Morning-heavy, since that is the point. */
+        val DIGEST_HOURS = listOf(6, 8, 9, 12, 18, 21)
     }
 }

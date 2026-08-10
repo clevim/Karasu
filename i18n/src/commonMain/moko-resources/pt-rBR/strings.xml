@@ -622,6 +622,9 @@
     <string name="always_delete">Sempre excluir</string>
     <!-- Time -->
     <string name="manual">Manual</string>
+    <string name="every_hour">A cada hora</string>
+    <string name="every_2_hours">A cada 2 horas</string>
+    <string name="every_3_hours">A cada 3 horas</string>
     <string name="every_6_hours">A cada 6 horas</string>
     <string name="every_12_hours">A cada 12 horas</string>
     <string name="daily">Diariamente</string>
@@ -923,6 +926,39 @@
     <string name="no_match_found">Não foi encontrado resultado similar</string>
     <string name="source_unsupported">Essa fonte não é suportada</string>
     <string name="could_not_install_extension">Não foi possível instalar a extensão</string>
+    <string name="smart_updates">Pular obras fora da janela de lançamento</string>
+    <string name="smart_updates_summary">As atualizações agendadas verificam cada obra por volta
+        de quando ela costuma lançar, em vez de sempre. Atualizações manuais verificam tudo.</string>
+    <string name="release_estimate_weekly">Toda %1$s</string>
+    <string name="release_estimate_between">Entre %1$s e %2$s</string>
+    <string name="release_estimate_on">Previsto para %1$s</string>
+    <string name="release_calendar">Calendário de lançamentos</string>
+    <string name="release_calendar_later">Mais adiante</string>
+    <string name="release_calendar_nothing_expected">Nada previsto</string>
+    <string name="release_calendar_stalled">Parecem ter parado</string>
+    <string name="release_calendar_stalled_summary">Vários lançamentos atrasados. Ainda são
+        verificados, só que bem menos.</string>
+    <string name="release_calendar_unknown">Ainda sem previsão</string>
+    <string name="release_calendar_unknown_summary">Poucos capítulos, ou fonte que não informa
+        data de lançamento. Continuam sendo verificados em toda atualização.</string>
+    <string name="release_calendar_give_or_take_day">mais ou menos 1 dia</string>
+    <string name="release_calendar_give_or_take_days">mais ou menos %1$s dias</string>
+    <string name="today">Hoje</string>
+    <string name="tomorrow">Amanhã</string>
+    <string name="recalculate_release_estimates">Recalcular previsões agora</string>
+    <string name="recalculate_release_estimates_summary">Refaz as previsões com as datas dos
+        capítulos já presentes no aparelho e depois atualiza a biblioteca para buscar as datas
+        que faltam. Vale para a biblioteca inteira.</string>
+    <string name="recalculate_release_estimates_running">Recalculando…</string>
+    <string name="recalculate_release_estimates_done">%1$d obras posicionadas no calendário</string>
+    <string name="release_schedule_categories">Categorias no calendário de lançamentos</string>
+    <string name="release_schedule_categories_summary">Obras nessas categorias entram no
+        calendário de lançamentos e recebem as verificações extras perto de quando costumam
+        lançar. O resto continua sendo verificado em toda atualização agendada.</string>
+    <string name="release_watch_frequency">Verificar obras prestes a lançar</string>
+    <string name="release_watch_frequency_summary">Com que frequência procurar obras com a janela
+        de lançamento aberta. Só elas são verificadas, então custa bem menos que uma atualização
+        completa.</string>
     <string name="global_updates">Atualizações globais</string>
     <string name="open_random_series">Abrir uma série aleatória</string>
     <string name="show_number_of_items">Mostrar o número de itens</string>
@@ -1147,6 +1183,10 @@
     <string name="hide_in_library_items">Ocultar títulos que já estão na biblioteca</string>
     <string name="allow_deleting_bookmarked_chapters">Permitir a exclusão de capítulos favoritos</string>
     <string name="appwidget_updates_description">Veja seus itens da biblioteca atualizados recentemente</string>
+    <string name="appwidget_releases_description">Veja o que sua biblioteca deve lançar</string>
+    <string name="release_widget_today">Previsto para hoje</string>
+    <string name="release_widget_soon">A seguir</string>
+    <string name="release_widget_nothing">Nada previsto ainda</string>
     <string name="appwidget_unavailable_locked">Widget não disponível quando o bloqueio do aplicativo está habilitado</string>
     <string name="mean_tracking_score">Significa pontuação de rastreamento</string>
     <string name="failed_to_update_">Falha na atualização de %1$s</string>
@@ -1240,4 +1280,34 @@
     <string name="content_type">Tipo de conteúdo</string>
     <string name="crash_screen_restart_application">Reiniciar a aplicação</string>
     <string name="refresh">Atualizar</string>
+
+    <string name="try_another_source">Tentar outra fonte</string>
+    <string name="broken_source_read_failing">Falhando ao ler</string>
+    <string name="merge_source_missing">extensão não instalada</string>
+    <string name="merge_entry_gone">obra não está mais nessa fonte</string>
+    <string name="merge_never_synced">nenhum capítulo trazido ainda</string>
+    <string name="merge_likely_wrong_manga">os números dos capítulos não batem — obra errada?</string>
+    <string name="no_other_source_available">Nenhuma outra fonte tem esse capítulo</string>
+    <string name="now_reading_from">Lendo agora de %1$s</string>
+    <string name="custom_filter">Filtros</string>
+    <string name="koreader_send_to_shelf">Enviar para o Yatagarasu</string>
+    <string name="koreader_on_shelf">No Yatagarasu</string>
+    <string name="koreader_added_to_shelf">Será enviado para o Yatagarasu</string>
+    <string name="koreader_removed_from_shelf">Não será mais enviado para o Yatagarasu</string>
+    <string name="koreader_marked_manga">Obras marcadas</string>
+    <string name="koreader_marked_manga_summary">%1$d marcadas. Marque uma na página dela, ao lado de "Na biblioteca".</string>
+    <string name="koreader_marked_manga_empty">Nada marcado ainda. Abra uma obra e use "Enviar para o Yatagarasu", ao lado de "Na biblioteca".</string>
+    <string name="koreader_right_to_left">Da direita para a esquerda</string>
+    <string name="koreader_right_to_left_summary">Direção de leitura usada quando uma página dupla é dividida em duas. Ligado para mangá, desligado para quadrinhos ocidentais.</string>
+    <string name="missing_chapters">Capítulos faltando</string>
+    <string name="missing_chapters_none">Nenhum capítulo faltando</string>
+    <string name="missing_chapter_range">Capítulos %1$d–%2$d</string>
+    <string name="missing_chapter_single">Capítulo %1$d</string>
+    <string name="merge_into_existing">Mesclar com a que você já tem</string>
+    <string name="merged_into">Mesclado em %1$s</string>
+    <string name="flaresolverr_url">URL do FlareSolverr</string>
+    <string name="flaresolverr_url_summary">Usado somente quando a WebView falha em resolver um desafio da Cloudflare. Deixe vazio para desativar.</string>
+    <string name="error_flaresolverr_url_invalid">URL do FlareSolverr inválida</string>
+    <string name="download_notifier_not_an_image">A fonte enviou algo que não é uma imagem</string>
+    <string name="action_webview_close_tab">Fechar aba</string>
 </resources>

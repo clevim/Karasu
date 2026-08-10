@@ -217,7 +217,10 @@ class Anilist(private val context: Context, id: Long) : TrackService(id) {
         } catch (e: Exception) {
             Logger.e(e)
             logout()
-            false
+            // Rethrown rather than reported as a plain "false": the caller shows this, and a login
+            // that fails for a reason nobody can see is a login nobody can fix. Both callers
+            // already handle it.
+            throw e
         }
     }
 

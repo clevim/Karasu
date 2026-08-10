@@ -87,6 +87,7 @@ import eu.kanade.tachiyomi.ui.base.controller.BaseLegacyController
 import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.ui.library.LibraryController
 import eu.kanade.tachiyomi.ui.library.broken.BrokenSourcesController
+import eu.kanade.tachiyomi.ui.library.calendar.ReleaseCalendarController
 import eu.kanade.tachiyomi.ui.library.compose.LibraryComposeController
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
 import eu.kanade.tachiyomi.ui.more.AboutController
@@ -1056,6 +1057,14 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
         }
         when (intent.action) {
             SHORTCUT_LIBRARY -> nav.selectedItemId = R.id.nav_library
+            SHORTCUT_RELEASE_CALENDAR -> {
+                // Pushed onto the library tab rather than replacing it, so back lands where the
+                // calendar's own back button does.
+                nav.selectedItemId = R.id.nav_library
+                nav.post {
+                    router.pushController(ReleaseCalendarController().withFadeTransaction())
+                }
+            }
             SHORTCUT_RECENTLY_UPDATED, SHORTCUT_RECENTLY_READ, Constants.SHORTCUT_RECENTS -> {
                 if (nav.selectedItemId != R.id.nav_recents) {
                     nav.selectedItemId = R.id.nav_recents
@@ -1624,6 +1633,7 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
 
         // Shortcut actions
         const val SHORTCUT_LIBRARY = "eu.kanade.tachiyomi.SHOW_LIBRARY"
+        const val SHORTCUT_RELEASE_CALENDAR = "eu.kanade.tachiyomi.SHOW_RELEASE_CALENDAR"
         const val SHORTCUT_RECENTLY_UPDATED = "eu.kanade.tachiyomi.SHOW_RECENTLY_UPDATED"
         const val SHORTCUT_RECENTLY_READ = "eu.kanade.tachiyomi.SHOW_RECENTLY_READ"
         const val SHORTCUT_BROWSE = "eu.kanade.tachiyomi.SHOW_BROWSE"

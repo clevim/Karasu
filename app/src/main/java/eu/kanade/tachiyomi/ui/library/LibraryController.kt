@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_STATUS
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_TAG
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.BY_TRACK_STATUS
 import eu.kanade.tachiyomi.ui.library.LibraryGroup.UNGROUPED
+import eu.kanade.tachiyomi.ui.library.calendar.ReleaseCalendarController
 import eu.kanade.tachiyomi.ui.library.display.TabbedLibraryDisplaySheet
 import eu.kanade.tachiyomi.ui.library.filter.FilterBottomSheet
 import eu.kanade.tachiyomi.ui.main.BottomSheetController
@@ -2005,6 +2006,9 @@ open class LibraryController(
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.action_search -> expandActionViewFromInteraction = true
+            R.id.action_release_calendar -> {
+                router.pushController(ReleaseCalendarController().withFadeTransaction())
+            }
             R.id.action_filter -> {
                 hasExpanded = true
                 val sheetBehavior = binding.filterBottomSheet.filterBottomSheet.sheetBehavior

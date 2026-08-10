@@ -174,7 +174,10 @@ class AnilistApi(val client: OkHttpClient, interceptor: AnilistInterceptor) {
     }
 
     companion object {
-        private const val CLIENT_ID = "16373"
+        // Karasu's own Anilist client. The redirect registered against it is karasu://anilist-auth,
+        // which the manifest claims and no other Tachiyomi fork does. Implicit grant, so the
+        // client secret this client also has is not used and must not be shipped.
+        private const val CLIENT_ID = "48053"
         private const val API_URL = "https://graphql.anilist.co/"
         private const val BASE_URL = "https://anilist.co/api/v2/"
         private const val BASE_MANGA_URL = "https://anilist.co/manga/"
