@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <plurals name="release_miss_grace_days">
+        <item quantity="one">%1$d dia</item>
+        <item quantity="many">%1$d dias</item>
+        <item quantity="other">%1$d dias</item>
+    </plurals>
+
     <plurals name="remove_n_chapters">
         <item quantity="one">Remover %1$d capítulo baixado\?</item>
         <item quantity="many">Remover %1$d capítulos baixados\?</item>
