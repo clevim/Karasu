@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <plurals name="release_digest_title">
+        <item quantity="one">%1$d release expected today</item>
+        <item quantity="other">%1$d releases expected today</item>
+    </plurals>
+
     <plurals name="remove_n_chapters">
         <item quantity="one">Remove %1$d downloaded chapter?</item>
         <item quantity="other">Remove %1$d downloaded chapters?</item>

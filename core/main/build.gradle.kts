@@ -8,9 +8,6 @@ plugins {
 
 kotlin {
     androidTarget()
-    // iosX64()
-    // iosArm64()
-    // iosSimulatorArm64()
     sourceSets {
         commonMain {
             dependencies {
@@ -35,7 +32,7 @@ kotlin {
                 // Dependency injection
                 api(project.dependencies.platform(libs.koin.bom))
                 api(libs.koin.core)
-                api(libs.koin.injekt)
+                api(projects.core.injekt)
 
                 // Network client (OkHttp 5.2+ required for CompressionInterceptor used by extlib 1.6)
                 api(libs.okhttp)
@@ -53,10 +50,6 @@ kotlin {
                 implementation(libs.libarchive)
             }
         }
-        // iosMain {
-        //     dependencies {
-        //     }
-        // }
     }
 }
 

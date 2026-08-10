@@ -1,0 +1,9 @@
+CREATE TABLE manga_fetch_state(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    next_check INTEGER NOT NULL,
+    next_release INTEGER NOT NULL,
+    interval INTEGER NOT NULL,
+    spread INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);

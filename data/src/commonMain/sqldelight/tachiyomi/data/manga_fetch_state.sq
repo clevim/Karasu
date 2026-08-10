@@ -1,0 +1,39 @@
+-- What the app has learned about a manga's release rhythm.
+--
+-- A row only exists once a manga has been fetched at least once, so "no row" means due now,
+-- which is what a freshly added manga should be. Only the scheduled update reads next_check: a
+-- manual refresh always asks the source, so a wrong estimate can never lock a user out.
+--
+-- next_check is derived from the other three at write time on purpose. It is read for every
+-- manga on every scheduled run, and the rest are read only by screens that show the estimate,
+-- so the hot path stays a plain lookup with no arithmetic.
+CREATE TABLE manga_fetch_state(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    next_check INTEGER NOT NULL,
+    next_release INTEGER NOT NULL,
+    interval INTEGER NOT NULL,
+    spread INTEGER NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+findAllDue:
+SELECT manga_id, next_check FROM manga_fetch_state;
+
+findAll:
+SELECT manga_id, next_check, next_release, interval, spread FROM manga_fetch_state;
+
+-- Push the next check out without touching what is known about the release rhythm: a source
+-- that failed said nothing about when the manga posts, only that asking again right now is
+-- pointless. Does nothing when there is no row, which is correct — no row is never watched.
+delayCheck:
+UPDATE manga_fetch_state SET next_check = :next_check WHERE manga_id = :manga_id;
+
+upsert:
+INSERT INTO manga_fetch_state(manga_id, next_check, next_release, interval, spread)
+VALUES (:manga_id, :next_check, :next_release, :interval, :spread)
+ON CONFLICT(manga_id) DO UPDATE SET
+    next_check = :next_check,
+    next_release = :next_release,
+    interval = :interval,
+    spread = :spread;

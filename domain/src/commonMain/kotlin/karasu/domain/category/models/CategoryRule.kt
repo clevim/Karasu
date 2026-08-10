@@ -65,6 +65,26 @@ enum class RuleField {
     /** Days since the source last published a chapter, so "is it still running". */
     DAYS_SINCE_UPDATE,
 
+    /**
+     * Days from now until the next chapter is expected, from the release estimate.
+     *
+     * Negative once the estimate has passed, so `LESS 1` reads as "due today or already late"
+     * and `GREATER 7` as "nothing coming this week". An entry the app has no estimate for
+     * matches nothing at all, the same way an unscored manga matches no [TRACKER_SCORE]:
+     * "no idea when" is not a small number of days.
+     */
+    DAYS_UNTIL_RELEASE,
+
+    /**
+     * True when the series is overdue by several whole cycles — the source appears to have
+     * stopped posting it.
+     *
+     * Distinct from [DAYS_SINCE_UPDATE], which counts silence without knowing what silence is
+     * normal: a month of nothing is stalled for a weekly series and perfectly healthy for a
+     * quarterly one. This compares against the rhythm the series itself established.
+     */
+    RELEASE_STALLED,
+
     /** Compared against `SManga` status constants. */
     STATUS,
 

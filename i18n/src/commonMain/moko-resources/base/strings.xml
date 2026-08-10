@@ -240,6 +240,41 @@
     <string name="auto_refresh_covers">Automatically refresh covers</string>
     <string name="auto_refresh_covers_summary">Refresh covers in library as well
         when updating library</string>
+    <string name="release_estimate_weekly">Every %1$s</string>
+    <string name="release_estimate_between">Between %1$s and %2$s</string>
+    <string name="release_estimate_on">Expected %1$s</string>
+    <string name="release_calendar">Release calendar</string>
+    <string name="release_calendar_later">Later on</string>
+    <string name="release_calendar_nothing_expected">Nothing expected</string>
+    <string name="release_calendar_stalled">Seem to have stopped</string>
+    <string name="release_calendar_stalled_summary">Several releases overdue. Still checked, just
+        far less often.</string>
+    <string name="release_calendar_unknown">No estimate yet</string>
+    <string name="release_calendar_unknown_summary">Too few chapters, or a source that reports no
+        release dates. These are checked on every update as usual.</string>
+    <string name="release_calendar_give_or_take_day">give or take a day</string>
+    <string name="release_calendar_give_or_take_days">give or take %1$s days</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="recalculate_release_estimates">Recalculate estimates now</string>
+    <string name="recalculate_release_estimates_summary">Rebuilds estimates from the chapter dates
+        already on this device, then runs a library update to fill in dates the app never
+        received. Covers the whole library.</string>
+    <string name="recalculate_release_estimates_running">Recalculating…</string>
+    <string name="recalculate_release_estimates_done">%1$d entries placed on the calendar</string>
+    <string name="release_digest">Notify about today\'s releases</string>
+    <string name="release_digest_summary">A single notification each morning listing what is
+        expected today. Nothing is sent on days with nothing expected.</string>
+    <string name="release_schedule_categories">Categories on the release schedule</string>
+    <string name="release_schedule_categories_summary">Entries in these categories get the
+        release calendar and the extra checks around when they post. Everything else keeps
+        being checked on every scheduled update.</string>
+    <string name="release_watch_frequency">Check entries that are about to release</string>
+    <string name="release_watch_frequency_summary">How often to look for entries whose release
+        window is open. Only those are checked, so this costs far less than a full update.</string>
+    <string name="smart_updates">Skip entries that aren\'t due</string>
+    <string name="smart_updates_summary">Scheduled updates check each entry around when it
+        usually releases instead of every time. Manual updates always check everything.</string>
     <string name="global_updates">Global updates</string>
     <string name="display_buttons_bottom_reader">Buttons at bottom of reader</string>
     <string name="certain_buttons_can_be_found">Certain buttons can be found in other places if disabled here</string>
@@ -633,8 +668,6 @@
     <string name="anilist" translatable="false">AniList</string>
     <string name="myanimelist" translatable="false">MyAnimeList</string>
     <string name="kitsu" translatable="false">Kitsu</string>
-    <string name="bangumi" translatable="false">Bangumi</string>
-    <string name="shikimori" translatable="false">Shikimori</string>
     <string name="manga_updates" translatable="false">MangaUpdates</string>
     <string name="komga" translatable="false">Komga</string>
     <string name="kavita" translatable="false">Kavita</string>
@@ -810,6 +843,14 @@
         does not spike when you are offline.</string>
     <string name="rule_field_days_since_read_note">Entries you have never opened are not
         counted here — use \"Never read\" for those.</string>
+    <string name="rule_field_days_until_release">Days until the next release</string>
+    <string name="rule_field_days_until_release_note">Counts down to the expected release and
+        goes negative once it is late, so \"is less than 1\" means due today or overdue. Entries
+        with no estimate yet are not counted here.</string>
+    <string name="rule_field_release_stalled">Seems to have stopped releasing</string>
+    <string name="rule_field_release_stalled_note">Overdue by several of its own release cycles,
+        so a month of silence counts for a weekly series but not for a quarterly one. Entries
+        with no estimate yet are not counted here.</string>
     <string name="rule_operator_greater">is more than</string>
     <string name="rule_operator_less">is less than</string>
     <string name="rule_operator_equal">is</string>
@@ -1198,6 +1239,9 @@
 
     <!-- Time -->
     <string name="manual">Manual</string>
+    <string name="every_hour">Every hour</string>
+    <string name="every_2_hours">Every 2 hours</string>
+    <string name="every_3_hours">Every 3 hours</string>
     <string name="every_6_hours">Every 6 hours</string>
     <string name="every_12_hours">Every 12 hours</string>
     <string name="daily">Daily</string>
@@ -1225,6 +1269,10 @@
 
     <!-- App widget -->
     <string name="appwidget_updates_description">See your recently updated library entries</string>
+    <string name="appwidget_releases_description">See what your library is expected to release</string>
+    <string name="release_widget_today">Expected today</string>
+    <string name="release_widget_soon">Coming up next</string>
+    <string name="release_widget_nothing">Nothing expected yet</string>
     <string name="appwidget_unavailable_locked">Widget not available when app lock is enabled</string>
 
     <!-- Miscellaneous -->

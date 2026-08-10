@@ -23,9 +23,25 @@
         android:text="@string/chapters"
         android:textSize="17sp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/filters_text"
+        app:layout_constraintEnd_toStartOf="@id/release_estimate"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/release_estimate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="?attr/colorSecondary"
+        android:textSize="13sp"
+        android:visibility="gone"
+        tools:text="Every Wednesday"
+        tools:visibility="visible"
+        app:layout_constraintBaseline_toBaselineOf="@id/chapters_title"
+        app:layout_constraintEnd_toStartOf="@id/filters_text"
+        app:layout_constraintStart_toEndOf="@id/chapters_title" />
 
     <ImageView
         android:id="@+id/filter_button"
@@ -48,6 +64,7 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="6dp"
+        android:ellipsize="end"
         android:maxLines="2"
         android:padding="5dp"
         android:textAlignment="textEnd"
@@ -55,6 +72,6 @@
         app:layout_constraintBaseline_toBaselineOf="@id/chapters_title"
         app:layout_constraintBottom_toBottomOf="@id/filter_button"
         app:layout_constraintEnd_toStartOf="@id/filter_button"
-        app:layout_constraintStart_toEndOf="@+id/chapters_title"
+        app:layout_constraintStart_toEndOf="@id/release_estimate"
         app:layout_constraintTop_toTopOf="@id/filter_button" />
 </androidx.constraintlayout.widget.ConstraintLayout>

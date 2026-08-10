@@ -14,7 +14,7 @@ kotlin {
                 api(kotlinx.serialization.json)
                 api(project.dependencies.platform(libs.koin.bom))
                 api(libs.koin.core)
-                api(libs.koin.injekt)
+                api(projects.core.injekt)
                 api(libs.rxjava)
                 api(libs.jsoup)
             }

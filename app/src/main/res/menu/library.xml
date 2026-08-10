@@ -14,6 +14,12 @@
 
 
     <item
+        android:id="@+id/action_release_calendar"
+        android:icon="@drawable/ic_calendar_month_24dp"
+        android:title="@string/release_calendar"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_filter"
         android:icon="@drawable/ic_filter_list_24dp"
         android:title="@string/filter"

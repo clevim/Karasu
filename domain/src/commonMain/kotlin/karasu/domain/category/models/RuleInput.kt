@@ -29,6 +29,13 @@ data class RuleInput(
     val trackerStatus: TrackerStatus? = null,
     /** Tracker score on a 0-10 scale. Null when untracked, or tracked but never scored. */
     val trackerScore: Int? = null,
+    /**
+     * Epoch millis the next chapter is expected at. Null when the app has no estimate yet —
+     * a new entry, or a source that reports no dates to learn a rhythm from.
+     */
+    val nextRelease: Long? = null,
+    /** Whether the series is overdue by several cycles. Null when there is no estimate. */
+    val releaseStalled: Boolean? = null,
 )
 
 /**
@@ -65,6 +72,12 @@ private fun RuleCondition.matches(input: RuleInput, now: Long): Boolean = when (
     RuleField.DAYS_SINCE_READ -> input.lastRead != 0L && compare(daysBetween(input.lastRead, now))
     RuleField.DAYS_SINCE_UPDATE ->
         input.latestUpdate != 0L && compare(daysBetween(input.latestUpdate, now))
+    // No estimate matches nothing: "unknown" is not zero days away, and treating it as such
+    // would hand every brand-new entry to whichever schedule rule the user wrote first.
+    RuleField.DAYS_UNTIL_RELEASE ->
+        input.nextRelease != null && compare(daysBetween(now, input.nextRelease))
+    RuleField.RELEASE_STALLED ->
+        input.releaseStalled != null && input.releaseStalled == (value != 0L)
     RuleField.TRACKED -> (input.trackerStatus != null) == (value != 0L)
     // Untracked matches no status, the same way an unknown timestamp matches no age. Otherwise
     // every untracked manga would satisfy whatever status the user happened to pick first.

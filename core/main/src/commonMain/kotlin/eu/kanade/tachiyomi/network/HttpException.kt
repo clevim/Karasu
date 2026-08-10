@@ -6,5 +6,8 @@ package eu.kanade.tachiyomi.network
  *
  * @since extensions-lib 1.5
  * @param code [Int] the HTTP status code
+ * @param body [String] the start of the response body, when there is one worth reading
  */
-class HttpException(val code: Int) : IllegalStateException("HTTP error $code")
+// @JvmOverloads keeps the single-argument constructor that already-compiled extensions call.
+class HttpException @JvmOverloads constructor(val code: Int, val body: String? = null) :
+    IllegalStateException("HTTP error $code" + if (body.isNullOrBlank()) "" else ": $body")

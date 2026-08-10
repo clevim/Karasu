@@ -110,11 +110,18 @@ suspend fun Call.awaitSuccess(): Response {
     val callStack = Exception().stackTrace.run { copyOfRange(1, size) }
     val response = await(callStack)
     if (!response.isSuccessful) {
+        // The body is where an API says *why* it refused. Closing it unread turns every rejected
+        // OAuth exchange, expired token and malformed request into the same "HTTP error 400",
+        // which is exactly as much as the user can act on: nothing. Bounded, because the other
+        // common body is a full HTML error page and this ends up in a toast.
+        val body = runCatching { response.peekBody(ERROR_BODY_PEEK_BYTES).string().trim() }.getOrNull()
         response.close()
-        throw HttpException(response.code).apply { stackTrace = callStack }
+        throw HttpException(response.code, body).apply { stackTrace = callStack }
     }
     return response
 }
+
+private const val ERROR_BODY_PEEK_BYTES = 512L
 
 fun OkHttpClient.newCachelessCallWithProgress(request: Request, listener: ProgressListener): Call {
     val progressClient = newBuilder()
