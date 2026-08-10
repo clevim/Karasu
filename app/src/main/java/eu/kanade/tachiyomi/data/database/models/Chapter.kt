@@ -34,6 +34,19 @@ interface Chapter : SChapter, Serializable {
     val isRecognizedNumber: Boolean
         get() = chapter_number >= 0f
 
+    /**
+     * When the chapter came out, as well as the app can tell.
+     *
+     * Plenty of sources report no upload date at all, leaving [date_upload] at zero: those
+     * chapters show no date anywhere and read as if the series had never released. When the app
+     * first saw the chapter is the honest stand-in — for anything that arrived while the manga
+     * was in the library it is right to within one update cycle — and it is kept rather than
+     * written into [date_upload] so a source that later starts reporting real dates simply wins,
+     * and so migrating carries it over: [date_fetch] is copied onto the new source's rows.
+     */
+    val date_upload_or_fetch: Long
+        get() = if (date_upload > 0) date_upload else date_fetch
+
     fun toProgressUpdate() =
         ChapterUpdate(
             id = this.id!!,

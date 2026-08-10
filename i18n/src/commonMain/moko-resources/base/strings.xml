@@ -265,6 +265,10 @@
     <string name="release_digest">Notify about today\'s releases</string>
     <string name="release_digest_summary">A single notification each morning listing what is
         expected today. Nothing is sent on days with nothing expected.</string>
+    <string name="release_miss_grace">Keep a late entry on today for</string>
+    <string name="release_miss_grace_summary">After this long without the chapter arriving, the
+        calendar moves the entry on to when it would next be expected instead of leaving it on
+        today.</string>
     <string name="release_schedule_categories">Categories on the release schedule</string>
     <string name="release_schedule_categories_summary">Entries in these categories get the
         release calendar and the extra checks around when they post. Everything else keeps

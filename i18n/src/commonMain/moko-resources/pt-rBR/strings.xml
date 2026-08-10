@@ -951,6 +951,10 @@
         que faltam. Vale para a biblioteca inteira.</string>
     <string name="recalculate_release_estimates_running">Recalculando…</string>
     <string name="recalculate_release_estimates_done">%1$d obras posicionadas no calendário</string>
+    <string name="release_miss_grace">Manter obra atrasada em hoje por</string>
+    <string name="release_miss_grace_summary">Passado esse tempo sem o capítulo chegar, o
+        calendário move a obra para quando ela seria esperada de novo, em vez de deixá-la em
+        hoje.</string>
     <string name="release_schedule_categories">Categorias no calendário de lançamentos</string>
     <string name="release_schedule_categories_summary">Obras nessas categorias entram no
         calendário de lançamentos e recebem as verificações extras perto de quando costumam

@@ -229,6 +229,13 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
     fun releaseDigestHour() = preferenceStore.getInt("release_digest_hour", -1)
 
     /**
+     * Days an entry stays on today after missing its window before the calendar rolls it on to
+     * the next cycle. Short for readers who want the calendar to reflect the source's actual
+     * pace, long for those who would rather keep a late chapter in sight.
+     */
+    fun releaseMissGraceDays() = preferenceStore.getInt("release_miss_grace_days", 3)
+
+    /**
      * Categories the release schedule covers: what the calendar lists, what gets the extra
      * in-window checks, and what the scheduled update is allowed to skip. Empty means all of
      * them. Anything outside keeps the plain behaviour of being checked on every scheduled run.

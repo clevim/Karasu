@@ -37,6 +37,22 @@ data class ReleaseEstimate(
     fun isDue(now: Long) = now >= nextRelease - checkWindow
 
     /**
+     * Where the release is shown, as opposed to where it is expected.
+     *
+     * A missed window keeps the entry on today, because for the first days the chapter really is
+     * about to land. Past [grace] the miss is accepted as a miss and the date rolls on by
+     * whole cycles until it is in the future again — a monthly series that skipped its month is
+     * next plausible a month later, not "today" for the four weeks until it counts as stalled.
+     * The estimate itself is not touched: the next chapter to arrive rewrites it from the real
+     * dates, and until then scheduling keeps working off the window it actually measured.
+     */
+    fun expectedRelease(now: Long, grace: Long = MISS_GRACE): Long {
+        val late = now - nextRelease
+        if (late <= grace || interval <= 0) return nextRelease
+        return nextRelease + interval * (late / interval + 1)
+    }
+
+    /**
      * Overdue by several whole cycles: either dropped by the author or pulled by the source, and
      * in both cases checking it as often as a running series buys nothing. A chapter arriving
      * clears this by itself, since the estimate is rewritten then.
@@ -83,6 +99,16 @@ data class ReleaseEstimate(
 
         /** Missed windows before a series counts as stalled rather than merely late. */
         private const val STALL_CYCLES = 3
+
+        /**
+         * How long a missed release is still read as "any moment now" before the date rolls on.
+         * The default only applies where there is no user preference to hand — the calendar and
+         * the details header pass the configured one.
+         */
+        val MISS_GRACE = days(3)
+
+        /** The preference, which is in whole days, as the milliseconds [expectedRelease] wants. */
+        fun graceOf(dayCount: Int) = days(dayCount.toLong())
 
         /**
          * The window never closes tighter than this, because sources post at their own hour.

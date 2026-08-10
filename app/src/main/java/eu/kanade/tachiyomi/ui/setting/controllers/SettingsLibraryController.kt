@@ -273,6 +273,21 @@ class SettingsLibraryController : SettingsLegacyController() {
                 }
             }
 
+            intListPreference(activity) {
+                bindTo(preferences.releaseMissGraceDays())
+                titleRes = MR.strings.release_miss_grace
+                summaryRes = MR.strings.release_miss_grace_summary
+                entries = GRACE_DAYS.map {
+                    context.getString(MR.plurals.release_miss_grace_days, it, it)
+                }
+                entryValues = GRACE_DAYS
+                defaultValue = 3
+
+                preferences.smartLibraryUpdates().changesIn(viewScope) { smart ->
+                    isVisible = smart && preferences.libraryUpdateInterval().get() > 0
+                }
+            }
+
             preference {
                 key = "recalculate_release_estimates"
                 isPersistent = false
@@ -361,5 +376,8 @@ class SettingsLibraryController : SettingsLegacyController() {
     private companion object {
         /** The hours the digest can be scheduled at. Morning-heavy, since that is the point. */
         val DIGEST_HOURS = listOf(6, 8, 9, 12, 18, 21)
+
+        /** How long a late entry may sit on today. A week is already most of a weekly cycle. */
+        val GRACE_DAYS = listOf(1, 2, 3, 5, 7)
     }
 }

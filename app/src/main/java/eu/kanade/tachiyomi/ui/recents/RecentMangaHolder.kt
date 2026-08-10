@@ -195,11 +195,11 @@ class RecentMangaHolder(
                     if (adapter.sortByFetched) {
                         context.timeSpanFromNow(MR.strings.fetched_, item.chapter.date_fetch)
                     } else {
-                        context.timeSpanFromNow(MR.strings.updated_, item.chapter.date_upload)
+                        context.timeSpanFromNow(MR.strings.updated_, item.chapter.date_upload_or_fetch)
                     }
                 } else {
                     context.timeSpanFromNow(MR.strings.fetched_, item.chapter.date_fetch) + "\n" +
-                        context.timeSpanFromNow(MR.strings.updated_, item.chapter.date_upload)
+                        context.timeSpanFromNow(MR.strings.updated_, item.chapter.date_upload_or_fetch)
                 }
             }
             item.chapter.id != item.mch.chapter.id -> readLastText(!moreVisible)

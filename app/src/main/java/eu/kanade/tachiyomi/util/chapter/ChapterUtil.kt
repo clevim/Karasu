@@ -36,8 +36,8 @@ class ChapterUtil {
         )
 
         fun relativeDate(chapter: Chapter): String? {
-            return when (chapter.date_upload > 0) {
-                true -> chapter.date_upload.timeSpanFromNow
+            return when (chapter.date_upload_or_fetch > 0) {
+                true -> chapter.date_upload_or_fetch.timeSpanFromNow
                 false -> null
             }
         }

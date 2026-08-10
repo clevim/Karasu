@@ -48,18 +48,21 @@ data class ReleaseCalendar(
  *
  * Anything already overdue lands on today rather than on the day it was due: the chapter has
  * not arrived, so it is still coming, and a card sitting on last Tuesday is a date nobody wants
- * to read. Entries whose window is open are in exactly that state most of the time.
+ * to read. Entries whose window is open are in exactly that state most of the time. Once the
+ * miss is old enough that this stops being true, [ReleaseEstimate.expectedRelease] has already
+ * moved the entry on to its next plausible cycle.
  */
 fun ReleaseSchedule.calendar(
     dayCount: Int,
     now: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
+    grace: Long = ReleaseEstimate.MISS_GRACE,
 ): ReleaseCalendar {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val lastDay = today.plusDays(dayCount - 1L)
 
     val byDate = upcoming.groupBy { release ->
-        val date = Instant.ofEpochMilli(release.estimate.nextRelease).atZone(zone).toLocalDate()
+        val date = Instant.ofEpochMilli(release.estimate.expectedRelease(now, grace)).atZone(zone).toLocalDate()
         if (date.isBefore(today)) today else date
     }
 
@@ -71,7 +74,7 @@ fun ReleaseSchedule.calendar(
         later = byDate.filterKeys { it.isAfter(lastDay) }
             .values
             .flatten()
-            .sortedBy { it.estimate.nextRelease },
+            .sortedBy { it.estimate.expectedRelease(now, grace) },
     )
 }
 

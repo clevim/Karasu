@@ -374,7 +374,7 @@ class RecentsPresenter(
                         if (abs(f1.second.date_fetch - f2.second.date_fetch) <=
                             TimeUnit.HOURS.toMillis(12)
                         ) {
-                            f2.second.date_upload.compareTo(f1.second.date_upload)
+                            f2.second.date_upload_or_fetch.compareTo(f1.second.date_upload_or_fetch)
                         } else {
                             f2.second.date_fetch.compareTo(f1.second.date_fetch)
                         }
@@ -412,7 +412,7 @@ class RecentsPresenter(
                     it.value
                         .map { item -> RecentMangaItem(item.first, item.second, dateItem) }
                         .sortedByDescending { item ->
-                            if (sortByFetched) item.date_fetch else item.date_upload
+                            if (sortByFetched) item.date_fetch else item.date_upload_or_fetch
                         }
                 }
             } else {

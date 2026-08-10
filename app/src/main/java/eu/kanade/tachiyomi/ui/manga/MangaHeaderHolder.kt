@@ -50,6 +50,7 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.SoftBreakAddsNewLinePlugin
 import android.text.method.LinkMovementMethod
 import eu.kanade.tachiyomi.util.manga.format
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.interval.releaseLabel
 import karasu.i18n.MR
 import karasu.util.coil.loadManga
@@ -309,7 +310,9 @@ class MangaHeaderHolder(
      * noise on every single one of them.
      */
     private fun TextView.bindReleaseEstimate(presenter: MangaDetailsPresenter) {
-        val label = presenter.releaseEstimate?.releaseLabel()
+        val label = presenter.releaseEstimate?.releaseLabel(
+            grace = ReleaseEstimate.graceOf(presenter.preferences.releaseMissGraceDays().get()),
+        )
         isVisible = label != null
         text = label?.format(context).orEmpty()
     }

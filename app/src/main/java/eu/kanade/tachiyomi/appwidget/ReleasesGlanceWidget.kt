@@ -33,6 +33,7 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.launchIO
 import karasu.domain.manga.interval.GetReleaseSchedule
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.interval.ScheduledRelease
 import karasu.domain.manga.interval.calendar
 import karasu.domain.manga.models.cover
@@ -101,7 +102,10 @@ class ReleasesGlanceWidget : GlanceAppWidget() {
         val categories = preferences.releaseScheduleCategories().get()
             .mapNotNull { it.toIntOrNull() }
             .toSet()
-        val calendar = runCatching { getReleaseSchedule.await(categories).calendar(dayCount = 7) }
+        val grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get())
+        val calendar = runCatching {
+            getReleaseSchedule.await(categories).calendar(dayCount = 7, grace = grace)
+        }
             .getOrNull()
             ?: return ReleasesWidgetData(today = true, covers = emptyList())
 

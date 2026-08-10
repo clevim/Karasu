@@ -46,12 +46,13 @@ private const val SAME_DAY = DAY / 2
 fun ReleaseEstimate.releaseLabel(
     now: Long = System.currentTimeMillis(),
     zone: ZoneId = ZoneId.systemDefault(),
+    grace: Long = ReleaseEstimate.MISS_GRACE,
 ): ReleaseLabel? {
     if (isStalled(now)) return null
 
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    val predicted = Instant.ofEpochMilli(nextRelease).atZone(zone).toLocalDate()
-    // Overdue but not stalled means the window is open right now.
+    val predicted = Instant.ofEpochMilli(expectedRelease(now, grace)).atZone(zone).toLocalDate()
+    // Overdue inside the grace means the window is open right now.
     val date = if (predicted.isBefore(today)) today else predicted
 
     return when {

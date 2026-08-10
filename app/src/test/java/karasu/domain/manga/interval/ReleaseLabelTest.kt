@@ -32,6 +32,13 @@ class ReleaseLabelTest {
     }
 
     @Test
+    fun `overdue past the grace rolls on to the next cycle instead of squatting on today`() {
+        // Missed last Thursday: the next Thursday is the honest answer, not "today".
+        label(estimate(now - 5 * day, interval = week, spread = 0)) shouldBe
+            ReleaseLabel.EveryWeekOn(DayOfWeek.THURSDAY)
+    }
+
+    @Test
     fun `expected tomorrow reads as tomorrow`() {
         label(estimate(now + day)) shouldBe ReleaseLabel.Tomorrow
     }

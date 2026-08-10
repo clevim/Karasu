@@ -60,8 +60,8 @@ class ChapterSort(val manga: Manga, val chapterFilter: ChapterFilter = Injekt.ge
                     false -> { c1, c2 -> c1.chapter_number.toString().compareToCaseInsensitiveNaturalOrder(c2.chapter_number.toString()) }
                 }
                 Manga.CHAPTER_SORTING_UPLOAD_DATE -> when (sortDescending) {
-                    true -> { c1, c2 -> c2.date_upload.compareTo(c1.date_upload) }
-                    false -> { c1, c2 -> c1.date_upload.compareTo(c2.date_upload) }
+                    true -> { c1, c2 -> c2.date_upload_or_fetch.compareTo(c1.date_upload_or_fetch) }
+                    false -> { c1, c2 -> c1.date_upload_or_fetch.compareTo(c2.date_upload_or_fetch) }
                 }
                 else -> { c1, c2 -> c1.source_order.compareTo(c2.source_order) }
             }

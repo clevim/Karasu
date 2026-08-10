@@ -22,6 +22,7 @@ import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import karasu.domain.manga.interval.GetReleaseSchedule
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.interval.calendar
 import karasu.i18n.MR
 import karasu.util.lang.getString
@@ -50,7 +51,10 @@ class ReleaseDigestJob(private val context: Context, workerParams: WorkerParamet
         // it opens can never disagree — including about overdue entries, which the calendar puts
         // on today because the chapter has not arrived and is therefore still coming.
         val today = Injekt.get<GetReleaseSchedule>().await(categories)
-            .calendar(dayCount = 1)
+            .calendar(
+                dayCount = 1,
+                grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get()),
+            )
             .days.firstOrNull()
             ?.releases
             .orEmpty()

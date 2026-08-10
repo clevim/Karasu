@@ -38,11 +38,22 @@ class ReleaseCalendarTest {
     fun `an overdue release sits on today, not on the day it missed`() {
         // The chapter has not arrived, so it is still coming. A card parked on last Tuesday is a
         // date nobody wants to read, and this is the normal state of an entry mid-window.
-        val late = release(now - 4 * day)
+        val late = release(now - 2 * day)
         val calendar = schedule(late).calendar(dayCount = 7, now = now, zone = zone)
 
         calendar.days.first().releases shouldBe listOf(late)
         calendar.later shouldBe emptyList()
+    }
+
+    @Test
+    fun `a release that missed its window by days moves on to the next cycle`() {
+        // A monthly series five days late: it is not stalled for another two months, but parking
+        // it on today for all of them is what makes an entry squat on the calendar forever.
+        val skipped = release(now - 5 * day, interval = 30 * day, spread = 3 * day)
+        val calendar = schedule(skipped).calendar(dayCount = 7, now = now, zone = zone)
+
+        calendar.days.flatMap { it.releases } shouldBe emptyList()
+        calendar.later shouldBe listOf(skipped)
     }
 
     @Test

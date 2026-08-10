@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.util.system.withIOContext
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
 import karasu.domain.manga.interval.GetReleaseSchedule
 import karasu.domain.manga.interval.ReleaseCalendar
+import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.interval.ReleaseSchedule
 import karasu.domain.manga.interval.calendar
 import karasu.presentation.library.ReleaseCalendarScreen
@@ -52,7 +53,10 @@ class ReleaseCalendarController : BaseComposeController() {
                 .toSet()
             val loaded = withIOContext { getReleaseSchedule.await(categories) }
             schedule = loaded
-            calendar = loaded.calendar(dayCount = DAYS_SHOWN)
+            calendar = loaded.calendar(
+                dayCount = DAYS_SHOWN,
+                grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get()),
+            )
         }
     }
 

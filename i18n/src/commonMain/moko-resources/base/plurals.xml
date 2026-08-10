@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <plurals name="release_miss_grace_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+
     <plurals name="release_digest_title">
         <item quantity="one">%1$d release expected today</item>
         <item quantity="other">%1$d releases expected today</item>
