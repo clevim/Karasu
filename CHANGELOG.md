@@ -10,7 +10,24 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
-### Additions
+## [1.10.2]
+
+First Karasu release. Based on [yokai 1.10.2](https://github.com/null2264/yokai/releases/tag/v1.10.2) — everything below under "From yokai" is inherited from upstream.
+
+### Karasu
+- Rebrand to Karasu (own `applicationId`, icons, widgets)
+- KOReader shelf sync: push selected manga as CBZ to a self-hosted container, read back finished chapters, filter conditions
+- Release calendar with schedule/interval and grace period per manga, plus missing-chapter detection
+- Merged sources on manga details
+- FlareSolverr support for Cloudflare bypass
+- Disk caching for Coil images
+- Remove Firebase Crashlytics/Analytics (crash logs stay local: crash screen + "Dump crash logs")
+- Remove Shikimori tracker
+- Vendor FlexibleAdapter (JitPack no longer builds it)
+
+### From yokai
+
+#### Additions
 - Add random library sort
 - Add the ability to save search queries
 - Add toggle to enable/disable hide source on swipe (@Hiirbaf)
@@ -20,7 +37,7 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 - Add markdown support to entry description (@luigidotmoe)
   - Fix text disappeared when it's surrounded by `<>` (@lalalasupa0)
 
-### Changes
+#### Changes
 - Temporarily disable log file
 - Categories' header now show filtered count when you search the library when you have "Show number of items" enabled (@LeeSF03)
 - Chapter progress now saved everything the page is changed
@@ -32,7 +49,7 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 - LocalSource entries no longer auto-refresh when opened (@lalalasupa0)
 - Long tap chapters on Reader now mark it as read (@lalalasupa0)
 
-### Fixes
+#### Fixes
 - Allow users to bypass onboarding's permission step if Shizuku is installed
 - Fix Recents page shows "No recent chapters" instead of a loading screen
 - Fix not fully loaded entries can't be selected on Library page
@@ -50,10 +67,10 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 - Only solve Cloudflare with WebView if it's not geoblock (@AwkwardPeak7)
 - Fix cover from LocalSource sometimes didn't load (@lalalasupa0)
 
-### Translation
+#### Translation
 - Update translations from Weblate
 
-### Other
+#### Other
 - Refactor Library to utilize Flow even more
 - Refactor EmptyView to use Compose
 - Refactor Reader ChapterTransition to use Compose (@arkon)
