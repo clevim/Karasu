@@ -77,6 +77,7 @@ class LibraryUpdateNotifier(private val context: Context) {
             setOngoing(true)
             setOnlyAlertOnce(true)
             setProgress(0, 0, true)
+            setRequestPromotedOngoing(true)
             color = ContextCompat.getColor(context, R.color.secondaryTachiyomi)
             addAction(R.drawable.ic_close_24dp, context.getString(AR.string.cancel), cancelIntent)
         }
@@ -106,6 +107,7 @@ class LibraryUpdateNotifier(private val context: Context) {
                 .setContentTitle("${context.getString(MR.strings.updating_library)} (${current + 1}/$total)")
                 .setContentText(if (preferences.hideNotificationContent().get()) null else manga.title)
                 .setProgress(total, current, false)
+                .setShortCriticalText("${current + 1}/$total")
                 .build(),
         )
     }

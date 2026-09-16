@@ -19,6 +19,7 @@
 -keep,allowoptimization class uy.kohesive.injekt.** { public protected *; }
 -keep,allowoptimization class org.koin.** { public protected *; }
 -keep,allowoptimization class eu.davidea.flexibleadapter.** { public protected *; }
+-keep,allowoptimization class com.squareup.zstd.** { public protected *; }
 -keep class io.requery.android.database.** { public protected *; }
 
 # From extensions-lib
@@ -38,6 +39,11 @@
 -keep class com.google.android.material.** { *; }
 -keep interface com.google.android.material.** { *; }
 -keep public class com.google.android.material.R$* { *; }
+
+-keepclassmembers class * implements java.io.Serializable {
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
 
 ##---------------Begin: proguard configuration for RxJava 1.x  ----------
 -dontwarn sun.misc.**
@@ -61,18 +67,6 @@
 ##---------------Begin: proguard configuration for okhttp  ----------
 -keepclasseswithmembers class okhttp3.MultipartBody$Builder { *; }
 ##---------------End: proguard configuration for okhttp  ----------
-
-# zstd-kmp (via okhttp-zstd) — used by extension-lib 1.6 CompressionInterceptor.
-# The host never references these classes directly (extensions do, at runtime through
-# ChildFirstPathClassLoader), so R8 strips them in minified builds and the extension
-# dies with NoClassDefFoundError: com/squareup/zstd/okio/OkioZstd.
-# zstd-kmp 0.4.0 ships no consumer ProGuard rules.
--keep class com.squareup.zstd.** { *; }
--keepclassmembers class com.squareup.zstd.** {
-    native <methods>;
-    *;
-}
--dontwarn com.squareup.zstd.**
 
 ##---------------Begin: proguard configuration for kotlinx.serialization  ----------
 -keepattributes *Annotation*, InnerClasses
