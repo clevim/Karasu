@@ -198,6 +198,10 @@ null2264, itself derived from [Injekt](https://github.com/kohesive/injekt) by Ja
 Collokia. It is MIT licensed and distributed under its own terms — see
 [core/injekt/LICENSE](core/injekt/LICENSE).
 
+`core/flexible-adapter` is a vendored copy of [arkon/FlexibleAdapter](https://github.com/arkon/FlexibleAdapter)
+(commit `c8013533`, modules `flexible-adapter` and `flexible-adapter-ui` merged) by Davide Steduto.
+It is Apache-2.0 licensed — see [core/flexible-adapter/LICENSE](core/flexible-adapter/LICENSE).
+
 Everything else third-party is a regular dependency and is credited in the app under
 *More → About → Open source licenses*.
 </div>

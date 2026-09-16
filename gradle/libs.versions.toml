@@ -1,7 +1,6 @@
 [versions]
 aboutlibraries = "13.1.0"
 chucker = "3.5.2"
-flexible-adapter = "c8013533"
 fast_adapter = "5.7.0"
 mlkit-recognition = "16.0.1"
 mlkit-translate = "17.0.3"
@@ -39,8 +38,6 @@ disklrucache = { module = "com.jakewharton:disklrucache", version = "2.0.2" }
 fastadapter-extensions-binding = { module = "com.mikepenz:fastadapter-extensions-binding", version.ref = "fast_adapter" }
 fastadapter = { module = "com.mikepenz:fastadapter", version.ref = "fast_adapter" }
 flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0.0" }
-flexible-adapter-ui = { module = "com.github.arkon.FlexibleAdapter:flexible-adapter-ui", version.ref = "flexible-adapter" }
-flexible-adapter = { module = "com.github.arkon.FlexibleAdapter:flexible-adapter", version.ref = "flexible-adapter" }
 image-decoder = { module = "com.github.tachiyomiorg:image-decoder", version = "41c059e540" }
 
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }

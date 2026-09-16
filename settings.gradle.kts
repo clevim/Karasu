@@ -33,6 +33,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "Karasu"
 include(":app")
 include(":core:archive")
+include(":core:flexible-adapter")
 include(":core:injekt")
 include(":core:main")
 include(":data")

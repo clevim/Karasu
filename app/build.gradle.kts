@@ -225,8 +225,7 @@ dependencies {
     // UI
     implementation(libs.fastadapter)
     implementation(libs.fastadapter.extensions.binding)
-    implementation(libs.flexible.adapter)
-    implementation(libs.flexible.adapter.ui)
+    implementation(project(":core:flexible-adapter"))
     implementation(libs.viewstatepageradapter)
     implementation(libs.slice)
     implementation(libs.markwon)
