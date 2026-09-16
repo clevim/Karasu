@@ -25,6 +25,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.download.DownloadPreferences
 import karasu.i18n.MR
+import karasu.translation.TranslationManager
 import karasu.util.lang.getString
 
 /**
@@ -44,6 +45,8 @@ class DownloadManager(
     private val preferences by injectLazy<PreferencesHelper>()
 
     private val downloadPreferences by injectLazy<DownloadPreferences>()
+
+    private val translationManager by injectLazy<TranslationManager>()
 
     /**
      * Downloader whose only task is to download chapters.
@@ -137,8 +140,13 @@ class DownloadManager(
      * @param chapters the list of chapters to enqueue.
      * @param autoStart whether to start the downloader after enqueing the chapters.
      */
-    fun downloadChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean = true) {
-        downloader.queueChapters(manga, chapters, autoStart)
+    fun downloadChapters(
+        manga: Manga,
+        chapters: List<Chapter>,
+        autoStart: Boolean = true,
+        toFrontOfQueue: Boolean = false,
+    ) {
+        downloader.queueChapters(manga, chapters, autoStart, toFrontOfQueue)
     }
 
     /**
@@ -247,6 +255,7 @@ class DownloadManager(
                 )
             chapterDirs.forEach { it.delete() }
             cache.removeChapters(filteredChapters, manga)
+            translationManager.deleteTranslations(manga, filteredChapters, source)
 
             if (cache.getDownloadCount(manga, true) == 0) { // Delete manga directory if empty
                 chapterDirs.firstOrNull()?.parentFile?.delete()
@@ -335,6 +344,7 @@ class DownloadManager(
             }
             provider.findMangaDir(manga, source)?.delete()
             cache.removeManga(manga)
+            translationManager.deleteManga(manga, source)
 
             // Delete source directory if empty
             val sourceDir = provider.findSourceDir(source)

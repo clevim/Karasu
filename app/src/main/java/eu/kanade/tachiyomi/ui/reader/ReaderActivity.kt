@@ -146,6 +146,7 @@ import eu.kanade.tachiyomi.util.view.isExpanded
 import eu.kanade.tachiyomi.util.view.popupMenu
 import eu.kanade.tachiyomi.util.view.setAction
 import eu.kanade.tachiyomi.util.view.setMessage
+import eu.kanade.tachiyomi.util.view.setTitle
 import eu.kanade.tachiyomi.util.view.snack
 import eu.kanade.tachiyomi.widget.doOnEnd
 import eu.kanade.tachiyomi.widget.doOnStart
@@ -177,6 +178,11 @@ import karasu.domain.ui.settings.ReaderPreferences.LandscapeCutoutBehaviour
 import karasu.i18n.MR
 import karasu.util.lang.getString
 import android.R as AR
+import eu.kanade.tachiyomi.databinding.TranslationProgressDialogBinding
+import karasu.translation.model.Progress
+import karasu.translation.model.Translation
+import androidx.appcompat.app.AlertDialog
+import android.widget.Toast
 
 /**
  * Activity containing the reader of Tachiyomi. This activity is mostly a container of the
@@ -254,6 +260,10 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
             field = value
             (viewer as? PagerViewer)?.config?.hingeGapSize = value
         }
+
+    /** The chapter-translation progress dialog and the job feeding it, both live only while shown. */
+    private var translationDialog: AlertDialog? = null
+    private var translationProgressJob: Job? = null
 
     private val readerPreferences: ReaderPreferences by injectLazy()
     private val basePreferences: BasePreferences by injectLazy()
@@ -434,6 +444,19 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                     ReaderViewModel.Event.ReloadViewerChapters -> {
                         viewModel.state.value.viewerChapters?.let(::setChapters)
                     }
+                    is ReaderViewModel.Event.Message -> {
+                        toast(event.stringRes)
+                    }
+                    is ReaderViewModel.Event.TranslationFailed -> {
+                        // Long, and with the reason: a rate limit, a rejected key and a reply the
+                        // app could not read all used to arrive as the same sentence, and only
+                        // one of them is something the user can do anything about.
+                        toast(
+                            getString(MR.strings.translation_failed) +
+                                event.reason.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty(),
+                            Toast.LENGTH_LONG,
+                        )
+                    }
                     is ReaderViewModel.Event.SetOrientation -> {
                         setOrientation(event.orientation)
                     }
@@ -451,6 +474,10 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                     }
                 }
             }
+            .launchIn(lifecycleScope)
+
+        viewModel.translationInProgress
+            .onEach(::onTranslationInProgress)
             .launchIn(lifecycleScope)
 
         lifecycleScope.launchUI {
@@ -497,6 +524,10 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
         bottomSheet = null
         snackbar?.dismiss()
         snackbar = null
+        // A dialog still on screen when the activity goes away leaks its window, and this one is
+        // shown for minutes at a time — long enough to be rotated or backed out of.
+        translationDialog?.dismiss()
+        translationDialog = null
     }
 
     /**
@@ -1672,6 +1703,59 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
      */
     private fun shareImage(page: ReaderPage) {
         viewModel.shareImage(page)
+    }
+
+    /**
+     * Shows what a running chapter translation is doing, and offers to give up on it.
+     *
+     * OCR runs page by page and takes minutes on a long chapter, so the only honest thing to show
+     * is which page it is on. Not cancelable by tapping outside: the button is the way out, so
+     * that dismissing it by accident cannot leave the work running with nothing reporting it.
+     */
+    private fun onTranslationInProgress(translation: Translation?) {
+        translationProgressJob?.cancel()
+        translationProgressJob = null
+        translationDialog?.dismiss()
+        translationDialog = null
+        if (translation == null) return
+
+        val binding = TranslationProgressDialogBinding.inflate(layoutInflater)
+        translationDialog = materialAlertDialog()
+            .setTitle(MR.strings.translating_chapter)
+            .setView(binding.root)
+            .setNegativeButton(AR.string.cancel) { _, _ -> viewModel.cancelTranslation() }
+            .setCancelable(false)
+            .show()
+
+        translationProgressJob = translation.progressFlow
+            .onEach { progress ->
+                when (progress.phase) {
+                    Progress.Phase.READING -> {
+                        // Zero pages means the entry is still waiting its turn behind another
+                        // chapter, not a chapter with no pages.
+                        binding.progressText.text = if (progress.pages == 0) {
+                            getString(MR.strings.translation_queued)
+                        } else {
+                            getString(
+                                MR.strings.translation_reading_page,
+                                progress.pagesRead,
+                                progress.pages,
+                            )
+                        }
+                        binding.progressBar.max = progress.pages.coerceAtLeast(1)
+                        binding.progressBar.setProgressCompat(progress.pagesRead, true)
+                    }
+                    Progress.Phase.TRANSLATING -> {
+                        binding.progressText.text = getString(MR.strings.translation_sending)
+                        // Left full instead of switched back to indeterminate: Material throws
+                        // when a visible progress indicator is put into indeterminate mode, and
+                        // every page really has been read by now. What is left is the engine,
+                        // which reports nothing to count.
+                        binding.progressBar.setProgressCompat(binding.progressBar.max, true)
+                    }
+                }
+            }
+            .launchIn(lifecycleScope)
     }
 
     private fun showSetCoverPrompt(page: ReaderPage) {

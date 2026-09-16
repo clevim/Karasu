@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.model
 
 import android.graphics.drawable.Drawable
 import eu.kanade.tachiyomi.source.model.Page
+import karasu.translation.model.PageTranslation
 import java.io.InputStream
 
 open class ReaderPage(
@@ -15,6 +16,9 @@ open class ReaderPage(
 
     /** Value to check if this page is used to as if it was too wide */
     var shiftedPage: Boolean = false
+
+    /** Translated text blocks to overlay on this page, if the chapter has been translated */
+    var translation: PageTranslation? = null
 
     /** Value to check if a page is can be doubled up, but can't because the next page is too wide */
     var isolatedPage: Boolean = false

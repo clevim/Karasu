@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <plurals name="release_digest_title">
+        <item quantity="one">%1$d lançamento previsto para hoje</item>
+        <item quantity="many">%1$d lançamentos previstos para hoje</item>
+        <item quantity="other">%1$d lançamentos previstos para hoje</item>
+    </plurals>
+
+    <plurals name="missing_chapters_count">
+        <item quantity="one">%1$s faltando</item>
+        <item quantity="many">%1$s faltando</item>
+        <item quantity="other">%1$s faltando</item>
+    </plurals>
+
     <plurals name="release_miss_grace_days">
         <item quantity="one">%1$d dia</item>
         <item quantity="many">%1$d dias</item>
@@ -143,5 +155,14 @@
     <plurals name="koreader_filter_preview">
         <item quantity="one">%d item selecionado agora</item>
         <item quantity="other">%d itens selecionados agora</item>
+    </plurals>
+    <plurals name="auto_migration_done">
+        <item quantity="one">%1$d obra migrada automaticamente</item>
+        <item quantity="other">%1$d obras migradas automaticamente</item>
+    </plurals>
+
+    <plurals name="auto_migration_pending">
+        <item quantity="one">%1$d obra aguardando revisão</item>
+        <item quantity="other">%1$d obras aguardando revisão</item>
     </plurals>
 </resources>

@@ -12,6 +12,7 @@ import karasu.domain.ui.UiPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
+import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys
 import eu.kanade.tachiyomi.data.preference.changesIn
@@ -26,6 +27,7 @@ import eu.kanade.tachiyomi.ui.setting.bindTo
 import eu.kanade.tachiyomi.ui.setting.defaultValue
 import eu.kanade.tachiyomi.ui.setting.infoPreference
 import eu.kanade.tachiyomi.ui.setting.intListPreference
+import eu.kanade.tachiyomi.ui.setting.listPreference
 import eu.kanade.tachiyomi.ui.setting.onChange
 import eu.kanade.tachiyomi.ui.setting.onClick
 import eu.kanade.tachiyomi.ui.setting.preference
@@ -34,14 +36,32 @@ import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.switchPreference
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
 import eu.kanade.tachiyomi.util.lang.addBetaTag
+import eu.kanade.tachiyomi.util.system.LocaleHelper
+import eu.kanade.tachiyomi.util.system.formatHourOfDay
+import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.view.setAction
 import eu.kanade.tachiyomi.util.view.snack
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
+import java.time.DayOfWeek
+import java.time.format.TextStyle
+import java.util.Locale
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.base.BasePreferences.ExtensionInstaller
 import karasu.presentation.extension.repo.ExtensionRepoController
 
 class SettingsBrowseController : SettingsLegacyController() {
+
+    /**
+     * Languages that actually have an installed source, sorted by name.
+     *
+     * Offering every language the app knows would let someone schedule a nightly pass that can
+     * never match anything, and the failure would be silent.
+     */
+    private val migrationLanguages: List<String>
+        get() = sourceManager.getCatalogueSources()
+            .map { it.lang }
+            .distinct()
+            .sortedBy { LocaleHelper.getDisplayName(it) }
 
     val sourceManager: SourceManager by injectLazy()
     var updatedExtNotifPref: SwitchPreferenceCompat? = null
@@ -199,6 +219,64 @@ class SettingsBrowseController : SettingsLegacyController() {
                 }
             }
 
+            intListPreference(activity) {
+                bindTo(preferences.autoMigrateHour())
+                titleRes = MR.strings.auto_migration
+                summaryRes = MR.strings.auto_migration_summary
+                entries = listOf(context.getString(MR.strings.auto_migration_off)) +
+                    MIGRATE_HOURS.map { context.formatHourOfDay(it) }
+                entryValues = listOf(-1) + MIGRATE_HOURS
+                defaultValue = -1
+
+                onChange {
+                    // Read back after the write, like the digest hour: the schedule is rebuilt
+                    // from the stored value, not from the one being chosen.
+                    viewScope.launchUI { AutoMigrateJob.setupTask(context) }
+                    true
+                }
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.autoMigrateDay())
+                titleRes = MR.strings.auto_migration_day
+                entries = listOf(context.getString(MR.strings.auto_migration_daily)) +
+                    DayOfWeek.entries.map { it.getDisplayName(TextStyle.FULL, Locale.getDefault()) }
+                entryValues = listOf(AutoMigrateJob.DAILY) + DayOfWeek.entries.map { it.value }
+                defaultValue = AutoMigrateJob.DAILY
+
+                preferences.autoMigrateHour().changesIn(viewScope) { isVisible = it >= 0 }
+
+                onChange {
+                    viewScope.launchUI { AutoMigrateJob.setupTask(context) }
+                    true
+                }
+            }
+
+            listPreference(activity) {
+                bindTo(preferences.autoMigratePrimaryLang())
+                titleRes = MR.strings.auto_migration_languages
+                summaryRes = MR.strings.auto_migration_primary_language
+                entries = listOf(context.getString(MR.strings.auto_migration_off)) +
+                    migrationLanguages.map { LocaleHelper.getDisplayName(it) }
+                entryValues = listOf("") + migrationLanguages
+                defaultValue = ""
+
+                preferences.autoMigrateHour().changesIn(viewScope) { isVisible = it >= 0 }
+            }
+
+            listPreference(activity) {
+                bindTo(preferences.autoMigrateSecondaryLang())
+                titleRes = MR.strings.auto_migration_secondary_language
+                entries = listOf(context.getString(MR.strings.auto_migration_off)) +
+                    migrationLanguages.map { LocaleHelper.getDisplayName(it) }
+                entryValues = listOf("") + migrationLanguages
+                defaultValue = ""
+
+                // Nothing to fall back to before a primary is picked.
+                preferences.autoMigratePrimaryLang()
+                    .changesIn(viewScope) { isVisible = it.isNotEmpty() && preferences.autoMigrateHour().get() >= 0 }
+            }
+
             infoPreference(MR.strings.you_can_migrate_in_library)
         }
         
@@ -227,5 +305,10 @@ class SettingsBrowseController : SettingsLegacyController() {
     override fun onActivityResumed(activity: Activity) {
         super.onActivityResumed(activity)
         updatedExtNotifPref?.isChecked = Notifications.isNotificationChannelEnabled(activity, Notifications.CHANNEL_EXT_UPDATED)
+    }
+
+    private companion object {
+        /** Overnight-heavy: the pass is a burst of searches nobody should be waiting on. */
+        val MIGRATE_HOURS = listOf(0, 3, 6, 9, 12, 18, 21)
     }
 }

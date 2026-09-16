@@ -243,6 +243,14 @@
     <string name="release_estimate_weekly">Every %1$s</string>
     <string name="release_estimate_between">Between %1$s and %2$s</string>
     <string name="release_estimate_on">Expected %1$s</string>
+    <string name="auto_migration">Automatic migration</string>
+    <string name="auto_migration_summary">Look for a new source for entries whose source is gone</string>
+    <string name="auto_migration_languages">Primary language</string>
+    <string name="auto_migration_primary_language">Searched first, and wins ties</string>
+    <string name="auto_migration_secondary_language">Secondary language</string>
+    <string name="auto_migration_day">Day</string>
+    <string name="auto_migration_daily">Every day</string>
+    <string name="auto_migration_off">Off</string>
     <string name="release_calendar">Release calendar</string>
     <string name="release_calendar_later">Later on</string>
     <string name="release_calendar_nothing_expected">Nothing expected</string>
@@ -262,6 +270,31 @@
         received. Covers the whole library.</string>
     <string name="recalculate_release_estimates_running">Recalculating…</string>
     <string name="recalculate_release_estimates_done">%1$d entries placed on the calendar</string>
+    <!-- On-device / API chapter translation -->
+    <string name="translation">Translation</string>
+    <string name="show_translations">Show translations</string>
+    <string name="show_translations_summary">Draw the translated text over the page on chapters
+        that have been translated.</string>
+    <string name="auto_translate_after_download">Translate after downloading</string>
+    <string name="auto_translate_after_download_summary">Every chapter is translated once its
+        download finishes. Only downloaded chapters can be translated.</string>
+    <string name="translate_from">Page language</string>
+    <string name="translate_to">Translate into</string>
+    <string name="translation_engine">Translation engine</string>
+    <string name="translation_api_key">API key</string>
+    <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>
+    <string name="translation_model">Model</string>
+    <string name="translation_model_summary">Any model id from openrouter.ai. Avoid reasoning models: they spend their whole reply thinking and return nothing usable.</string>
+    <string name="translate_chapter">Translate</string>
+    <string name="translation_queued">Queued for translation</string>
+    <string name="translate_pages">Translate pages</string>
+    <string name="translating_chapter">Translating the chapter…</string>
+    <string name="translation_reading_page">Reading page %1$d of %2$d…</string>
+<string name="translation_sending">Translating the text…</string>
+<string name="translation_quota">Free requests left today</string>
+<string name="translation_quota_summary">%1$d of %2$d left. Tap to refresh; they reset at midnight UTC.</string>
+<string name="translation_failed">The chapter could not be translated</string>
+    <string name="translation_needs_download">Only downloaded chapters can be translated</string>
     <string name="release_digest">Notify about today\'s releases</string>
     <string name="release_digest_summary">A single notification each morning listing what is
         expected today. Nothing is sent on days with nothing expected.</string>

@@ -32,6 +32,11 @@ AND (
     :apply_filter = 0 OR S.name IS NULL
 );
 
+countByMangaId:
+SELECT COUNT(*)
+FROM chapters
+WHERE manga_id = :manga_id;
+
 getChaptersById:
 SELECT * FROM chapters
 WHERE _id = :id;
@@ -69,18 +74,43 @@ AND (
     :apply_filter = 0 OR S.name IS NULL
 );
 
+-- Chapters a merged source brought in are stored on that source's own manga row, which is not a
+-- favourite, so joining straight to `mangas` left them out of the updates list entirely: the
+-- library update fetched them and notified about them, and the tab showed nothing. Resolve the
+-- row a chapter is *shown* under before filtering on it.
 getRecents:
 SELECT
     M.*,
     C.*
-FROM mangas AS M
-JOIN chapters AS C
-ON M._id = C.manga_id
+FROM chapters AS C
+-- The row the chapter is stored on.
+JOIN mangas AS SRC
+ON SRC._id = C.manga_id
+LEFT JOIN merged_manga AS MM
+ON MM.url = SRC.url AND MM.source = SRC.source
+-- The library entry it belongs to: itself, or the manga it was merged into.
+JOIN mangas AS M
+ON M._id = coalesce(MM.manga_id, C.manga_id)
 LEFT JOIN scanlators_view AS S
-ON C.manga_id = S.manga_id
+ON S.manga_id = M._id
 AND C.scanlator = S.name
 WHERE M.favorite = 1
 AND C.date_fetch > M.date_added
+-- What the chapter list shows for a merged manga is one row per chapter number, the library
+-- entry's own source winning: a borrowed chapter that loses is not in the list, so it is not an
+-- update either. Without this, merging a source dumped its whole back catalogue into the tab,
+-- since every one of its chapters is fetched at merge time.
+AND (
+    MM.manga_id IS NULL OR (
+        C.chapter_number >= 0
+        AND NOT EXISTS (
+            SELECT 1 FROM chapters AS OWN
+            WHERE OWN.manga_id = M._id
+            -- Stored as REAL, so two rows for the same chapter differ in the last bits.
+            AND abs(OWN.chapter_number - C.chapter_number) < 0.001
+        )
+    )
+)
 AND lower(M.title) LIKE '%' || :search || '%'
 AND (
     :apply_filter = 0 OR S.name IS NULL

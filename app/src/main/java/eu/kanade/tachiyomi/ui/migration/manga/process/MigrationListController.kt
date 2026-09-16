@@ -18,6 +18,7 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.databinding.MigrationListControllerBinding
 import eu.kanade.tachiyomi.domain.manga.models.Manga
@@ -125,16 +126,26 @@ class MigrationListController(bundle: Bundle? = null) :
         binding.recycler.setHasFixedSize(true)
         binding.recycler.setOnApplyWindowInsetsListener(RecyclerWindowInsetsListener)
 
-        // Nothing is searched automatically any more. Guessing a target per source meant every
+        // Nothing is searched from here any more. Guessing a target per source meant every
         // enabled source got a search and a chapter list before anything could be shown, and the
         // guess was still wrong often enough to be checked by hand — so the hand search is the
         // whole flow now, and this list is only where the picks are reviewed.
+        //
+        // The exception is what the nightly pass already found and was not sure enough to apply:
+        // that search is done and paid for, so the row opens with its pick filled in and review
+        // is a confirmation rather than a repeat of the work.
+        val pending = AutoMigrateJob.pendingReview(preferences)
         newMigratingManga.forEach {
             if (!it.searchResult.initialized) {
-                it.migrationStatus = MigrationStatus.MANGA_NOT_FOUND
-                it.searchResult.initialize(null)
+                val candidate = pending[it.mangaId]
+                it.migrationStatus =
+                    if (candidate != null) MigrationStatus.MANGA_FOUND else MigrationStatus.MANGA_NOT_FOUND
+                it.searchResult.initialize(candidate)
             }
         }
+        // Consumed on open: the picks live on these rows now, and leaving them in the preference
+        // would have the next notification offer a review that has already happened.
+        if (pending.isNotEmpty()) AutoMigrateJob.clearPendingReview(preferences)
 
         adapter?.updateDataSet(newMigratingManga.map { it.toModal() })
 

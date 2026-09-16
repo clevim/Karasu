@@ -60,7 +60,7 @@ object GetSourceChapterCount {
     private suspend fun fetch(manga: Manga, id: Long): Int? {
         // A manga that was opened before — or is in the library — already has its chapters
         // stored, and that is both free and authoritative.
-        val stored = getChapter.awaitAllRaw(id, false).size
+        val stored = getChapter.awaitCountRaw(id)
         if (stored > 0) return stored
 
         val source = sourceManager.get(manga.source) ?: return null

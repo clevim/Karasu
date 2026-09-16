@@ -25,6 +25,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.multidex.MultiDex
+import androidx.work.Configuration
 import co.touchlab.kermit.LogWriter
 import co.touchlab.kermit.Logger
 import coil3.ImageLoader
@@ -88,7 +89,15 @@ import karasu.domain.storage.StorageManager
 import karasu.i18n.MR
 import karasu.util.lang.getString
 
-open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
+open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory, Configuration.Provider {
+
+    /**
+     * Builds WorkManager on first use instead of relying on its startup provider having run.
+     * Without this, anything that reaches WorkManager in a process where that provider never
+     * ran — Glance pushing a widget update, for one — throws instead of initializing.
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
 
     val preferences: PreferencesHelper by injectLazy()
     val basePreferences: BasePreferences by injectLazy()

@@ -11,6 +11,7 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.LayoutInflater
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.core.os.postDelayed
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -38,6 +39,8 @@ import eu.kanade.tachiyomi.util.system.withUIContext
 import eu.kanade.tachiyomi.util.view.backgroundColor
 import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
 import eu.kanade.tachiyomi.widget.ViewPagerAdapter
+import karasu.domain.translation.TranslationPreferences
+import karasu.translation.presentation.PagerTranslationsView
 import java.io.InputStream
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -47,6 +50,8 @@ import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.Buffer
@@ -116,6 +121,9 @@ class PagerPageHolder(
 
     private var scope = MainScope()
 
+    private val translationPreferences: TranslationPreferences by injectLazy()
+    private var translationsView: PagerTranslationsView? = null
+
     init {
         addView(progressIndicator)
         if (viewer.config.hingeGapSize > 0) {
@@ -125,6 +133,9 @@ class PagerPageHolder(
         }
         launchLoadJob()
         progressIndicator.setInvertMode(isInvertedFromTheme())
+        translationPreferences.showTranslations().changes()
+            .onEach { if (it) translationsView?.show() else translationsView?.hide() }
+            .launchIn(scope)
     }
 
     override fun onImageLoaded() {
@@ -154,6 +165,12 @@ class PagerPageHolder(
     override fun onScaleChanged(newScale: Float) {
         super.onScaleChanged(newScale)
         viewer.hideMenuIfVisible(item)
+        updateTranslationCoords()
+    }
+
+    override fun onCenterChanged(newCenter: PointF?) {
+        super.onCenterChanged(newCenter)
+        updateTranslationCoords()
     }
 
     override fun onImageLoadError() {
@@ -557,6 +574,8 @@ class PagerPageHolder(
      */
     private fun onImageDecoded() {
         progressIndicator.hide()
+        addTranslationsView()
+        updateTranslationCoords()
     }
 
     /**
@@ -564,7 +583,32 @@ class PagerPageHolder(
      */
     private fun onImageDecodeError() {
         progressIndicator.hide()
+        translationsView?.hide()
         showErrorLayout(true)
+    }
+
+    /**
+     * ponytail: the overlay's coordinates describe the page as it was scanned, so it stays off
+     * in every mode that rebuilds the bitmap — two pages merged side by side, a wide page split
+     * in half, or hinge padding inserted for a foldable.
+     */
+    private fun addTranslationsView() {
+        val rebuildsBitmap = extraPage != null ||
+            (page.longPage == true && viewer.config.splitPages) ||
+            viewer.config.hingeGapSize > 0
+        val translation = page.translation?.takeUnless { rebuildsBitmap } ?: return
+        removeView(translationsView)
+        translationsView = PagerTranslationsView(context, translation = translation).also {
+            if (!translationPreferences.showTranslations().get()) it.hide()
+            addView(it, MATCH_PARENT, MATCH_PARENT)
+        }
+    }
+
+    private fun updateTranslationCoords() {
+        val view = translationsView ?: return
+        val imageView = pageView as? SubsamplingScaleImageView ?: return
+        imageView.sourceToViewCoord(0f, 0f)?.let { view.viewTopLeftState.value = it }
+        view.scaleState.value = imageView.scale
     }
 
     private fun isInvertedFromTheme(): Boolean {

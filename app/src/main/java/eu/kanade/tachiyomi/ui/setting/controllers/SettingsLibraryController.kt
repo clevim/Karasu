@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.ui.setting.preferenceCategory
 import eu.kanade.tachiyomi.ui.setting.switchPreference
 import eu.kanade.tachiyomi.ui.setting.triStateListPreference
 import java.util.Calendar
+import eu.kanade.tachiyomi.util.system.formatHourOfDay
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.toast
@@ -362,15 +363,6 @@ class SettingsLibraryController : SettingsLegacyController() {
                 noSelectionRes = MR.strings.none
             }
         }
-    }
-
-    /** Whole hours, rendered in whatever clock the device is set to. */
-    private fun Context.formatHourOfDay(hour: Int): String {
-        val time = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, 0)
-        }
-        return DateFormat.getTimeFormat(this).format(time.time)
     }
 
     private companion object {

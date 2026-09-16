@@ -165,6 +165,10 @@ AND (
 
 UNION  -- Newly fetched chapter
 
+-- A merged source keeps its chapters on its own non-favourite manga row, so both the join and
+-- the "newest unread" subquery have to work on the row the chapter is *shown* under, not the one
+-- it is stored on. Otherwise the newest chapter of a manga whose merged source is the one still
+-- releasing was never this branch's answer. See the same shape in `chapters.sq:getRecents`.
 SELECT
     M.*,
     C.*,
@@ -172,27 +176,45 @@ SELECT
     NULL AS history_chapter_id,
     C.date_fetch AS history_last_read,
     NULL AS history_time_read
-FROM mangas AS M
-JOIN chapters AS C
-ON M._id = C.manga_id
+FROM chapters AS C
+JOIN mangas AS SRC
+ON SRC._id = C.manga_id
+LEFT JOIN merged_manga AS MM
+ON MM.url = SRC.url AND MM.source = SRC.source
+JOIN mangas AS M
+ON M._id = coalesce(MM.manga_id, C.manga_id)
 JOIN (
     SELECT
-        C2.manga_id,
+        coalesce(MM2.manga_id, C2.manga_id) AS display_id,
         C2._id,
-        max(date_upload)
-    FROM chapters AS C2 JOIN mangas AS M2
-    ON M2._id = C2.manga_id
+        max(C2.date_upload)
+    FROM chapters AS C2
+    JOIN mangas AS SRC2
+    ON SRC2._id = C2.manga_id
+    LEFT JOIN merged_manga AS MM2
+    ON MM2.url = SRC2.url AND MM2.source = SRC2.source
     WHERE C2.read = 0
-    GROUP BY C2.manga_id
+    GROUP BY display_id
 ) AS newest_chapter
-ON C.manga_id = newest_chapter.manga_id
+ON M._id = newest_chapter.display_id
 LEFT JOIN scanlators_view AS S
-ON C.manga_id = S.manga_id
+ON S.manga_id = M._id
 AND C.scanlator = S.name
-WHERE favorite = 1
+WHERE M.favorite = 1
 AND C._id = newest_chapter._id
 AND C.date_fetch > M.date_added
-AND lower(title) LIKE '%' || :search || '%'
+-- A borrowed chapter the library entry's own source already has is the same chapter twice.
+AND (
+    MM.manga_id IS NULL OR (
+        C.chapter_number >= 0
+        AND NOT EXISTS (
+            SELECT 1 FROM chapters AS OWN
+            WHERE OWN.manga_id = M._id
+            AND abs(OWN.chapter_number - C.chapter_number) < 0.001
+        )
+    )
+)
+AND lower(M.title) LIKE '%' || :search || '%'
 AND (
     :apply_filter = 0 OR S.name IS NULL
 )

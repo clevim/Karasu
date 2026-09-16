@@ -4,6 +4,7 @@ import android.app.LocaleManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
+import java.util.Calendar
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
@@ -67,6 +68,15 @@ inline fun Context.notification(channelId: String, func: NotificationCompat.Buil
     val builder = NotificationCompat.Builder(this, channelId)
     builder.func()
     return builder.build()
+}
+
+/** Whole hours, rendered in whatever clock the device is set to. */
+fun Context.formatHourOfDay(hour: Int): String {
+    val time = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, 0)
+    }
+    return android.text.format.DateFormat.getTimeFormat(this).format(time.time)
 }
 
 /**

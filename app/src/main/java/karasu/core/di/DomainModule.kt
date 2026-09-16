@@ -103,7 +103,7 @@ fun domainModule() = module {
 
     single<MangaRepository> { MangaRepositoryImpl(get()) }
     factory { GetManga(get()) }
-    factory { GetLibraryManga(get()) }
+    factory { GetLibraryManga(get(), get(), get()) }
     factory { InsertManga(get()) }
     factory { UpdateManga(get()) }
 

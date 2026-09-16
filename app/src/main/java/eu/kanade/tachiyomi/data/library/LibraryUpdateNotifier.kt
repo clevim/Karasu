@@ -35,9 +35,6 @@ import eu.kanade.tachiyomi.util.lang.chop
 import eu.kanade.tachiyomi.util.system.notification
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notificationManager
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.models.cover
@@ -201,12 +198,6 @@ class LibraryUpdateNotifier(private val context: Context) {
     }
 
     /**
-     * Shows the notification containing the result of the update done by the service.
-     *
-     * @param updates a list of manga with new updates.
-     */
-    @OptIn(DelicateCoroutinesApi::class)
-    /**
      * Names of the sources that lent chapters to this batch, keyed by the manga row they came from.
      *
      * Resolved once for the whole batch rather than per chapter: a merged manga contributes a run
@@ -224,141 +215,149 @@ class LibraryUpdateNotifier(private val context: Context) {
         }
         .toMap()
 
-    fun showResultNotification(newUpdates: Map<LibraryManga, Array<Chapter>>) {
+    /**
+     * Shows the notification containing the result of the update done by the service.
+     *
+     * Suspends until the notifications are actually posted. Building them loads a cover per manga,
+     * which is disk or network work; firing this off into a scope the caller does not wait on let
+     * the update job return, and WorkManager tears the process down as soon as it does — so on a
+     * background run the chapters landed in the library and the notification never arrived.
+     *
+     * @param newUpdates a list of manga with new updates.
+     */
+    suspend fun showResultNotification(newUpdates: Map<LibraryManga, Array<Chapter>>) {
         // create a copy of the list since it will be cleared by the time it is used
         val updates = newUpdates.toMap()
-        GlobalScope.launch {
-            val notifications = ArrayList<Pair<Notification, Int>>()
-            if (!preferences.hideNotificationContent().get()) {
-                val borrowedFrom = borrowedSourceNames(updates)
-                updates.forEach {
-                    val manga = it.key
-                    val chapters = it.value
-                    val chapterNames = chapters.map { chapter ->
-                        val name = chapter.preferredChapterName(context, manga.manga, preferences)
-                        // A chapter stored under another row got here from a merged source, which
-                        // means the manga's own source hasn't got it. Saying where it came from is
-                        // the difference between "47 is out" and "47 is out, just not where you
-                        // normally read it".
-                        when (val from = chapter.manga_id?.takeIf { id -> id != manga.manga.id }) {
-                            null -> name
-                            else -> borrowedFrom[from]?.let { source -> "$name ($source)" } ?: name
-                        }
+        val notifications = ArrayList<Pair<Notification, Int>>()
+        if (!preferences.hideNotificationContent().get()) {
+            val borrowedFrom = borrowedSourceNames(updates)
+            updates.forEach {
+                val manga = it.key
+                val chapters = it.value
+                val chapterNames = chapters.map { chapter ->
+                    val name = chapter.preferredChapterName(context, manga.manga, preferences)
+                    // A chapter stored under another row got here from a merged source, which
+                    // means the manga's own source hasn't got it. Saying where it came from is
+                    // the difference between "47 is out" and "47 is out, just not where you
+                    // normally read it".
+                    when (val from = chapter.manga_id?.takeIf { id -> id != manga.manga.id }) {
+                        null -> name
+                        else -> borrowedFrom[from]?.let { source -> "$name ($source)" } ?: name
                     }
-                    notifications.add(
-                        Pair(
-                            context.notification(Notifications.CHANNEL_NEW_CHAPTERS) {
-                                setSmallIcon(R.drawable.ic_karasu)
-                                try {
-                                    val request = ImageRequest.Builder(context).data(manga.manga.cover())
-                                        .networkCachePolicy(CachePolicy.DISABLED)
-                                        .diskCachePolicy(CachePolicy.ENABLED)
-                                        .transformations(CircleCropTransformation())
-                                        .size(width = ICON_SIZE, height = ICON_SIZE).build()
-
-                                    context.imageLoader
-                                        .execute(request).image?.asDrawable(context.resources)?.let { drawable ->
-                                            setLargeIcon((drawable as? BitmapDrawable)?.bitmap)
-                                        }
-                                } catch (_: Exception) {
-                                }
-                                setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
-                                setContentTitle(manga.manga.title)
-                                color = ContextCompat.getColor(context, R.color.secondaryTachiyomi)
-                                val chaptersNames = if (chapterNames.size > MAX_CHAPTERS) {
-                                    "${chapterNames.take(MAX_CHAPTERS - 1).joinToString(", ")}, " +
-                                        context.getString(
-                                            MR.plurals.notification_and_n_more,
-                                            (chapterNames.size - (MAX_CHAPTERS - 1)),
-                                            (chapterNames.size - (MAX_CHAPTERS - 1)),
-                                        )
-                                } else {
-                                    chapterNames.joinToString(", ")
-                                }
-                                setContentText(chaptersNames)
-                                setStyle(NotificationCompat.BigTextStyle().bigText(chaptersNames))
-                                priority = NotificationCompat.PRIORITY_HIGH
-                                setGroup(Notifications.GROUP_NEW_CHAPTERS)
-                                setContentIntent(
-                                    NotificationReceiver.openChapterPendingActivity(
-                                        context,
-                                        manga.manga,
-                                        chapters.first(),
-                                    ),
-                                )
-                                addAction(
-                                    R.drawable.ic_eye_24dp,
-                                    context.getString(MR.strings.mark_as_read),
-                                    NotificationReceiver.markAsReadPendingBroadcast(
-                                        context,
-                                        manga.manga,
-                                        chapters,
-                                        Notifications.ID_NEW_CHAPTERS,
-                                    ),
-                                )
-                                addAction(
-                                    R.drawable.ic_book_24dp,
-                                    context.getString(MR.strings.view_chapters),
-                                    NotificationReceiver.openChapterPendingActivity(
-                                        context,
-                                        manga.manga,
-                                        Notifications.ID_NEW_CHAPTERS,
-                                    ),
-                                )
-                                setAutoCancel(true)
-                            },
-                            manga.manga.id.hashCode(),
-                        ),
-                    )
                 }
-            }
+                notifications.add(
+                    Pair(
+                        context.notification(Notifications.CHANNEL_NEW_CHAPTERS) {
+                            setSmallIcon(R.drawable.ic_karasu)
+                            try {
+                                val request = ImageRequest.Builder(context).data(manga.manga.cover())
+                                    .networkCachePolicy(CachePolicy.DISABLED)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .transformations(CircleCropTransformation())
+                                    .size(width = ICON_SIZE, height = ICON_SIZE).build()
 
-            NotificationManagerCompat.from(context).apply {
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED
-                ) {
-                    return@apply
-                }
-                notify(
-                    Notifications.ID_NEW_CHAPTERS,
-                    context.notification(Notifications.CHANNEL_NEW_CHAPTERS) {
-                        setSmallIcon(R.drawable.ic_karasu)
-                        setLargeIcon(notificationBitmap)
-                        setContentTitle(context.getString(MR.strings.new_chapters_found))
-                        color = ContextCompat.getColor(context, R.color.secondaryTachiyomi)
-                        if (updates.size > 1) {
-                            setContentText(
-                                context.getString(
-                                    MR.plurals.for_n_titles,
-                                    updates.size,
-                                    updates.size,
+                                context.imageLoader
+                                    .execute(request).image?.asDrawable(context.resources)?.let { drawable ->
+                                        setLargeIcon((drawable as? BitmapDrawable)?.bitmap)
+                                    }
+                            } catch (_: Exception) {
+                            }
+                            setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+                            setContentTitle(manga.manga.title)
+                            color = ContextCompat.getColor(context, R.color.secondaryTachiyomi)
+                            val chaptersNames = if (chapterNames.size > MAX_CHAPTERS) {
+                                "${chapterNames.take(MAX_CHAPTERS - 1).joinToString(", ")}, " +
+                                    context.getString(
+                                        MR.plurals.notification_and_n_more,
+                                        (chapterNames.size - (MAX_CHAPTERS - 1)),
+                                        (chapterNames.size - (MAX_CHAPTERS - 1)),
+                                    )
+                            } else {
+                                chapterNames.joinToString(", ")
+                            }
+                            setContentText(chaptersNames)
+                            setStyle(NotificationCompat.BigTextStyle().bigText(chaptersNames))
+                            priority = NotificationCompat.PRIORITY_HIGH
+                            setGroup(Notifications.GROUP_NEW_CHAPTERS)
+                            setContentIntent(
+                                NotificationReceiver.openChapterPendingActivity(
+                                    context,
+                                    manga.manga,
+                                    chapters.first(),
                                 ),
                             )
-                            if (!preferences.hideNotificationContent().get()) {
-                                setStyle(
-                                    NotificationCompat.BigTextStyle()
-                                        .bigText(
-                                            updates.keys.joinToString("\n") {
-                                                it.manga.title.chop(45)
-                                            },
-                                        ),
-                                )
-                            }
-                        } else if (!preferences.hideNotificationContent().get()) {
-                            setContentText(updates.keys.first().manga.title.chop(45))
-                        }
-                        priority = NotificationCompat.PRIORITY_HIGH
-                        setGroup(Notifications.GROUP_NEW_CHAPTERS)
-                        setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
-                        setGroupSummary(true)
-                        setContentIntent(getNotificationIntent())
-                        setAutoCancel(true)
-                    },
+                            addAction(
+                                R.drawable.ic_eye_24dp,
+                                context.getString(MR.strings.mark_as_read),
+                                NotificationReceiver.markAsReadPendingBroadcast(
+                                    context,
+                                    manga.manga,
+                                    chapters,
+                                    Notifications.ID_NEW_CHAPTERS,
+                                ),
+                            )
+                            addAction(
+                                R.drawable.ic_book_24dp,
+                                context.getString(MR.strings.view_chapters),
+                                NotificationReceiver.openChapterPendingActivity(
+                                    context,
+                                    manga.manga,
+                                    Notifications.ID_NEW_CHAPTERS,
+                                ),
+                            )
+                            setAutoCancel(true)
+                        },
+                        manga.manga.id.hashCode(),
+                    ),
                 )
+            }
+        }
 
-                notifications.forEach {
-                    notify(it.second, it.first)
-                }
+        NotificationManagerCompat.from(context).apply {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return@apply
+            }
+            notify(
+                Notifications.ID_NEW_CHAPTERS,
+                context.notification(Notifications.CHANNEL_NEW_CHAPTERS) {
+                    setSmallIcon(R.drawable.ic_karasu)
+                    setLargeIcon(notificationBitmap)
+                    setContentTitle(context.getString(MR.strings.new_chapters_found))
+                    color = ContextCompat.getColor(context, R.color.secondaryTachiyomi)
+                    if (updates.size > 1) {
+                        setContentText(
+                            context.getString(
+                                MR.plurals.for_n_titles,
+                                updates.size,
+                                updates.size,
+                            ),
+                        )
+                        if (!preferences.hideNotificationContent().get()) {
+                            setStyle(
+                                NotificationCompat.BigTextStyle()
+                                    .bigText(
+                                        updates.keys.joinToString("\n") {
+                                            it.manga.title.chop(45)
+                                        },
+                                    ),
+                            )
+                        }
+                    } else if (!preferences.hideNotificationContent().get()) {
+                        setContentText(updates.keys.first().manga.title.chop(45))
+                    }
+                    priority = NotificationCompat.PRIORITY_HIGH
+                    setGroup(Notifications.GROUP_NEW_CHAPTERS)
+                    setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_SUMMARY)
+                    setGroupSummary(true)
+                    setContentIntent(getNotificationIntent())
+                    setAutoCancel(true)
+                },
+            )
+
+            notifications.forEach {
+                notify(it.second, it.first)
             }
         }
     }

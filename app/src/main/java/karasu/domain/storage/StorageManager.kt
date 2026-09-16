@@ -90,6 +90,10 @@ class StorageManager(
         return baseDir?.createDirectory(PAGES_PATH)
     }
 
+    fun getTranslationsDirectory(): UniFile? {
+        return baseDir?.createDirectory(TRANSLATIONS_PATH)
+    }
+
     fun getLogsDirectory(): UniFile? {
         return baseDir?.createDirectory(LOGS_PATH)
     }
@@ -101,6 +105,7 @@ class StorageManager(
         const val LOCAL_SOURCE_PATH = "local"
         private const val COVERS_PATH = "covers"
         private const val PAGES_PATH = "pages"
+        private const val TRANSLATIONS_PATH = "translations"
         private const val LOGS_PATH = "logs"
     }
 }

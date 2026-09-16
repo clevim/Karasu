@@ -30,6 +30,7 @@ import eu.kanade.tachiyomi.data.database.models.prepareCoverUpdate
 import eu.kanade.tachiyomi.data.download.DownloadJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
+import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
@@ -228,8 +229,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             preferences.libraryUpdateLastTimestamp().set(Date().time)
         }
 
-        val savedMangasList = inputData.getLongArray(KEY_MANGAS)?.asList()?.plus(extraManga)
-        extraManga = emptyList()
+        val savedMangasList = inputData.getLongArray(KEY_MANGAS)?.asList()
 
         val mangaList = (
             if (savedMangasList != null) {
@@ -518,7 +518,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // walks, so refresh them alongside the manga they belong to.
             val mergedChapters = mergedSourceSync.await(manga.manga.id!!)
 
-            val knownChapters = getChapter.awaitAll(manga.manga.id!!, false)
+            // Unmerged on purpose: this is handed to the source as "what I already have of
+            // yours", and a merged entry's list carries other sources' chapters, which are none
+            // of this source's business. It also skips the merge work for entries that have it.
+            val knownChapters = getChapter.awaitAllRaw(manga.manga.id!!, false)
             val fetchedChapters = source.getMangaUpdate(
                 manga = manga.manga.copy(),
                 chapters = knownChapters,
@@ -806,8 +809,6 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
 
         private var instance: WeakReference<LibraryUpdateJob>? = null
 
-        private var extraManga = emptyList<Long>()
-
         val updateMutableFlow = MutableSharedFlow<Long?>(
             extraBufferCapacity = 10,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -856,6 +857,10 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // the digest only reads estimates the app already has and never goes online, so
             // "manual updates only" is not a statement about it. Its own hour is its off switch.
             ReleaseDigestJob.setupTask(context)
+            // Also ungated: whether to go looking for a new home for a dead source has nothing to
+            // do with how often the library is refreshed. Its own hour is its off switch, and
+            // re-registering here is what survives a reboot or an app update.
+            AutoMigrateJob.setupTask(context)
         }
 
         fun cancelAllWorks(context: Context) {
@@ -900,12 +905,13 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             category?.id?.let { builder.putInt(KEY_CATEGORY, it) }
             // Independent of the category: an explicit list is the whole instruction on its own,
             // which is how the release watcher hands over the manga whose window just opened.
+            //
+            // The whole list goes in the input data rather than being parked in a field for the
+            // worker to pick up: WorkManager may start the worker in a fresh process, and a field
+            // does not survive that, so the batch would silently shrink to nothing. `Data` holds
+            // 10 KB, which is over a thousand ids — far more than any caller hands over.
             if (mangaToUse != null) {
-                builder.putLongArray(
-                    KEY_MANGAS,
-                    mangaToUse.firstOrNull()?.manga?.id?.let { longArrayOf(it) } ?: longArrayOf(),
-                )
-                extraManga = mangaToUse.drop(1).mapNotNull { it.manga.id }
+                builder.putLongArray(KEY_MANGAS, mangaToUse.mapNotNull { it.manga.id }.toLongArray())
             }
             val inputData = builder.build()
             val request = OneTimeWorkRequestBuilder<LibraryUpdateJob>()

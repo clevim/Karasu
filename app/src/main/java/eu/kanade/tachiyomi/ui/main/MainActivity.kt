@@ -70,6 +70,7 @@ import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
+import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.changesIn
@@ -90,6 +91,8 @@ import eu.kanade.tachiyomi.ui.library.broken.BrokenSourcesController
 import eu.kanade.tachiyomi.ui.library.calendar.ReleaseCalendarController
 import eu.kanade.tachiyomi.ui.library.compose.LibraryComposeController
 import eu.kanade.tachiyomi.ui.manga.MangaDetailsController
+import eu.kanade.tachiyomi.ui.migration.manga.process.MigrationListController
+import eu.kanade.tachiyomi.ui.migration.manga.process.MigrationProcedureConfig
 import eu.kanade.tachiyomi.ui.more.AboutController
 import eu.kanade.tachiyomi.ui.more.OverflowDialog
 import eu.kanade.tachiyomi.ui.more.stats.StatsController
@@ -1065,6 +1068,21 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
                     router.pushController(ReleaseCalendarController().withFadeTransaction())
                 }
             }
+            SHORTCUT_MIGRATE_REVIEW -> {
+                // The targets the nightly pass found but would not apply on its own. Same review
+                // screen as a hand-started migration, with the picks already filled in.
+                val pending = AutoMigrateJob.pendingReview(preferences)
+                if (pending.isNotEmpty()) {
+                    nav.selectedItemId = R.id.nav_library
+                    nav.post {
+                        router.pushController(
+                            MigrationListController.create(
+                                MigrationProcedureConfig(pending.keys.toList()),
+                            ).withFadeTransaction(),
+                        )
+                    }
+                }
+            }
             SHORTCUT_RECENTLY_UPDATED, SHORTCUT_RECENTLY_READ, Constants.SHORTCUT_RECENTS -> {
                 if (nav.selectedItemId != R.id.nav_recents) {
                     nav.selectedItemId = R.id.nav_recents
@@ -1643,6 +1661,7 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
         const val SHORTCUT_READER_SETTINGS = "eu.kanade.tachiyomi.READER_SETTINGS"
         const val SHORTCUT_EXTENSIONS = "eu.kanade.tachiyomi.EXTENSIONS"
         const val SHORTCUT_BROKEN_SOURCES = "eu.kanade.tachiyomi.SHOW_BROKEN_SOURCES"
+        const val SHORTCUT_MIGRATE_REVIEW = "eu.kanade.tachiyomi.SHOW_MIGRATE_REVIEW"
 
         const val INTENT_SEARCH = "eu.kanade.tachiyomi.SEARCH"
         const val INTENT_SEARCH_QUERY = "query"

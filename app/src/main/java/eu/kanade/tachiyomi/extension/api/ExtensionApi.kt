@@ -125,8 +125,9 @@ internal class ExtensionApi {
                 return@mapNotNull null
             }
             val resources = ext.resources ?: return@mapNotNull null
-            val apkName = resources.apkUrl.substringAfterLast('/')
-            if (apkName.isEmpty()) return@mapNotNull null
+            // Keep the URL as published: Keiyoushi serves APKs from GitHub Releases, not $repo/apk/
+            val apkName = resources.apkUrl
+            if (apkName.substringAfterLast('/').isEmpty()) return@mapNotNull null
 
             val languages = ext.sources.map { it.language }.toSet()
             Extension.Available(
@@ -187,7 +188,8 @@ internal class ExtensionApi {
     }
 
     fun getApkUrl(extension: ExtensionManager.ExtensionInfo): String {
-        return "${extension.repoUrl}/apk/${extension.apkName}"
+        val apkName = extension.apkName
+        return if (apkName.startsWith("http")) apkName else "${extension.repoUrl}/apk/$apkName"
     }
 
     private fun ExtensionJsonObject.extractLibVersion(): Double {

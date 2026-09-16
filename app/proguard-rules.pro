@@ -114,3 +114,9 @@
 # Firebase
 -keep class com.google.firebase.installations.** { *; }
 -keep interface com.google.firebase.installations.** { *; }
+
+# WindowManager Extensions / Sidecar
+# Supplied by the OEM at runtime and never bundled, which is why androidx.window reaches them
+# through its reflection guards. R8 only warns that it cannot see what was never meant to ship.
+-dontwarn androidx.window.extensions.**
+-dontwarn androidx.window.sidecar.**

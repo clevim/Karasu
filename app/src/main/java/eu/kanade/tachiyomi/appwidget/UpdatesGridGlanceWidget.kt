@@ -16,6 +16,7 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.fillMaxSize
+import co.touchlab.kermit.Logger
 import coil3.asDrawable
 import coil3.executeBlocking
 import coil3.imageLoader
@@ -97,24 +98,28 @@ class UpdatesGridGlanceWidget : GlanceAppWidget() {
 
     fun loadData(list: List<Pair<Manga, Long>>? = null) {
         coroutineScope.launchIO {
-            // Don't show anything when lock is active
-            if (preferences.useBiometrics().get()) {
-                updateAll(app)
-                return@launchIO
-            }
+            // Detached from any screen, so an exception here would take the whole app down over
+            // a widget that failed to redraw.
+            runCatching {
+                // Don't show anything when lock is active
+                if (preferences.useBiometrics().get()) {
+                    updateAll(app)
+                    return@runCatching
+                }
 
-            val manager = GlanceAppWidgetManager(app)
-            val ids = manager.getGlanceIds(this@UpdatesGridGlanceWidget::class.java)
-            if (ids.isEmpty()) return@launchIO
+                val manager = GlanceAppWidgetManager(app)
+                val ids = manager.getGlanceIds(this@UpdatesGridGlanceWidget::class.java)
+                if (ids.isEmpty()) return@runCatching
 
-            val (rowCount, columnCount) = ids
-                .flatMap { manager.getAppWidgetSizes(it) }
-                .maxBy { it.height.value * it.width.value }
-                .calculateRowAndColumnCount()
-            val processList = list ?: getUpdates(customAmount = min(50, rowCount * columnCount))
+                val (rowCount, columnCount) = ids
+                    .flatMap { manager.getAppWidgetSizes(it) }
+                    .maxBy { it.height.value * it.width.value }
+                    .calculateRowAndColumnCount()
+                val processList = list ?: getUpdates(customAmount = min(50, rowCount * columnCount))
 
-            data = prepareList(processList, rowCount * columnCount)
-            ids.forEach { update(app, it) }
+                data = prepareList(processList, rowCount * columnCount)
+                ids.forEach { update(app, it) }
+            }.onFailure { Logger.e(it) { "Could not refresh the updates widget" } }
         }
     }
 

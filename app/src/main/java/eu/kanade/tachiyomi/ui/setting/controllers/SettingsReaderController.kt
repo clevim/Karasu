@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.bindTo
 import eu.kanade.tachiyomi.ui.setting.defaultValue
+import eu.kanade.tachiyomi.ui.setting.editTextPreference
 import eu.kanade.tachiyomi.ui.setting.infoPreference
 import eu.kanade.tachiyomi.ui.setting.intListPreference
 import eu.kanade.tachiyomi.ui.setting.listPreference
@@ -28,18 +29,29 @@ import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.isTablet
 import eu.kanade.tachiyomi.util.view.activityBinding
 import uy.kohesive.injekt.injectLazy
+import karasu.domain.translation.TranslationPreferences
 import karasu.domain.ui.settings.ReaderPreferences
 import karasu.domain.ui.settings.ReaderPreferences.CutoutBehaviour
 import karasu.domain.ui.settings.ReaderPreferences.LandscapeCutoutBehaviour
 import karasu.i18n.MR
+import karasu.translation.recognizer.OcrLanguage
+import karasu.translation.translator.TranslationEngine
+import karasu.translation.translator.TranslationLanguages
 import karasu.util.lang.getString
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
+import karasu.translation.translator.OpenRouterQuota
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import eu.kanade.tachiyomi.util.system.launchIO
+import eu.kanade.tachiyomi.util.system.withUIContext
 
 class SettingsReaderController : SettingsLegacyController() {
 
     private val readerPreferences: ReaderPreferences by injectLazy()
+
+    private val translationPreferences: TranslationPreferences by injectLazy()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.reader
@@ -417,6 +429,76 @@ class SettingsReaderController : SettingsLegacyController() {
                 bindTo(preferences.folderPerManga())
                 titleRes = MR.strings.save_pages_separately
                 summaryRes = MR.strings.create_folders_by_manga_title
+            }
+        }
+
+        preferenceCategory {
+            titleRes = MR.strings.translation
+
+            switchPreference {
+                bindTo(translationPreferences.showTranslations())
+                titleRes = MR.strings.show_translations
+                summaryRes = MR.strings.show_translations_summary
+            }
+            switchPreference {
+                bindTo(translationPreferences.autoTranslateAfterDownload())
+                titleRes = MR.strings.auto_translate_after_download
+                summaryRes = MR.strings.auto_translate_after_download_summary
+            }
+            listPreference(activity) {
+                bindTo(translationPreferences.translateFrom())
+                titleRes = MR.strings.translate_from
+                entryValues = OcrLanguage.entries.map { it.name }
+                entries = OcrLanguage.entries.map { TranslationLanguages.displayName(it.code) }
+            }
+            listPreference(activity) {
+                bindTo(translationPreferences.translateTo())
+                titleRes = MR.strings.translate_to
+                entryValues = TranslationLanguages.targets
+                entries = TranslationLanguages.targets.map { TranslationLanguages.displayName(it) }
+            }
+            listPreference(activity) {
+                bindTo(translationPreferences.engine())
+                titleRes = MR.strings.translation_engine
+                entryValues = TranslationEngine.entries.map { it.name }
+                entries = TranslationEngine.entries.map { it.label }
+            }
+            editTextPreference(activity) {
+                bindTo(translationPreferences.engineApiKey())
+                titleRes = MR.strings.translation_api_key
+                summaryRes = MR.strings.translation_api_key_summary
+
+                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
+            }
+            preference {
+                titleRes = MR.strings.translation_quota
+                isPersistent = false
+                val quota: OpenRouterQuota = Injekt.get()
+                summary = context.getString(
+                    MR.strings.translation_quota_summary,
+                    quota.remaining(),
+                    quota.cap(),
+                )
+                onClick {
+                    viewScope.launchIO {
+                        quota.refreshCap(translationPreferences.engineApiKey().get())
+                        withUIContext {
+                            summary = context.getString(
+                                MR.strings.translation_quota_summary,
+                                quota.remaining(),
+                                quota.cap(),
+                            )
+                        }
+                    }
+                }
+                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
+            }
+            editTextPreference(activity) {
+                bindTo(translationPreferences.engineModel())
+                titleRes = MR.strings.translation_model
+                summaryRes = MR.strings.translation_model_summary
+
+                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
             }
         }
     }

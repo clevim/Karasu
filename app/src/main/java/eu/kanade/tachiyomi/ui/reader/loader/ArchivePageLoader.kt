@@ -5,11 +5,15 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import karasu.core.archive.ArchiveReader
+import karasu.translation.model.PageTranslation
 
 /**
  * Loader used to load a chapter from an archive file.
  */
-internal class ArchivePageLoader(private val reader: ArchiveReader) : PageLoader() {
+internal class ArchivePageLoader(
+    private val reader: ArchiveReader,
+    private val translations: Map<String, PageTranslation> = emptyMap(),
+) : PageLoader() {
 
     override val isLocal: Boolean = true
 
@@ -31,6 +35,7 @@ internal class ArchivePageLoader(private val reader: ArchiveReader) : PageLoader
             .mapIndexed { i, entry ->
                 ReaderPage(i).apply {
                     stream = { reader.getInputStream(entry.name)!! }
+                    translation = translations[entry.name]
                     status = Page.State.Ready
                 }
             }

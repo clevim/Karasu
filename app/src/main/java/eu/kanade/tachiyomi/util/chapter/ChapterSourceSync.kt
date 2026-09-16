@@ -68,19 +68,22 @@ suspend fun syncChaptersWithSource(
     // Chapters whose metadata have changed.
     val toChange = mutableListOf<ChapterUpdate>()
 
-    val duplicates = dbChapters.groupBy { it.url }
-        .filter { it.value.size > 1 }
-        .flatMap { (_, chapters) ->
-            chapters.drop(1)
-        }
-    val notInSource = dbChapters.filterNot { dbChapter ->
-        sourceChapters.any { sourceChapter ->
-            dbChapter.url == sourceChapter.url
-        }
-    }
+    // Grouped once and reused: the duplicate rows below and the per-chapter lookup in the loop
+    // are both "the stored rows for this url", and scanning the list for each of a few thousand
+    // chapters is what made a sync of a long series quadratic.
+    val dbChaptersByUrl = dbChapters.groupBy { it.url }
+    val duplicates = dbChaptersByUrl.values
+        .filter { it.size > 1 }
+        .flatMap { chapters -> chapters.drop(1) }
+    val sourceUrls = sourceChapters.mapTo(HashSet()) { it.url }
+    val notInSource = dbChapters.filterNot { it.url in sourceUrls }
     val toDelete = duplicates + notInSource
 
-    val managedUrls = mutableListOf<String>()
+    val managedUrls = mutableSetOf<String>()
+
+    // The chapters whose stored order no longer matches the source's, collected while they are
+    // found rather than looked up again afterwards.
+    val reorderedUrls = mutableSetOf<String>()
 
     for (sourceChapter in sourceChapters) {
         val chapter = sourceChapter
@@ -92,11 +95,12 @@ suspend fun syncChaptersWithSource(
         }
         chapter.chapter_number = ChapterRecognition.parseChapterNumber(chapter.name, manga.title, chapter.chapter_number)
 
-        val dbChapter = dbChapters.find { it.url == chapter.url }
+        val dbChapter = dbChaptersByUrl[chapter.url]?.first()
 
         // Add the chapter if not in db already, or update if the metadata changed.
         if (dbChapter == null) {
             toAdd.add(chapter)
+            reorderedUrls.add(chapter.url)
         } else {
             if (shouldUpdateDbChapter(dbChapter, chapter)) {
                 if ((dbChapter.name != chapter.name || dbChapter.scanlator != chapter.scanlator) &&
@@ -113,6 +117,7 @@ suspend fun syncChaptersWithSource(
                     sourceOrder = chapter.source_order.toLong(),
                 )
                 toChange.add(update)
+                reorderedUrls.add(chapter.url)
             }
         }
 
@@ -145,6 +150,13 @@ suspend fun syncChaptersWithSource(
 
     val now = Date().time
 
+    // When a chapter comes back under a new url, it keeps the fetch date it originally had so it
+    // does not resurface in Updates. Grouped up front: the alternative is rescanning every
+    // deleted row for each added one.
+    val oldestDeletedFetch = toDelete
+        .groupBy { it.chapter_number }
+        .mapValues { (_, chapters) -> chapters.minOf { it.date_fetch } }
+
     val markDuplicateAsRead = libraryPreferences.markDuplicateReadChapterAsRead().get()
         .contains(LibraryPreferences.MARK_DUPLICATE_READ_CHAPTER_READ_NEW)
 
@@ -167,10 +179,7 @@ suspend fun syncChaptersWithSource(
         chapter.bookmark = chapter.chapter_number in deletedBookmarkedChapterNumbers
 
         // Try to use the fetch date it originally had to not pollute 'Updates' tab
-        toDelete.filter { it.chapter_number == chapter.chapter_number }
-            .minByOrNull { it.date_fetch }?.let {
-                chapter.date_fetch = it.date_fetch
-            }
+        oldestDeletedFetch[chapter.chapter_number]?.let { chapter.date_fetch = it }
 
         changedOrDuplicateReadUrls.add(chapter.url)
 
@@ -194,9 +203,6 @@ suspend fun syncChaptersWithSource(
         // Fix order in source. Only the chapters that moved: the rest already hold the order
         // this would write, and a manga with two thousand chapters is two thousand no-op
         // UPDATEs inside the transaction on every sync that changed anything at all.
-        val reorderedUrls = (toAdd.map { it.url } + toChange.mapNotNull { change ->
-            dbChapters.find { it.id == change.id }?.url
-        }).toSet()
         sourceChapters.forEach { chapter ->
             if (chapter.manga_id == null || chapter.url !in reorderedUrls) return@forEach
             chaptersQueries.fixSourceOrder(

@@ -184,6 +184,8 @@
     <string name="rule_field_total_chapters">Total de capítulos</string>
     <string name="rule_field_days_since_read">Dias desde a última leitura</string>
     <string name="rule_field_days_since_update">Dias desde o último lançamento</string>
+    <string name="rule_field_days_until_release">Dias até o próximo lançamento</string>
+    <string name="rule_field_release_stalled">Parece ter parado de lançar</string>
     <string name="rule_field_status">Status de publicação</string>
     <string name="rule_field_source_missing">Fonte ausente</string>
     <string name="rule_field_source_obsolete">Extensão obsoleta</string>
@@ -191,6 +193,12 @@
     <string name="rule_field_never_read">Nunca lido</string>
     <string name="rule_field_update_failures_note">Problemas de conexão nunca contam aqui, então isso não dispara quando você está offline.</string>
     <string name="rule_field_days_since_read_note">Entradas que você nunca abriu não são contadas aqui — use \"Nunca lido\" para esses casos.</string>
+    <string name="rule_field_days_until_release_note">Faz a contagem regressiva até o lançamento
+        previsto e fica negativo quando atrasa, então \"é menor que 1\" quer dizer previsto para
+        hoje ou atrasado. Obras que ainda não têm previsão não são contadas aqui.</string>
+    <string name="rule_field_release_stalled_note">Atrasada em vários dos próprios ciclos de
+        lançamento, então um mês de silêncio conta para uma série semanal, mas não para uma
+        trimestral. Obras que ainda não têm previsão não são contadas aqui.</string>
     <string name="rule_operator_greater">é maior que</string>
     <string name="rule_operator_less">é menor que</string>
     <string name="rule_operator_equal">é</string>
@@ -951,6 +959,33 @@
         que faltam. Vale para a biblioteca inteira.</string>
     <string name="recalculate_release_estimates_running">Recalculando…</string>
     <string name="recalculate_release_estimates_done">%1$d obras posicionadas no calendário</string>
+    <string name="translation">Tradução</string>
+    <string name="show_translations">Mostrar traduções</string>
+    <string name="show_translations_summary">Desenha o texto traduzido por cima da página nos
+        capítulos que já foram traduzidos.</string>
+    <string name="auto_translate_after_download">Traduzir depois de baixar</string>
+    <string name="auto_translate_after_download_summary">Cada capítulo é traduzido assim que o
+        download termina. Só dá para traduzir capítulo baixado.</string>
+    <string name="translate_from">Idioma da página</string>
+    <string name="translate_to">Traduzir para</string>
+    <string name="translation_engine">Motor de tradução</string>
+    <string name="translation_api_key">Chave da API</string>
+    <string name="translation_api_key_summary">Necessária para os motores que traduzem na nuvem.</string>
+    <string name="translation_model">Modelo</string>
+    <string name="translation_model_summary">Qualquer id de modelo do openrouter.ai. Evite modelos de raciocínio: eles gastam a resposta inteira pensando e não devolvem nada aproveitável.</string>
+    <string name="translate_chapter">Traduzir</string>
+    <string name="translation_queued">Na fila de tradução</string>
+    <string name="translate_pages">Traduzir as páginas</string>
+    <string name="translating_chapter">Traduzindo o capítulo…</string>
+    <string name="translation_reading_page">Lendo a página %1$d de %2$d…</string>
+    <string name="translation_sending">Traduzindo o texto…</string>
+    <string name="translation_quota">Requisições grátis restantes hoje</string>
+    <string name="translation_quota_summary">%1$d de %2$d restantes. Toque para atualizar; renovam à meia-noite UTC.</string>
+    <string name="translation_failed">Não foi possível traduzir o capítulo</string>
+    <string name="translation_needs_download">Só é possível traduzir capítulos baixados</string>
+    <string name="release_digest">Notificar os lançamentos de hoje</string>
+    <string name="release_digest_summary">Uma única notificação toda manhã listando o que é
+        esperado hoje. Nos dias sem nada previsto, nada é enviado.</string>
     <string name="release_miss_grace">Manter obra atrasada em hoje por</string>
     <string name="release_miss_grace_summary">Passado esse tempo sem o capítulo chegar, o
         calendário move a obra para quando ela seria esperada de novo, em vez de deixá-la em
@@ -1314,4 +1349,12 @@
     <string name="error_flaresolverr_url_invalid">URL do FlareSolverr inválida</string>
     <string name="download_notifier_not_an_image">A fonte enviou algo que não é uma imagem</string>
     <string name="action_webview_close_tab">Fechar aba</string>
+    <string name="auto_migration">Migração automática</string>
+    <string name="auto_migration_summary">Procurar nova fonte para obras cuja fonte sumiu</string>
+    <string name="auto_migration_languages">Idioma principal</string>
+    <string name="auto_migration_primary_language">Buscado primeiro, e vence empates</string>
+    <string name="auto_migration_secondary_language">Idioma secundário</string>
+    <string name="auto_migration_day">Dia</string>
+    <string name="auto_migration_daily">Todo dia</string>
+    <string name="auto_migration_off">Desligado</string>
 </resources>

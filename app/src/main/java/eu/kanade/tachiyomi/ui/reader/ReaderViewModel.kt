@@ -89,7 +89,14 @@ import karasu.domain.manga.models.MangaUpdate
 import karasu.domain.storage.StorageManager
 import karasu.domain.track.interactor.GetTrack
 import karasu.i18n.MR
+import karasu.translation.TranslationManager
 import karasu.util.lang.getString
+import dev.icerock.moko.resources.StringResource
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.getAndUpdate
+import karasu.translation.model.Translation
+import karasu.domain.translation.TranslationPreferences
 
 /**
  * Presenter used by the activity to perform background operations.
@@ -116,6 +123,8 @@ class ReaderViewModel(
     private val getHistory: GetHistory by injectLazy()
     private val upsertHistory: UpsertHistory by injectLazy()
     private val getTrack: GetTrack by injectLazy()
+    private val translationManager: TranslationManager by injectLazy()
+    private val translationPreferences: TranslationPreferences by injectLazy()
 
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
@@ -158,6 +167,15 @@ class ReaderViewModel(
      */
     private var finished = false
     private var chapterToDownload: Download? = null
+
+    /** The chapter being translated right now, for the reader's progress dialog. Null when idle. */
+    private val _translationInProgress = MutableStateFlow<Translation?>(null)
+    val translationInProgress = _translationInProgress.asStateFlow()
+
+    private var translationJob: Job? = null
+
+    /** The chapter the download-ahead buffer was last topped up for, see [downloadNextChapters]. */
+    private val downloadedAheadOf = AtomicReference<Long?>(null)
 
     private val unfilteredChapterList by lazy {
         val manga = manga!!
@@ -446,6 +464,53 @@ class ReaderViewModel(
         return lastPage
     }
 
+    /** Whether the pages on screen are already carrying a translation. */
+    fun currentChapterIsTranslated(): Boolean =
+        getCurrentChapter()?.pages?.any { it.translation != null } == true
+
+    /**
+     * Turns the translation overlay on or off for the chapter on screen, translating it first if
+     * it has never been translated. Only downloaded chapters can be translated: the OCR reads the
+     * page files, and the result is stored next to them.
+     */
+    fun setTranslationsEnabled(enabled: Boolean) {
+        val manga = manga ?: return
+        val source = source ?: return
+        val chapter = getCurrentChapter() ?: return
+        translationJob = viewModelScope.launchIO {
+            if (enabled) {
+                if (!downloadManager.isChapterDownloaded(chapter.chapter, manga, skipCache = true)) {
+                    eventChannel.send(Event.Message(MR.strings.translation_needs_download))
+                    return@launchIO
+                }
+                val translation = translationManager.queueChapter(manga, chapter.chapter, source)
+                if (translation != null) {
+                    // OCR over a long chapter takes minutes, and until now the only sign of it was
+                    // a toast that scrolled away. Publishing the entry lets the reader show what
+                    // page it is on, and gives it something to cancel.
+                    _translationInProgress.value = translation
+                    val reason = try {
+                        translationManager.awaitTranslation(translation)
+                    } finally {
+                        _translationInProgress.value = null
+                    }
+                    if (reason != null) {
+                        eventChannel.send(Event.TranslationFailed(reason))
+                        return@launchIO
+                    }
+                }
+            }
+            // The overlay is attached to the pages while they load, so the chapter has to go
+            // through its loader again for the change to show up.
+            val loader = loader ?: return@launchIO
+            chapter.pageLoader?.recycle()
+            chapter.pageLoader = null
+            chapter.state = ReaderChapter.State.Wait
+            loadChapter(loader, chapter)
+            eventChannel.send(Event.ReloadViewerChapters)
+        }
+    }
+
     fun toggleRead(chapter: Chapter) {
         chapter.read = !chapter.read
         val lastPageToSave = if (chapter.read) chapter.last_page_read.toLong() else 0L 
@@ -509,6 +574,22 @@ class ReaderViewModel(
         }
     }
 
+    /**
+     * Gives up on the translation the reader is waiting for.
+     *
+     * The switch that started this is already on, so it is turned back off: leaving it on for a
+     * translation that was abandoned would claim the chapter is translated when it is not.
+     */
+    fun cancelTranslation() {
+        val translation = _translationInProgress.getAndUpdate { null } ?: return
+        // Job first, worker second. Stopping the worker can move the entry to a terminal status,
+        // and an awaiter still alive would read that as a failure and toast one.
+        translationJob?.cancel()
+        translationJob = null
+        translationManager.cancelTranslation(translation.chapter)
+        translationPreferences.showTranslations().set(false)
+    }
+
     fun adjacentChapter(next: Boolean): ReaderChapter? {
         val chapters = state.value.viewerChapters
         return if (next) chapters?.nextChapter else chapters?.prevChapter
@@ -547,6 +628,15 @@ class ReaderViewModel(
             val chaptersNumberToDownload = preferences.autoDownloadWhileReading().get()
             if (chaptersNumberToDownload == 0 || !manga.favorite) return@launchNonCancellableIO
             val nextChapter = state.value.viewerChapters?.nextChapter?.chapter ?: return@launchNonCancellableIO
+            // Every page turn past the first fifth calls this, so on a long chapter the same
+            // answer was recomputed a hundred times — each one a disk check per chapter plus a
+            // full sort of the chapter list. Keyed on the chapter that is ahead rather than the
+            // one being read, so finishing this chapter arms it again. Set only once a next
+            // chapter exists: at 20% in it may not have loaded yet, and claiming the work was
+            // done then would mean never doing it for this chapter at all.
+            if (downloadedAheadOf.getAndSet(nextChapter.id) == nextChapter.id) {
+                return@launchNonCancellableIO
+            }
 
             if (downloadManager.isChapterDownloaded(nextChapter, manga)) {
                 // Topping up a buffer that already exists: the next chapter is in hand, so the
@@ -585,7 +675,14 @@ class ReaderViewModel(
      * @param chapters the list of chapters to download.
      */
     private fun downloadChapters(chapters: List<ChapterItem>) {
-        downloadManager.downloadChapters(manga!!, chapters.filter { !it.isDownloaded })
+        // Ahead of whatever else is queued. These are chapters the user reaches in minutes, and
+        // behind a library update's batch from a slow source they arrive long after that — which
+        // is the same as the setting being off, except it also used the data.
+        downloadManager.downloadChapters(
+            manga!!,
+            chapters.filter { !it.isDownloaded },
+            toFrontOfQueue = true,
+        )
     }
 
     /**
@@ -1081,6 +1178,10 @@ class ReaderViewModel(
 
     sealed class Event {
         object ReloadViewerChapters : Event()
+        data class Message(val stringRes: StringResource) : Event()
+
+        /** [reason] is the engine's own words; empty when it did not give any. */
+        data class TranslationFailed(val reason: String) : Event()
         object ReloadMangaAndChapters : Event()
         data class SetOrientation(val orientation: Int) : Event()
         data class SetCoverResult(val result: SetAsCoverResult) : Event()

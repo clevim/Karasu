@@ -5,6 +5,16 @@
         <item quantity="other">%1$d days</item>
     </plurals>
 
+    <plurals name="auto_migration_done">
+        <item quantity="one">%1$d entry migrated automatically</item>
+        <item quantity="other">%1$d entries migrated automatically</item>
+    </plurals>
+
+    <plurals name="auto_migration_pending">
+        <item quantity="one">%1$d entry waiting for review</item>
+        <item quantity="other">%1$d entries waiting for review</item>
+    </plurals>
+
     <plurals name="release_digest_title">
         <item quantity="one">%1$d release expected today</item>
         <item quantity="other">%1$d releases expected today</item>

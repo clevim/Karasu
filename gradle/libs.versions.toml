@@ -3,6 +3,8 @@ aboutlibraries = "13.1.0"
 chucker = "3.5.2"
 flexible-adapter = "c8013533"
 fast_adapter = "5.7.0"
+mlkit-recognition = "16.0.1"
+mlkit-translate = "17.0.3"
 moko = "0.25.1"
 okhttp = "5.4.0"
 shizuku = "13.1.5"
@@ -58,6 +60,14 @@ libarchive = { module = "me.zhanghai.android.libarchive:library", version = "1.1
 
 material = { module = "com.google.android.material:material", version = "1.14.0-alpha09" }
 markwon = { module = "io.noties.markwon:core", version = "4.6.2" }
+
+# The OCR pipeline (~11 MB of native code per ABI) is shared; each extra script only adds its own
+# model, measured at ~0.6 MB. Devanagari is the only script ML Kit offers that is left out.
+mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-recognition" }
+mlkit-text-recognition-chinese = { module = "com.google.mlkit:text-recognition-chinese", version.ref = "mlkit-recognition" }
+mlkit-text-recognition-japanese = { module = "com.google.mlkit:text-recognition-japanese", version.ref = "mlkit-recognition" }
+mlkit-text-recognition-korean = { module = "com.google.mlkit:text-recognition-korean", version.ref = "mlkit-recognition" }
+mlkit-translate = { module = "com.google.mlkit:translate", version.ref = "mlkit-translate" }
 mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version = "v3.1.0" }
 java-nat-sort = { module = "com.github.gpanther:java-nat-sort", version = "natural-comparator-1.1" }
 jsoup = { module = "org.jsoup:jsoup", version = "1.21.2" }

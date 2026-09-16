@@ -12,6 +12,8 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import uy.kohesive.injekt.injectLazy
 import karasu.core.archive.util.archiveReader
+import karasu.translation.TranslationManager
+import karasu.translation.model.PageTranslation
 
 /**
  * Loader used to load a chapter from the downloaded chapters.
@@ -29,6 +31,8 @@ class DownloadPageLoader(
     // Needed to open input streams
     private val context: Application by injectLazy()
 
+    private val translationManager: TranslationManager by injectLazy()
+
     private var archivePageLoader: ArchivePageLoader? = null
 
     override fun recycle() {
@@ -42,24 +46,32 @@ class DownloadPageLoader(
     override suspend fun getPages(): List<ReaderPage> {
         val dbChapter = chapter.chapter
         val chapterPath = downloadProvider.findChapterDir(dbChapter, manga, source)
+        val translations = translationManager.getChapterTranslation(manga, dbChapter, source)
         return if (chapterPath?.isFile == true) {
-            getPagesFromArchive(chapterPath)
+            getPagesFromArchive(chapterPath, translations)
         } else {
-            getPagesFromDirectory()
+            getPagesFromDirectory(translations)
         }
     }
 
-    private suspend fun getPagesFromArchive(chapterPath: UniFile): List<ReaderPage> {
-        val loader = ArchivePageLoader(chapterPath.archiveReader(context)).also { archivePageLoader = it }
+    private suspend fun getPagesFromArchive(
+        chapterPath: UniFile,
+        translations: Map<String, PageTranslation>,
+    ): List<ReaderPage> {
+        val loader = ArchivePageLoader(chapterPath.archiveReader(context), translations)
+            .also { archivePageLoader = it }
         return loader.getPages()
     }
 
-    private fun getPagesFromDirectory(): List<ReaderPage> {
+    private fun getPagesFromDirectory(translations: Map<String, PageTranslation>): List<ReaderPage> {
         val pages = downloadManager.buildPageList(source, manga, chapter.chapter)
         return pages.map { page ->
             ReaderPage(page.index, page.url, page.imageUrl, stream = {
                 context.contentResolver.openInputStream(page.uri ?: Uri.EMPTY)!!
             },).apply {
+                // On SAF storage lastPathSegment is the whole document path ("primary:Download/
+                // manga/001.jpg"), not just the file name the translation is keyed by.
+                translation = translations[page.uri?.lastPathSegment?.substringAfterLast('/')]
                 status = Page.State.Ready
             }
         }

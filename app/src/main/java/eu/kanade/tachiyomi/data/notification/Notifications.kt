@@ -67,6 +67,13 @@ object Notifications {
     const val ID_RELEASE_DIGEST = -105
 
     /**
+     * Its own channel because it reports something the user did not ask for entry by entry: the
+     * library moved on its own. That is worth being able to keep loud while muting the rest.
+     */
+    const val CHANNEL_AUTO_MIGRATE = "auto_migrate_channel"
+    const val ID_AUTO_MIGRATE = -106
+
+    /**
      * Notification channel and ids used by the library updater.
      */
     private const val GROUP_EXTENSION_UPDATES = "group_extension_updates"
@@ -181,6 +188,13 @@ object Notifications {
             NotificationChannel(
                 CHANNEL_RELEASE_DIGEST,
                 context.getString(MR.strings.release_calendar),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                group = GROUP_LIBRARY
+            },
+            NotificationChannel(
+                CHANNEL_AUTO_MIGRATE,
+                context.getString(MR.strings.auto_migration),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
                 group = GROUP_LIBRARY

@@ -6,13 +6,18 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.ui.base.holder.BaseFlexibleViewHolder
+import eu.kanade.tachiyomi.util.system.toast
 import karasu.i18n.MR
+import karasu.translation.TranslationManager
 import karasu.util.lang.getString
+import uy.kohesive.injekt.injectLazy
 
 open class BaseChapterHolder(
     view: View,
     private val adapter: BaseChapterAdapter<*>,
 ) : BaseFlexibleViewHolder(view, adapter) {
+
+    private val translationManager: TranslationManager by injectLazy()
 
     init {
         view.findViewById<View>(R.id.download_button)?.setOnClickListener { downloadOrRemoveMenu(it) }
@@ -39,6 +44,10 @@ open class BaseChapterHolder(
 
                 popup.menu.findItem(R.id.action_start).isVisible = chapterStatus == Download.State.QUEUE
 
+                // Only a downloaded chapter has pages on disk to run OCR over.
+                popup.menu.findItem(R.id.action_translate).isVisible =
+                    chapterStatus == Download.State.DOWNLOADED
+
                 // Hide download and show delete if the chapter is downloaded
                 if (chapterStatus != Download.State.DOWNLOADED) {
                     popup.menu.findItem(R.id.action_delete).title = downloadButton.context.getString(
@@ -64,6 +73,10 @@ open class BaseChapterHolder(
                             } else {
                                 adapter.baseDelegate.startDownloadNow(flexibleAdapterPosition)
                             }
+                        }
+                        R.id.action_translate -> {
+                            translationManager.translateChapter(extraChapter ?: chapter.chapter)
+                            downloadButton.context.toast(MR.strings.translation_queued)
                         }
                     }
                     true

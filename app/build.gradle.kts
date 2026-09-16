@@ -205,6 +205,13 @@ dependencies {
 
     implementation(libs.play.services.gcm)
 
+    // On-device OCR + translation
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.chinese)
+    implementation(libs.mlkit.text.recognition.japanese)
+    implementation(libs.mlkit.text.recognition.korean)
+    implementation(libs.mlkit.translate)
+
     // Database
     implementation(libs.sqlite.android)
     implementation(libs.bundles.sqlite)

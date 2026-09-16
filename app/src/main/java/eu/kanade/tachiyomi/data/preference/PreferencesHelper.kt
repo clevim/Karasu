@@ -332,6 +332,37 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
 
     fun skipPreMigration() = preferenceStore.getBoolean(Keys.skipPreMigration, false)
 
+    /** Hour of day the unattended migration pass runs, or -1 for off. */
+    fun autoMigrateHour() = preferenceStore.getInt("auto_migrate_hour", -1)
+
+    /**
+     * Day of week for the pass, as [java.time.DayOfWeek.getValue] (1 = Monday), or -1 for daily.
+     *
+     * A weekly slot is the sane default for this: a source that vanished is still gone tomorrow,
+     * and every run costs a search against every candidate source for every stranded entry.
+     */
+    fun autoMigrateDay() = preferenceStore.getInt("auto_migrate_day", -1)
+
+    /**
+     * Languages to look for a replacement in, as source lang codes.
+     *
+     * Two ordered slots rather than a set: a hit in the primary language wins over an equally
+     * good one in the secondary, and a set could not say which was which. Empty secondary just
+     * means only the primary is searched.
+     */
+    fun autoMigratePrimaryLang() = preferenceStore.getString("auto_migrate_lang_primary", "")
+
+    fun autoMigrateSecondaryLang() = preferenceStore.getString("auto_migrate_lang_secondary", "")
+
+    /**
+     * Targets the pass found but would not apply on its own, as `mangaId:candidateMangaId` pairs.
+     *
+     * A preference rather than a table because it is a handful of ids that exist only until the
+     * review screen is opened, and a schema migration is a lot of ceremony for that.
+     * ponytail: move to its own table if this ever needs to survive more than the next review.
+     */
+    fun autoMigratePending() = preferenceStore.getString("auto_migrate_pending", "")
+
     fun defaultMangaOrder() = preferenceStore.getString("default_manga_order", "")
 
     fun refreshCoversToo() = preferenceStore.getBoolean(Keys.refreshCoversToo, true)

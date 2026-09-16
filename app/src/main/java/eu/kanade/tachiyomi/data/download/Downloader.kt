@@ -64,7 +64,9 @@ import karasu.core.metadata.ComicInfo
 import karasu.core.metadata.getComicInfo
 import karasu.domain.category.interactor.GetCategories
 import karasu.domain.download.DownloadPreferences
+import karasu.domain.translation.TranslationPreferences
 import karasu.i18n.MR
+import karasu.translation.TranslationManager
 import karasu.util.lang.getString
 
 /**
@@ -84,6 +86,8 @@ class Downloader(
     private val xml: XML by injectLazy()
     private val getCategories: GetCategories by injectLazy()
     private val mergedSourceFallback: MergedSourceFallback by injectLazy()
+    private val translationPreferences: TranslationPreferences by injectLazy()
+    private val translationManager: TranslationManager by injectLazy()
 
     /**
      * Store for persisting downloads across restarts.
@@ -275,7 +279,16 @@ class Downloader(
      * @param chapters the list of chapters to download.
      * @param autoStart whether to start the downloader after enqueing the chapters.
      */
-    fun queueChapters(manga: Manga, chapters: List<Chapter>, autoStart: Boolean) = launchIO {
+    /**
+     * @param toFrontOfQueue put these ahead of whatever is already queued, for chapters the user
+     * is about to reach rather than ones being stockpiled.
+     */
+    fun queueChapters(
+        manga: Manga,
+        chapters: List<Chapter>,
+        autoStart: Boolean,
+        toFrontOfQueue: Boolean = false,
+    ) = launchIO {
         if (chapters.isEmpty()) {
             return@launchIO
         }
@@ -299,7 +312,7 @@ class Downloader(
             .map { Download(source, manga, it) }
 
         if (chaptersToQueue.isNotEmpty()) {
-            addAllToQueue(chaptersToQueue)
+            addAllToQueue(chaptersToQueue, toFrontOfQueue)
 
             // Start downloader if needed
             if (autoStart && wasEmpty) {
@@ -425,6 +438,10 @@ class Downloader(
             DiskUtil.createNoMediaFile(tmpDir, context)
 
             download.status = Download.State.DOWNLOADED
+
+            if (translationPreferences.autoTranslateAfterDownload().get()) {
+                translationManager.translateChapter(download.manga, download.chapter, source)
+            }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             // If the page list threw, it will resume here
@@ -730,13 +747,18 @@ class Downloader(
         return queueState.value.none { it.status <= Download.State.DOWNLOADING }
     }
 
-    private fun addAllToQueue(downloads: List<Download>) {
-        _queueState.update {
+    private fun addAllToQueue(downloads: List<Download>, toFrontOfQueue: Boolean = false) {
+        _queueState.update { queue ->
             downloads.forEach { download ->
                 download.status = Download.State.QUEUE
             }
-            store.addAll(downloads)
-            it + downloads
+            val updated = if (toFrontOfQueue) downloads + queue else queue + downloads
+            // The store numbers downloads with a counter that only goes up and restores them in
+            // that order, so persisting just the new ones would bring them back at the end of the
+            // queue — the opposite of what jumping the queue meant. Entries are keyed by chapter,
+            // so rewriting the whole queue renumbers it in the order it actually has.
+            store.addAll(if (toFrontOfQueue) updated else downloads)
+            updated
         }
     }
 

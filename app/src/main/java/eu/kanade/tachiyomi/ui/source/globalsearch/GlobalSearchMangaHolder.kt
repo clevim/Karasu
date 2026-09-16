@@ -55,6 +55,10 @@ class GlobalSearchMangaHolder(view: View, adapter: GlobalSearchCardAdapter) :
         binding.itemImage.dispose()
         if (!manga.thumbnail_url.isNullOrEmpty()) {
             binding.itemImage.loadManga(manga.cover(), binding.progress)
+        } else {
+            // Nothing to load, and the holder is recycled: without this the card keeps showing
+            // the cover of whichever result used it last.
+            binding.itemImage.setImageDrawable(null)
         }
     }
 

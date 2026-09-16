@@ -16,6 +16,9 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
     override fun getChaptersAsFlow(mangaId: Long, filterScanlators: Boolean): Flow<List<Chapter>> =
         handler.subscribeToList { chaptersQueries.getChaptersByMangaId(mangaId, filterScanlators.toInt().toLong(), Chapter::mapper) }
 
+    override suspend fun countChapters(mangaId: Long): Int =
+        handler.awaitOne { chaptersQueries.countByMangaId(mangaId) }.toInt()
+
     override suspend fun getChapterById(id: Long): Chapter? =
         handler.awaitOneOrNull { chaptersQueries.getChaptersById(id, Chapter::mapper) }
 

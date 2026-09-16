@@ -25,6 +25,9 @@ class GetChapter(
     suspend fun awaitAllRaw(mangaId: Long, filterScanlators: Boolean) =
         chapterRepository.getChapters(mangaId, filterScanlators)
 
+    /** How many chapters are stored for [mangaId]. Never merged, and never reads the rows. */
+    suspend fun awaitCountRaw(mangaId: Long) = chapterRepository.countChapters(mangaId)
+
     suspend fun awaitAll(mangaId: Long, filterScanlators: Boolean): List<Chapter> {
         val own = chapterRepository.getChapters(mangaId, filterScanlators)
         if (!mergedSources.hasMerges(mangaId)) return own

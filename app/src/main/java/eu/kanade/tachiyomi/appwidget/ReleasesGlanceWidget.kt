@@ -11,6 +11,7 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
+import co.touchlab.kermit.Logger
 import coil3.asDrawable
 import coil3.executeBlocking
 import coil3.imageLoader
@@ -73,25 +74,29 @@ class ReleasesGlanceWidget : GlanceAppWidget() {
 
     fun loadData() {
         coroutineScope.launchIO {
-            if (securityPreferences.useBiometrics().get()) {
-                updateAll(app)
-                return@launchIO
-            }
+            // Nothing in here is worth a crash: this runs detached from any screen, so an
+            // exception would take the whole app down over a widget that failed to redraw.
+            runCatching {
+                if (securityPreferences.useBiometrics().get()) {
+                    updateAll(app)
+                    return@runCatching
+                }
 
-            val manager = GlanceAppWidgetManager(app)
-            val ids = manager.getGlanceIds(this@ReleasesGlanceWidget::class.java)
-            if (ids.isEmpty()) return@launchIO
+                val manager = GlanceAppWidgetManager(app)
+                val ids = manager.getGlanceIds(this@ReleasesGlanceWidget::class.java)
+                if (ids.isEmpty()) return@runCatching
 
-            val (rowCount, columnCount) = ids
-                .flatMap { manager.getAppWidgetSizes(it) }
-                .maxBy { it.height.value * it.width.value }
-                .calculateRowAndColumnCount()
-            // One row goes to the header, so asking for the full grid would render a row that
-            // gets clipped off the bottom.
-            val take = (rowCount - 1).coerceAtLeast(1) * columnCount
+                val (rowCount, columnCount) = ids
+                    .flatMap { manager.getAppWidgetSizes(it) }
+                    .maxBy { it.height.value * it.width.value }
+                    .calculateRowAndColumnCount()
+                // One row goes to the header, so asking for the full grid would render a row that
+                // gets clipped off the bottom.
+                val take = (rowCount - 1).coerceAtLeast(1) * columnCount
 
-            data = load(take)
-            ids.forEach { update(app, it) }
+                data = load(take)
+                ids.forEach { update(app, it) }
+            }.onFailure { Logger.e(it) { "Could not refresh the release widget" } }
         }
     }
 

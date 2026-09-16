@@ -4,6 +4,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.setMargins
 import androidx.recyclerview.widget.RecyclerView
 import eu.davidea.flexibleadapter.FlexibleAdapter
@@ -42,6 +43,13 @@ class BrowseSourceItem(
         return if (parent is AutofitRecyclerView && !catalogueAsList.get()) {
             val listType = catalogueListType.get()
             val composeView = ComposeView(parent.context).apply {
+                // A holder that scrolls off is detached, and the default strategy disposes the
+                // composition with it — so coming back rebuilt the card from nothing and showed
+                // a blank frame first. Every other ComposeView in the app already says this;
+                // this one lives in a RecyclerView pool, where it matters most.
+                setViewCompositionStrategy(
+                    ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool,
+                )
                 layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT,

@@ -11,12 +11,15 @@ import eu.kanade.tachiyomi.util.bindToPreference
 import eu.kanade.tachiyomi.util.lang.addBetaTag
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.widget.BaseReaderSettingsView
+import karasu.domain.translation.TranslationPreferences
 import karasu.util.lang.getString
+import uy.kohesive.injekt.injectLazy
 
 class ReaderGeneralView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     BaseReaderSettingsView<ReaderGeneralLayoutBinding>(context, attrs) {
 
     lateinit var sheet: TabbedReaderSettingsSheet
+    private val translationPreferences: TranslationPreferences by injectLazy()
     override fun inflateBinding() = ReaderGeneralLayoutBinding.bind(this)
     override fun initGeneralPreferences() {
         binding.viewerSeries.onItemSelectedListener = { position ->
@@ -63,6 +66,16 @@ class ReaderGeneralView @JvmOverloads constructor(context: Context, attrs: Attri
         binding.cutoutShort.text = binding.cutoutShort.text.toString().addBetaTag(context)
         binding.keepscreen.bindToPreference(preferences.keepScreenOn())
         binding.alwaysShowChapterTransition.bindToPreference(preferences.alwaysShowChapterTransition())
+        // Not bound to the preference: it defaults to on, and a switch that already reads "on"
+        // over an untranslated chapter is the one thing that cannot start a translation.
+        // Through the context, not `activity`: this runs from onFinishInflate, before the sheet
+        // gets the chance to assign it.
+        binding.translatePages.isChecked = translationPreferences.showTranslations().get() &&
+            (context as ReaderActivity).viewModel.currentChapterIsTranslated()
+        binding.translatePages.setOnCheckedChangeListener { _, isChecked ->
+            translationPreferences.showTranslations().set(isChecked)
+            (context as ReaderActivity).viewModel.setTranslationsEnabled(isChecked)
+        }
 
         updatePrefs()
     }

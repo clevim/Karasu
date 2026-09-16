@@ -7,6 +7,7 @@ import eu.davidea.flexibleadapter.items.AbstractFlexibleItem
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.domain.manga.models.Manga
+import karasu.domain.manga.models.cover
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.Flow
@@ -39,15 +40,28 @@ class GlobalSearchMangaItem(
         position: Int,
         payloads: MutableList<Any?>?,
     ) {
-        if (job == null) holder.bind(manga)
+        // Always draw what we already have. The flow's first emission is a database round trip
+        // away, and waiting for it left recycled cards showing the previous result.
+        holder.bind(manga)
         job?.cancel()
         job = scope.launch {
-            mangaFlow.collectLatest {
-                manga = it ?: return@collectLatest
+            mangaFlow.collectLatest { updated ->
+                if (updated == null || updated.rendered() == manga.rendered()) return@collectLatest
+                manga = updated
                 holder.bind(manga)
             }
         }
     }
+
+    /**
+     * Everything the card draws, and nothing else.
+     *
+     * [mangaFlow] re-runs its query on every write to the `mangas` table — a library update fires
+     * one per entry — so without this every visible result rebound, and rebinding disposes the
+     * cover and loads it again. That is the flashing: a list of results blinking in step with a
+     * background job that changed none of them.
+     */
+    private fun Manga.rendered() = title to cover()
 
     override fun unbindViewHolder(
         adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>?,

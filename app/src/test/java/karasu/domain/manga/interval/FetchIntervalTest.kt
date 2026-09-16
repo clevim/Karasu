@@ -81,6 +81,21 @@ class FetchIntervalTest {
     }
 
     @Test
+    fun `a weekly series is not clamped, a monthly one is`() {
+        // A weekly wait is shorter than the ceiling, so it is left exactly where it belongs:
+        // clamping it would buy an extra check the estimate already knows is pointless.
+        val weeklyEstimate = estimate(weekly(count = 10, lastAgo = day), none(), now)!!
+        weeklyEstimate.nextCheck(now) shouldBe weeklyEstimate.nextRelease - weeklyEstimate.checkWindow
+
+        // A monthly one would otherwise go three weeks untouched, which is long enough that a
+        // schedule that has drifted looks exactly like a series with nothing new.
+        val monthly = (0 until 10).map { now - day - it * 30 * day }
+        val monthlyEstimate = estimate(monthly, none(), now)!!
+        monthlyEstimate.isDue(now) shouldBe false
+        monthlyEstimate.nextCheck(now) shouldBe now + MAX_INTERVAL
+    }
+
+    @Test
     fun `a series silent for several cycles is stalled and backs off`() {
         val estimate = estimate(weekly(count = 10, lastAgo = 60 * day), none(), now)!!
         estimate.isStalled(now) shouldBe true

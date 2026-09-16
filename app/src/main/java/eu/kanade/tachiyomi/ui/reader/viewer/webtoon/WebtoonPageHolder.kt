@@ -23,9 +23,12 @@ import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.withIOContext
 import eu.kanade.tachiyomi.util.system.withUIContext
+import karasu.domain.translation.TranslationPreferences
+import karasu.translation.presentation.WebtoonTranslationsView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import uy.kohesive.injekt.injectLazy
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
@@ -78,6 +81,10 @@ class WebtoonPageHolder(
      */
     private var loadJob: Job? = null
 
+    private val translationPreferences: TranslationPreferences by injectLazy()
+
+    private var translationsView: WebtoonTranslationsView? = null
+
     init {
         refreshLayoutParams()
 
@@ -116,6 +123,7 @@ class WebtoonPageHolder(
         loadJob = null
 
         removeErrorLayout()
+        removeTranslationsView()
         frame.recycle()
         progressIndicator.setProgress(0)
         progressContainer.isVisible = true
@@ -242,6 +250,25 @@ class WebtoonPageHolder(
     private fun onImageDecoded() {
         progressContainer.isVisible = false
         removeErrorLayout()
+        addTranslationsView()
+    }
+
+    /**
+     * ponytail: no overlay while pages are being split — the halves get stacked, so the page the
+     * translation was measured against is not the page on screen.
+     */
+    private fun addTranslationsView() {
+        removeTranslationsView()
+        val translation = page?.translation?.takeUnless { viewer.config.splitPages } ?: return
+        translationsView = WebtoonTranslationsView(frame.context, translation = translation).also {
+            if (!translationPreferences.showTranslations().get()) it.hide()
+            frame.addView(it, MATCH_PARENT, MATCH_PARENT)
+        }
+    }
+
+    private fun removeTranslationsView() {
+        translationsView?.let { frame.removeView(it) }
+        translationsView = null
     }
 
     /**

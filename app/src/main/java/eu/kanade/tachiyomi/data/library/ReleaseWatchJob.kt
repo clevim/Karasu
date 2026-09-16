@@ -29,8 +29,11 @@ import uy.kohesive.injekt.api.get
  * almost nothing — only the entries [FetchInterval] says are due, which outside their windows is
  * none of them.
  *
- * The two jobs are complements, not alternatives. The full update stays on whatever frequency
- * the user picked and remains the safety net that catches anything the estimate got wrong.
+ * The two jobs are complements, not alternatives, but the safety net is not the full update:
+ * that run applies the same due-date filter and skips the same entries. What bounds how wrong an
+ * estimate is allowed to be is `ReleaseEstimate.MAX_INTERVAL`, the ceiling every estimate's next
+ * check is clamped to — nothing in the library goes unchecked for longer than that, however
+ * confidently the schedule says it is not due.
  */
 class ReleaseWatchJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -88,7 +91,9 @@ class ReleaseWatchJob(private val context: Context, workerParams: WorkerParamete
         /**
          * Most due manga per run. A library that has been closed for a week comes back with
          * everything due at once, and that should not turn into one burst of hundreds of
-         * requests. The overflow is still due on the next run, minutes later.
+         * requests. The overflow stays due and is picked up by the next run — the next tick of
+         * the release-watch interval, a few hours later — or by the next full update, whichever
+         * comes first.
          */
         private const val BATCH_SIZE = 40
 

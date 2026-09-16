@@ -77,8 +77,21 @@ data class ReleaseEstimate(
         /** Never poll a manga faster than this, however sure the estimate is. */
         val MIN_POLL = hours(2)
 
-        /** Never let a manga go longer than this unchecked, however hopeless it looks. */
-        val MAX_INTERVAL = days(14)
+        /**
+         * Never let a manga go longer than this unchecked, however hopeless it looks.
+         *
+         * This is the ceiling on how stale the library can get, and therefore on how wrong an
+         * estimate is allowed to be: a series back from hiatus, or one whose source quietly moved
+         * its posting day, is found within this long whatever the schedule believes.
+         *
+         * A week rather than a fortnight. It has to sit above a weekly series' natural wait —
+         * clamping that would hand out an extra check the estimate already knows is pointless,
+         * which is the saving this whole mechanism exists for — and it should sit below the point
+         * where a user can no longer tell "nothing new" from "not actually looked at". Between
+         * those two, the shorter end wins: only monthly-and-rarer entries are clamped at all, and
+         * for those a check a week is cheap.
+         */
+        val MAX_INTERVAL = days(7)
 
         /**
          * Roughly how many times a manga is asked while its window is open.

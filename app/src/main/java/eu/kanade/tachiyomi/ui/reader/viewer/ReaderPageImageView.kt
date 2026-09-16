@@ -88,6 +88,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
         onViewClicked?.invoke()
     }
 
+    /** Called when the image is panned. Used to keep overlays glued to the image. */
+    open fun onCenterChanged(newCenter: PointF?) { }
+
     fun setImage(drawable: Drawable, config: Config) {
         this.config = config
         if (drawable is Animatable) {
@@ -137,7 +140,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     }
 
                     override fun onCenterChanged(newCenter: PointF?, origin: Int) {
-                        // Not used
+                        this@ReaderPageImageView.onCenterChanged(newCenter)
                     }
                 },
             )
