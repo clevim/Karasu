@@ -15,8 +15,8 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
     /** Base URL of the shelf container, e.g. `http://192.168.1.10:3000`. Blank disables sync. */
     fun serverUrl() = preferenceStore.getString("koreader_server_url", "")
 
-    /** Sent as a bearer token. Blank means the container was left unauthenticated. */
-    fun apiKey() = preferenceStore.getString("koreader_api_key", "")
+    /** Sent as a bearer token. Blank means the container was left unauthenticated. Private: kept out of backups. */
+    fun apiKey() = preferenceStore.getString(Preference.privateKey("koreader_api_key"), "")
 
     /**
      * Ids of the manga that get pushed, as strings.

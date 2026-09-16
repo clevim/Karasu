@@ -324,7 +324,7 @@
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <!-- Loading global exception handler before crashlytics (order: 100) -->
+        <!-- Loading global exception handler (order: 100) -->
         <provider
             android:name="eu.kanade.tachiyomi.AppProvider"
             android:authorities="${applicationId}.karasu"

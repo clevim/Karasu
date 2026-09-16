@@ -1,5 +1,3 @@
-import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsPlugin
-import com.google.gms.googleservices.GoogleServicesPlugin
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -12,14 +10,8 @@ plugins {
     alias(kotlinx.plugins.parcelize)
     alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.aboutlibraries.android)
-    alias(libs.plugins.firebase.crashlytics) apply false
-    alias(libs.plugins.google.services) apply false
 }
 
-if (gradle.startParameter.taskRequests.toString().contains("standard", true)) {
-    apply<CrashlyticsPlugin>()
-    apply<GoogleServicesPlugin>()
-}
 
 fun runCommand(command: String): String {
     val result = providers.exec { commandLine(command.split(" ")) }
@@ -173,10 +165,7 @@ dependencies {
     // Android X libraries
     implementation(androidx.bundles.androidx)
 
-    implementation(platform(libs.firebase))
 
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
 
     // ReactiveX
     implementation(libs.rxandroid)
