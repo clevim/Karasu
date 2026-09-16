@@ -45,6 +45,10 @@ class MergedSources(private val repository: MergedMangaRepository) {
     suspend fun reorder(mangaId: Long, source: Long, priority: Int) =
         repository.updatePriority(mangaId, source, priority)
 
+    /** A reserve is kept only for the page fallback: nothing is fetched from it on its own. */
+    suspend fun setReserve(mangaId: Long, source: Long, reserve: Boolean) =
+        repository.updateUpdatesEnabled(mangaId, source, !reserve)
+
     suspend fun remove(mangaId: Long, source: Long) {
         repository.delete(mangaId, source)
         invalidate()

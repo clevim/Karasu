@@ -1,5 +1,6 @@
 package karasu.domain.manga.interval
 
+import eu.kanade.tachiyomi.data.database.models.ChapterImpl
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import karasu.domain.manga.interval.ReleaseEstimate.Companion.MAX_INTERVAL
@@ -153,6 +154,69 @@ class FetchIntervalTest {
         // due today give or take a fortnight.
         estimate.interval shouldBe week
         estimate.nextRelease shouldBe (now - day) + week
+    }
+
+    @Test
+    fun `a skipped week is due this cycle, not the one after`() {
+        // Last chapter two Mondays ago, so the estimate says last Monday. Today is Monday: the
+        // miss is exactly one cycle old, which is past the grace and must roll on — by one
+        // cycle, onto today, not two.
+        val estimate = ReleaseEstimate(nextRelease = now - week, interval = week, spread = day)
+        estimate.expectedRelease(now, grace = 3 * day) shouldBe now
+        // Well into the day still counts as today, and the day after still rolls by one.
+        estimate.expectedRelease(now + 20 * 60 * 60 * 1000L, grace = 3 * day) shouldBe now
+        estimate.expectedRelease(now + 4 * day, grace = 3 * day) shouldBe now + week
+    }
+
+    @Test
+    fun `a miss inside the grace stays where it was expected`() {
+        val estimate = ReleaseEstimate(nextRelease = now - 2 * day, interval = week, spread = day)
+        estimate.expectedRelease(now, grace = 3 * day) shouldBe now - 2 * day
+        estimate.expectedRelease(now + 2 * day, grace = 3 * day) shouldBe now - 2 * day + week
+    }
+
+    @Test
+    fun `several scanlators posting the same chapter are one release`() {
+        // Weekly series, two groups each chapter, the second one two days behind.
+        val chapters = (0 until 6).flatMap { i ->
+            val release = now - day - i * week
+            listOf(chapter(number = 20f - i, upload = release), chapter(number = 20f - i, upload = release + 2 * day))
+        }
+        val (uploads, fetches) = releaseDates(chapters)
+        uploads.size shouldBe 6
+        val estimate = estimate(uploads, fetches, now)!!
+        estimate.interval shouldBe week
+        estimate.nextRelease shouldBe (now - day) + week
+    }
+
+    @Test
+    fun `a chapter without an upload date on one source keeps the other's`() {
+        val chapters = listOf(
+            chapter(number = 1f, upload = 0L, fetch = now - day),
+            chapter(number = 1f, upload = now - 3 * day, fetch = now),
+            chapter(number = -1f, upload = now - 5 * day, fetch = now - 5 * day),
+        )
+        val (uploads, fetches) = releaseDates(chapters)
+        uploads shouldBe listOf(now - 3 * day, now - 5 * day)
+        fetches shouldBe listOf(now - day, now - 5 * day)
+    }
+
+    private fun chapter(number: Float, upload: Long, fetch: Long = upload) = ChapterImpl().apply {
+        chapter_number = number
+        date_upload = upload
+        date_fetch = fetch
+    }
+
+    @Test
+    fun `a stated interval is taken as is, anchored on the latest release`() {
+        // Two groups posting the same chapters would have measured a two-day gap; the user
+        // says weekly, so weekly it is, and the window has no spread to widen.
+        val manual = ReleaseEstimate.manual(week, listOf(now - day, now - 3 * day, now - 8 * day), none(), now)
+        manual.interval shouldBe week
+        manual.spread shouldBe 0L
+        manual.nextRelease shouldBe (now - day) + week
+        // Nothing seen yet: the count starts now rather than there being no estimate at all.
+        ReleaseEstimate.manual(week, none(), none(), now).nextRelease shouldBe now + week
     }
 
     @Test

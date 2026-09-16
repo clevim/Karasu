@@ -20,6 +20,9 @@ open class ReaderPage(
     /** Translated text blocks to overlay on this page, if the chapter has been translated */
     var translation: PageTranslation? = null
 
+    /** The key [translation] sits under in the chapter's file, so an edit can be written back. */
+    var translationKey: String? = null
+
     /** Value to check if a page is can be doubled up, but can't because the next page is too wide */
     var isolatedPage: Boolean = false
     var firstHalf: Boolean? = null

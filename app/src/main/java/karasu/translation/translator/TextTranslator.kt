@@ -20,10 +20,12 @@ enum class TranslationEngine(val label: String, val needsApiKey: Boolean) {
     OPENROUTER("OpenRouter", true),
     ;
 
+    /** @param context the user's notes on this manga (names, terms); only an LLM can use them. */
     fun build(
         preferences: TranslationPreferences,
         fromLang: OcrLanguage,
         toLang: String,
+        context: String = "",
     ): TextTranslator = when (this) {
         MLKIT -> MLKitTranslator(fromLang, toLang)
         OPENROUTER -> OpenRouterTranslator(
@@ -31,6 +33,7 @@ enum class TranslationEngine(val label: String, val needsApiKey: Boolean) {
             toLang = toLang,
             apiKey = preferences.engineApiKey().get(),
             modelName = preferences.engineModel().get(),
+            context = context,
         )
     }
 }

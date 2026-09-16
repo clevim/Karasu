@@ -1,0 +1,15 @@
+-- The library entry each chapter is shown under.
+--
+-- A merged source keeps its chapters on its own non-favourite manga row, so anything that joins
+-- chapters to "the manga" through chapters.manga_id lands on that hidden row and then loses the
+-- chapter to a `favorite = 1` filter. This resolves the row it is shown under instead: the manga
+-- it was merged into, or itself for everything else.
+CREATE VIEW chapter_owner_view AS
+SELECT
+    C._id AS chapter_id,
+    coalesce(MM.manga_id, C.manga_id) AS manga_id
+FROM chapters AS C
+JOIN mangas AS SRC
+ON SRC._id = C.manga_id
+LEFT JOIN merged_manga AS MM
+ON MM.url = SRC.url AND MM.source = SRC.source;

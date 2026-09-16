@@ -33,7 +33,7 @@ class MergedSourceSync(
         if (!mergedSources.hasMerges(mangaId)) return emptyList()
 
         val added = mutableListOf<Chapter>()
-        mergedSources.await(mangaId).forEach { merge ->
+        mergedSources.await(mangaId).filter { it.updatesEnabled }.forEach { merge ->
             val child = getManga.awaitByUrlAndSource(merge.url, merge.source) ?: return@forEach
             val source = sourceManager.get(merge.source) ?: return@forEach
             try {

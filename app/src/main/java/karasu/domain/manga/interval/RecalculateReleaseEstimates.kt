@@ -35,11 +35,7 @@ class RecalculateReleaseEstimates(
                 // chapters that arrive are the merged ones, and that is the rhythm the user sees.
                 val chapters = getChapter.awaitAll(id, false)
                 if (chapters.isEmpty()) return@forEach
-                val written = fetchInterval.record(
-                    mangaId = id,
-                    uploadDates = chapters.map { it.date_upload },
-                    fetchDates = chapters.map { it.date_fetch },
-                )
+                val written = fetchInterval.record(id, chapters)
                 if (written) placed++
             }
         return placed

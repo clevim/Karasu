@@ -79,6 +79,8 @@ class MergedSourceHealth(
 
         val theirNumbers = numbersOf(childId)
         return when {
+            // A reserve is never synced on purpose, so an empty list says nothing about it.
+            theirNumbers.isEmpty() && !merge.updatesEnabled -> MergeHealth.OK
             theirNumbers.isEmpty() -> MergeHealth.NEVER_SYNCED
             looksLikeWrongManga(ownNumbers, theirNumbers) -> MergeHealth.LIKELY_WRONG_MANGA
             else -> MergeHealth.OK

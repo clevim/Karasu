@@ -41,10 +41,12 @@ import karasu.util.lang.getString
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
+import karasu.translation.data.TranslationCache
 import karasu.translation.translator.OpenRouterQuota
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.util.system.launchIO
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.withUIContext
 
 class SettingsReaderController : SettingsLegacyController() {
@@ -499,6 +501,17 @@ class SettingsReaderController : SettingsLegacyController() {
                 summaryRes = MR.strings.translation_model_summary
 
                 translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
+            }
+            preference {
+                titleRes = MR.strings.translation_clear_cache
+                summaryRes = MR.strings.translation_clear_cache_summary
+                isPersistent = false
+                onClick {
+                    viewScope.launchIO {
+                        Injekt.get<TranslationCache>().clear()
+                        withUIContext { activity?.toast(MR.strings.translation_clear_cache_done) }
+                    }
+                }
             }
         }
     }

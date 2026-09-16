@@ -13,6 +13,8 @@ CREATE TABLE manga_fetch_state(
     next_release INTEGER NOT NULL,
     interval INTEGER NOT NULL,
     spread INTEGER NOT NULL,
+    -- Days between releases as told by the user, or NULL to go by the measured rhythm.
+    manual_interval INTEGER,
     FOREIGN KEY(manga_id) REFERENCES mangas (_id)
     ON DELETE CASCADE
 );
@@ -23,6 +25,9 @@ SELECT manga_id, next_check FROM manga_fetch_state;
 findAll:
 SELECT manga_id, next_check, next_release, interval, spread FROM manga_fetch_state;
 
+findManualInterval:
+SELECT manual_interval FROM manga_fetch_state WHERE manga_id = :manga_id;
+
 -- Push the next check out without touching what is known about the release rhythm: a source
 -- that failed said nothing about when the manga posts, only that asking again right now is
 -- pointless. Does nothing when there is no row, which is correct — no row is never watched.
@@ -30,10 +35,11 @@ delayCheck:
 UPDATE manga_fetch_state SET next_check = :next_check WHERE manga_id = :manga_id;
 
 upsert:
-INSERT INTO manga_fetch_state(manga_id, next_check, next_release, interval, spread)
-VALUES (:manga_id, :next_check, :next_release, :interval, :spread)
+INSERT INTO manga_fetch_state(manga_id, next_check, next_release, interval, spread, manual_interval)
+VALUES (:manga_id, :next_check, :next_release, :interval, :spread, :manual_interval)
 ON CONFLICT(manga_id) DO UPDATE SET
     next_check = :next_check,
     next_release = :next_release,
     interval = :interval,
-    spread = :spread;
+    spread = :spread,
+    manual_interval = :manual_interval;

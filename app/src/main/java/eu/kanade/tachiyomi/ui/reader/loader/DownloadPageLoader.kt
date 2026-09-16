@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import uy.kohesive.injekt.injectLazy
 import karasu.core.archive.util.archiveReader
+import karasu.translation.ChapterTranslator
 import karasu.translation.TranslationManager
 import karasu.translation.model.PageTranslation
 
@@ -71,7 +72,10 @@ class DownloadPageLoader(
             },).apply {
                 // On SAF storage lastPathSegment is the whole document path ("primary:Download/
                 // manga/001.jpg"), not just the file name the translation is keyed by.
-                translation = translations[page.uri?.lastPathSegment?.substringAfterLast('/')]
+                // By name, or by position for a chapter translated before it was downloaded.
+                val name = page.uri?.lastPathSegment?.substringAfterLast('/')
+                translationKey = if (name in translations || name == null) name else ChapterTranslator.onlinePageKey(index)
+                translation = translations[name] ?: translations[ChapterTranslator.onlinePageKey(index)]
                 status = Page.State.Ready
             }
         }

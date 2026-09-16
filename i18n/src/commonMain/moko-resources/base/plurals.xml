@@ -4,6 +4,10 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+    <plurals name="release_interval_every_days">
+        <item quantity="one">Every day</item>
+        <item quantity="other">Every %1$d days</item>
+    </plurals>
 
     <plurals name="auto_migration_done">
         <item quantity="one">%1$d entry migrated automatically</item>

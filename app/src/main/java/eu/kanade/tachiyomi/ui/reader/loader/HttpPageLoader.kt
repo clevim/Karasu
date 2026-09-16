@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.suspendCancellableCoroutine
+import karasu.domain.manga.interactor.GetManga
+import karasu.translation.ChapterTranslator
+import karasu.translation.TranslationManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -37,6 +40,8 @@ class HttpPageLoader(
     private val chapterCache: ChapterCache = Injekt.get(),
     private val preferences: PreferencesHelper = Injekt.get(),
     private val mergedSourceFallback: MergedSourceFallback = Injekt.get(),
+    private val getManga: GetManga = Injekt.get(),
+    private val translationManager: TranslationManager = Injekt.get(),
 ) : PageLoader() {
 
     override val isLocal: Boolean = false
@@ -138,9 +143,17 @@ class HttpPageLoader(
         }
         triedSources += activeSource.id
         canSwitchSource = chapter.chapter.manga_id?.let { mergedSourceFallback.hasAlternates(it) } == true
+        // A chapter can be translated without being downloaded; those translations are keyed by
+        // position, which is all an online page has.
+        val translations = chapter.chapter.manga_id?.let { getManga.awaitById(it) }
+            ?.let { translationManager.getChapterTranslation(it, chapter.chapter, source) }
+            .orEmpty()
         return pages.mapIndexed { index, page ->
             // Don't trust sources and use our own indexing
-            ReaderPage(index, page.url, page.imageUrl)
+            ReaderPage(index, page.url, page.imageUrl).apply {
+                translationKey = ChapterTranslator.onlinePageKey(index)
+                translation = translations[translationKey]
+            }
         }
     }
 

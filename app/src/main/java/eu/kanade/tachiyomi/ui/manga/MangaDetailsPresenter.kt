@@ -55,6 +55,8 @@ import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
 import eu.kanade.tachiyomi.util.chapter.ChapterSort
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
+import eu.kanade.tachiyomi.ui.migration.manga.process.MigrationProcessAdapter
+import eu.kanade.tachiyomi.ui.migration.MigrationFlags
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithTrackServiceTwoWay
 import eu.kanade.tachiyomi.util.chapter.updateTrackChapterMarkedAsRead
 import eu.kanade.tachiyomi.util.isLocal
@@ -95,6 +97,7 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.category.interactor.ApplyCategoryRules
 import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.SetMangaCategories
 import karasu.domain.chapter.interactor.ChapterGap
 import karasu.domain.chapter.interactor.findChapterGaps
 import karasu.domain.chapter.interactor.GetAvailableScanlators
@@ -107,10 +110,14 @@ import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.UpdateManga
 import karasu.domain.manga.interval.FetchInterval
+import karasu.domain.translation.TranslationPreferences
+import karasu.translation.TranslationManager
+import karasu.translation.data.TranslationContexts
 import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.merged.interactor.MergeHealth
 import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.chapter.models.ChapterUpdate
 import karasu.domain.manga.models.MangaUpdate
 import karasu.domain.manga.models.MergedMangaSource
 import karasu.domain.manga.models.cover
@@ -178,9 +185,48 @@ class MangaDetailsPresenter(
     var releaseEstimate: ReleaseEstimate? = null
         private set
 
+    /** Days between releases the user set by hand, or null when the rhythm is measured. */
+    var manualReleaseIntervalDays: Int? = null
+        private set
+
     private suspend fun loadReleaseEstimate() {
         val id = manga.id
         releaseEstimate = if (id != null && inReleaseSchedule(id)) fetchInterval.awaitAll()[id] else null
+        manualReleaseIntervalDays = id?.let { fetchInterval.manualIntervalDays(it) }
+    }
+
+    private val translationContexts: TranslationContexts by injectLazy()
+    private val translationPreferences: TranslationPreferences by injectLazy()
+
+    /** Only the LLM engine can read notes, so the entry is pointless under any other. */
+    val translationNotesApply: Boolean get() = translationPreferences.engine().get().needsApiKey
+
+    suspend fun translationNotes(): String = translationContexts.get(mangaId)
+
+    fun setTranslationNotes(notes: String) {
+        presenterScope.launchIO { translationContexts.set(mangaId, notes) }
+    }
+
+    /**
+     * Queues every downloaded chapter that has no translation yet. @return how many were queued.
+     * The queue itself skips the translated ones, so this only has to find the downloads.
+     */
+    fun translateDownloadedChapters(): Int {
+        val source = sourceManager.get(manga.source) ?: return 0
+        val translationManager: TranslationManager = Injekt.get()
+        return allChapters
+            .filter { downloadManager.isChapterDownloaded(it.chapter, manga) }
+            .count { translationManager.queueChapter(manga, it.chapter, source) != null }
+    }
+
+    /** Tells the schedule how often this manga releases, or with null lets it measure again. */
+    fun setManualReleaseInterval(days: Int?) {
+        val id = manga.id ?: return
+        presenterScope.launchIO {
+            fetchInterval.setManualIntervalDays(id, days, getChapter.awaitAll(id, false))
+            loadReleaseEstimate()
+            withUIContext { view?.updateHeader() }
+        }
     }
 
     /**
@@ -691,12 +737,7 @@ class MangaDetailsPresenter(
         // Refreshing by hand teaches the schedule as much as the update job does, and for
         // someone who updates only from this screen it is the only thing that ever does. The
         // merged list, like the job uses: a merged entry's rhythm is the one the user sees.
-        val storedChapters = getChapter.awaitAll(manga.id!!, false)
-        fetchInterval.record(
-            mangaId = manga.id!!,
-            uploadDates = storedChapters.map { it.date_upload },
-            fetchDates = storedChapters.map { it.date_fetch },
-        )
+        fetchInterval.record(manga.id!!, getChapter.awaitAll(manga.id!!, false))
         loadReleaseEstimate()
 
         // Merged sources' new chapters appear in this manga's list, so they get the
@@ -759,6 +800,18 @@ class MangaDetailsPresenter(
     fun addMergedSource(source: Long, url: String) {
         presenterScope.launchIO {
             if (!mergedSources.addAtEnd(mangaId, source, url, ownSource = manga.source)) return@launchIO
+            // The same series already sitting in the library as its own entry is exactly what a
+            // merge exists to undo: fold it in. Its categories come along; its read state is on
+            // its own rows, which the merged list reads, so nothing is lost by unfavouriting it.
+            getManga.awaitByUrlAndSource(url, source)?.takeIf { it.favorite }?.let { duplicate ->
+                val duplicateId = duplicate.id!!
+                val mine = getCategories.awaitByMangaId(mangaId).mapNotNull { it.id?.toLong() }
+                val theirs = getCategories.awaitByMangaId(duplicateId).mapNotNull { it.id?.toLong() }
+                if ((theirs - mine).isNotEmpty()) {
+                    Injekt.get<SetMangaCategories>().await(mangaId, (mine + theirs).distinct())
+                }
+                updateManga.await(MangaUpdate(id = duplicateId, favorite = false))
+            }
             // Only a new source needs the network: its chapters aren't stored yet.
             try {
                 mergedSourceSync.await(mangaId)
@@ -807,6 +860,50 @@ class MangaDetailsPresenter(
     }
 
     /** Applies the dialog's order as the priority used to break ties between sources. */
+    /** A reserve is asked for pages only when the others fail; nothing else is fetched from it. */
+    fun setMergedSourceReserve(source: Long, reserve: Boolean) {
+        presenterScope.launchIO {
+            mergedSources.setReserve(mangaId, source, reserve)
+            reloadChapters()
+        }
+    }
+
+    /**
+     * Swaps roles: the merged [source]'s copy becomes the library entry and this manga joins it
+     * as a merged source, so nothing is lost — read chapters, categories, tracking and history
+     * move over the way a migration moves them, and the old primary keeps serving as a fallback.
+     */
+    fun makeMergedSourcePrimary(source: Long) {
+        presenterScope.launchIO {
+            val merge = mergedSources.await(mangaId).find { it.source == source } ?: return@launchIO
+            val newSource = sourceManager.get(source) ?: return@launchIO
+            val child = getManga.awaitByUrlAndSource(merge.url, merge.source) ?: return@launchIO
+            // A reserve has never been fetched, so it has no chapters to carry read state onto.
+            runCatching {
+                val update = newSource.getMangaUpdate(child, emptyList(), fetchDetails = true, fetchChapters = true)
+                child.copyFrom(update.manga)
+                updateManga.await(child.toMangaUpdate())
+                syncChaptersWithSource(update.chapters, child, newSource)
+            }.onFailure {
+                withUIContext { view?.showError(it.message ?: "Could not fetch ${newSource.name}") }
+                return@launchIO
+            }
+            MigrationProcessAdapter.migrateMangaInternal(
+                flags = MigrationFlags.flags.fold(0) { acc, flag -> acc or flag },
+                enhancedServices = Injekt.get<TrackManager>().services.filterIsInstance<EnhancedTrackService>(),
+                coverCache = coverCache,
+                customMangaManager = customMangaManager,
+                prevSource = sourceManager.get(manga.source),
+                source = newSource,
+                prevManga = manga,
+                manga = child,
+                replace = true,
+            )
+            mergedSources.addAtEnd(child.id!!, manga.source, manga.url, ownSource = newSource.id)
+            withUIContext { view?.openMangaAfterMerge(child.id!!) }
+        }
+    }
+
     fun reorderMergedSources(sources: List<Long>) {
         presenterScope.launchIO {
             sources.forEachIndexed { index, source ->
@@ -886,7 +983,12 @@ class MangaDetailsPresenter(
                 }
                 it.toProgressUpdate()
             }
-            updateChapter.awaitAll(updates)
+            // The other languages of a merged row are chapters of their own; reading one is
+            // reading the chapter, so they follow rather than coming back unread on a swap.
+            val alternates = selectedChapters.flatMap { it.chapter.alternates }.filter { it.id != null }.map {
+                ChapterUpdate(id = it.id!!, read = read, lastPageRead = if (read) null else 0L, pagesLeft = if (read) null else 0L)
+            }
+            updateChapter.awaitAll(updates + alternates)
             // Starting or finishing a manga is what category rules react to, so re-file it
             // now instead of leaving it in the wrong category until the next library update.
             applyCategoryRules.awaitFor(mangaId)

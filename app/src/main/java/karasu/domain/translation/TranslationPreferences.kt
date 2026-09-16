@@ -1,5 +1,6 @@
 package karasu.domain.translation
 
+import eu.kanade.tachiyomi.core.preference.Preference
 import eu.kanade.tachiyomi.core.preference.PreferenceStore
 import eu.kanade.tachiyomi.core.preference.getEnum
 import karasu.translation.recognizer.OcrLanguage
@@ -18,7 +19,8 @@ class TranslationPreferences(private val preferenceStore: PreferenceStore) {
 
     fun engine() = preferenceStore.getEnum("translation_engine", TranslationEngine.MLKIT)
 
-    fun engineApiKey() = preferenceStore.getString("translation_engine_api_key", "")
+    /** Private: a paid credential has no business in a backup file. */
+    fun engineApiKey() = preferenceStore.getString(Preference.privateKey("translation_engine_api_key"), "")
 
     // Free-model requests are capped per UTC day and OpenRouter does not report the tally, so the
     // app keeps its own. See [karasu.translation.translator.OpenRouterQuota].

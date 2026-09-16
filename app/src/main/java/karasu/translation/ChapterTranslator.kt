@@ -10,6 +10,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.database.models.readingModeType
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.domain.manga.models.Manga
@@ -19,6 +21,9 @@ import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import karasu.core.archive.util.archiveReader
 import karasu.domain.translation.TranslationPreferences
+import karasu.translation.data.CachedTranslator
+import karasu.translation.data.TranslationCache
+import karasu.translation.data.TranslationContexts
 import karasu.translation.data.TranslationProvider
 import karasu.translation.model.PageTranslation
 import karasu.translation.model.Progress
@@ -59,7 +64,10 @@ class ChapterTranslator(private val context: Context) {
     private val provider: TranslationProvider by injectLazy()
     private val downloadProvider: DownloadProvider by injectLazy()
     private val preferences: TranslationPreferences by injectLazy()
+    private val cache: TranslationCache by injectLazy()
+    private val contexts: TranslationContexts by injectLazy()
     private val readerPreferences: PreferencesHelper by injectLazy()
+    private val chapterCache: ChapterCache by injectLazy()
 
     private val _queueState = MutableStateFlow<List<Translation>>(emptyList())
     val queueState = _queueState.asStateFlow()
@@ -153,13 +161,13 @@ class ChapterTranslator(private val context: Context) {
             translation.chapter,
             translation.manga,
             translation.source,
-        ) ?: error("Chapter is not downloaded")
+        )
         val mangaDir = provider.getMangaDir(translation.manga, translation.source)
             ?: error("Could not create the translations directory")
 
         val rtl = readsRightToLeft(translation.manga)
 
-        val pageFiles = getChapterPages(chapterPath)
+        val pageFiles = if (chapterPath != null) getChapterPages(chapterPath) else getOnlinePages(translation)
         translation.progress = Progress(pagesRead = 0, pages = pageFiles.size)
 
         val pages = mutableMapOf<String, PageTranslation>()
@@ -179,13 +187,30 @@ class ChapterTranslator(private val context: Context) {
 
         if (pages.isNotEmpty()) {
             translation.progress = translation.progress.copy(phase = Progress.Phase.TRANSLATING)
-            preferences.engine().get().build(preferences, fromLang, toLang).use { it.translate(pages) }
+            val engine = preferences.engine().get()
+            val context = contextFor(translation.manga.id)
+            CachedTranslator(engine.build(preferences, fromLang, toLang, context), cache, engineKey(context)).use { it.translate(pages) }
         }
 
         val file = mangaDir.createFile(provider.getTranslationFileName(translation.chapter))
             ?: error("Could not create the translation file")
         file.openOutputStream().use { Json.encodeToStream(pages.toMap(), it) }
         translation.status = Translation.State.TRANSLATED
+    }
+
+    /** The user's notes on the manga, for engines that can read them. */
+    suspend fun contextFor(mangaId: Long?): String {
+        if (!preferences.engine().get().needsApiKey) return ""
+        return mangaId?.let { contexts.get(it) }.orEmpty()
+    }
+
+    /**
+     * What the cache files translations under. The model and the notes are part of it for the
+     * LLM engine: change either and the same line is, deliberately, a different translation.
+     */
+    fun engineKey(context: String): String {
+        val engine = preferences.engine().get()
+        return if (engine.needsApiKey) "${engine.name}:${preferences.engineModel().get()}:${context.hashCode()}" else engine.name
     }
 
     /**
@@ -344,6 +369,26 @@ class ChapterTranslator(private val context: Context) {
 
 
     /** Page file name to a stream factory, in the same order the reader will show them. */
+    /**
+     * The pages of a chapter that was never downloaded, through the reader's image cache.
+     *
+     * Keyed by position rather than file name, since there is no file: `page-0`, `page-1`… The
+     * loaders look a page up by both, so the translation survives a later download too. Images
+     * already in the cache from reading are reused; the rest are fetched and cached the same way
+     * the reader would, so this costs the source nothing the reader would not have.
+     */
+    private suspend fun getOnlinePages(translation: Translation): List<Pair<String, () -> InputStream>> {
+        val source = translation.source as? HttpSource ?: error("Chapter is not downloaded")
+        val pages = source.getPageList(translation.chapter)
+        return pages.mapIndexed { index, page ->
+            val url = page.imageUrl ?: source.getImageUrl(page).also { page.imageUrl = it }
+            if (!chapterCache.isImageInCache(url)) {
+                chapterCache.putImageToCache(url, source.getImage(page))
+            }
+            onlinePageKey(index) to { chapterCache.getImageFile(url).inputStream() }
+        }
+    }
+
     private fun getChapterPages(chapterPath: UniFile): List<Pair<String, () -> InputStream>> {
         if (chapterPath.isFile) {
             val reader = chapterPath.archiveReader(context)
@@ -362,6 +407,9 @@ class ChapterTranslator(private val context: Context) {
     }
 
     companion object {
+        /** The key a page translated without a download sits under: its position in the chapter. */
+        fun onlinePageKey(index: Int) = "page-$index"
+
         /**
          * Slice height in the page's own pixels. Set above any ordinary manga page on purpose:
          * a page that already fits goes through in one piece, exactly as before, and only long

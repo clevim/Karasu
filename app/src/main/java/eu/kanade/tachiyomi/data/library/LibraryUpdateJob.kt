@@ -544,8 +544,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // already written as each chapter arrived, which is the fallback for sources that
             // report no upload date.
             manga.manga.id?.let { id ->
-                val chapters = getChapter.awaitAll(id, false)
-                fetchInterval.record(id, chapters.map { it.date_upload }, chapters.map { it.date_fetch })
+                fetchInterval.record(id, getChapter.awaitAll(id, false))
             }
 
             // Chapters a merged source brought in show up in this manga's list, so they are

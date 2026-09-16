@@ -17,6 +17,11 @@
         <item quantity="many">%1$d dias</item>
         <item quantity="other">%1$d dias</item>
     </plurals>
+    <plurals name="release_interval_every_days">
+        <item quantity="one">Todo dia</item>
+        <item quantity="many">A cada %1$d dias</item>
+        <item quantity="other">A cada %1$d dias</item>
+    </plurals>
 
     <plurals name="remove_n_chapters">
         <item quantity="one">Remover %1$d capítulo baixado\?</item>

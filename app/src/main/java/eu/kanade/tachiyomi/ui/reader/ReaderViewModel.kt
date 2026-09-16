@@ -96,6 +96,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.getAndUpdate
 import karasu.translation.model.Translation
+import karasu.translation.model.TranslationBlock
 import karasu.domain.translation.TranslationPreferences
 
 /**
@@ -464,14 +465,25 @@ class ReaderViewModel(
         return lastPage
     }
 
+    /** The reader fixed one bubble by hand; see [TranslationManager.correctTranslation]. */
+    fun correctTranslation(page: ReaderPage, block: TranslationBlock, corrected: String) {
+        val manga = manga ?: return
+        val source = sourceManager.get(manga.source) ?: return
+        val translation = page.translation ?: return
+        val key = page.translationKey ?: return
+        viewModelScope.launchIO {
+            translationManager.correctTranslation(manga, page.chapter.chapter, source, key, translation, block, corrected)
+        }
+    }
+
     /** Whether the pages on screen are already carrying a translation. */
     fun currentChapterIsTranslated(): Boolean =
         getCurrentChapter()?.pages?.any { it.translation != null } == true
 
     /**
      * Turns the translation overlay on or off for the chapter on screen, translating it first if
-     * it has never been translated. Only downloaded chapters can be translated: the OCR reads the
-     * page files, and the result is stored next to them.
+     * it has never been translated. A downloaded chapter is read from its files; anything else
+     * goes through the reader's image cache, so it needs the network for the pages not yet seen.
      */
     fun setTranslationsEnabled(enabled: Boolean) {
         val manga = manga ?: return
@@ -479,10 +491,6 @@ class ReaderViewModel(
         val chapter = getCurrentChapter() ?: return
         translationJob = viewModelScope.launchIO {
             if (enabled) {
-                if (!downloadManager.isChapterDownloaded(chapter.chapter, manga, skipCache = true)) {
-                    eventChannel.send(Event.Message(MR.strings.translation_needs_download))
-                    return@launchIO
-                }
                 val translation = translationManager.queueChapter(manga, chapter.chapter, source)
                 if (translation != null) {
                     // OCR over a long chapter takes minutes, and until now the only sign of it was

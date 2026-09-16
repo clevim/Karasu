@@ -49,7 +49,11 @@ data class ReleaseEstimate(
     fun expectedRelease(now: Long, grace: Long = MISS_GRACE): Long {
         val late = now - nextRelease
         if (late <= grace || interval <= 0) return nextRelease
-        return nextRelease + interval * (late / interval + 1)
+        // The first cycle that is not itself past the grace. Rounded up from the end of the
+        // grace, not down-plus-one from the miss: a weekly series that skipped last Monday is
+        // due *this* Monday, and floor(7d / 7d) + 1 would have said next Monday all day long.
+        val cycles = (late - grace + interval - 1) / interval
+        return nextRelease + interval * cycles
     }
 
     /**
@@ -123,6 +127,9 @@ data class ReleaseEstimate(
         /** The preference, which is in whole days, as the milliseconds [expectedRelease] wants. */
         fun graceOf(dayCount: Int) = days(dayCount.toLong())
 
+        /** Whole days as milliseconds, for a user-stated interval. */
+        fun daysOf(dayCount: Int) = days(dayCount.toLong())
+
         /**
          * The window never closes tighter than this, because sources post at their own hour.
          *
@@ -158,6 +165,20 @@ data class ReleaseEstimate(
          */
         fun estimate(uploadDates: List<Long>, fetchDates: List<Long>, now: Long): ReleaseEstimate? =
             estimateFrom(uploadDates, now) ?: estimateFrom(fetchDates, now)
+
+        /**
+         * The rhythm the user stated, anchored on the latest release actually seen.
+         *
+         * No spread: the user has said what the gap is, so the window is only the scheduling
+         * floor. With nothing seen yet the count starts now — a wrong first guess is corrected
+         * by the first chapter, the same as any other estimate.
+         */
+        fun manual(interval: Long, uploadDates: List<Long>, fetchDates: List<Long>, now: Long): ReleaseEstimate {
+            val latest = latestEvent(uploadDates, now) ?: latestEvent(fetchDates, now) ?: now
+            return ReleaseEstimate(nextRelease = latest + interval, interval = interval, spread = 0)
+        }
+
+        private fun latestEvent(dates: List<Long>, now: Long): Long? = dates.filter { it in 1..now }.maxOrNull()
 
         private fun estimateFrom(dates: List<Long>, now: Long): ReleaseEstimate? {
             val events = collapse(dates.filter { it in 1..now }.sortedDescending())

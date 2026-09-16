@@ -7,6 +7,7 @@ interface MergedMangaRepository {
     suspend fun getMangaIdsWithMerges(): Set<Long>
     suspend fun insert(mangaId: Long, source: Long, url: String, priority: Int)
     suspend fun updatePriority(mangaId: Long, source: Long, priority: Int)
+    suspend fun updateUpdatesEnabled(mangaId: Long, source: Long, enabled: Boolean)
     suspend fun delete(mangaId: Long, source: Long)
     suspend fun deleteByMangaId(mangaId: Long)
 }

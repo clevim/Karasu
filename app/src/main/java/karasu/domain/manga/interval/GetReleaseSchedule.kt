@@ -1,6 +1,7 @@
 package karasu.domain.manga.interval
 
 import eu.kanade.tachiyomi.domain.manga.models.Manga
+import eu.kanade.tachiyomi.source.model.SManga
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -78,6 +79,9 @@ fun ReleaseSchedule.calendar(
     )
 }
 
+/** Statuses under which no further chapter is coming. Hiatus is not one: it may end. */
+private val FINISHED = setOf(SManga.COMPLETED, SManga.CANCELLED, SManga.LICENSED)
+
 class GetReleaseSchedule(
     private val getLibraryManga: GetLibraryManga,
     private val fetchInterval: FetchInterval,
@@ -95,6 +99,9 @@ class GetReleaseSchedule(
             .filter { categories.isEmpty() || it.category in categories }
             .distinctBy { it.manga.id }
             .map { it.manga }
+            // Nothing is expected of a finished series, so it belongs on no date and in no
+            // bucket: left in, every completed entry would sit under "stalled" forever.
+            .filter { it.status !in FINISHED }
 
         val upcoming = mutableListOf<ScheduledRelease>()
         val stalled = mutableListOf<ScheduledRelease>()

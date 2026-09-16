@@ -1,0 +1,33 @@
+-- Translations already paid for, keyed by the exact source text.
+--
+-- Re-translating a chapter — after a change of engine, of target language, or a delete and
+-- re-download — asked the engine for every bubble again. Most of a series' recurring lines
+-- (names, sound effects, catchphrases) come back identical, and for an API engine each of those
+-- is a request. The cache also keeps a recurring term translated the same way across chapters.
+--
+-- ponytail: never pruned. A line is ~100 bytes; a library's worth is a few MB. Add an eviction
+-- by last_used if it ever shows up in the database size.
+CREATE TABLE translation_cache(
+    engine TEXT NOT NULL,
+    from_lang TEXT NOT NULL,
+    to_lang TEXT NOT NULL,
+    source TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    last_used INTEGER NOT NULL,
+    PRIMARY KEY(engine, from_lang, to_lang, source)
+);
+
+find:
+SELECT source, translation
+FROM translation_cache
+WHERE engine = :engine AND from_lang = :from_lang AND to_lang = :to_lang AND source IN :sources;
+
+upsert:
+INSERT INTO translation_cache(engine, from_lang, to_lang, source, translation, last_used)
+VALUES (:engine, :from_lang, :to_lang, :source, :translation, :last_used)
+ON CONFLICT(engine, from_lang, to_lang, source) DO UPDATE SET
+    translation = :translation,
+    last_used = :last_used;
+
+deleteAll:
+DELETE FROM translation_cache;

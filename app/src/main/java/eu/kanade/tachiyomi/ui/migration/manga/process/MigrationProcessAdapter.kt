@@ -31,6 +31,7 @@ import karasu.domain.history.interactor.UpsertHistory
 import karasu.domain.library.custom.model.CustomMangaInfo.Companion.getMangaInfo
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.UpdateManga
+import karasu.domain.manga.merged.interactor.MergedSources
 import karasu.domain.manga.models.MangaUpdate
 import karasu.domain.track.interactor.GetTrack
 import karasu.domain.track.interactor.InsertTrack
@@ -243,6 +244,13 @@ class MigrationProcessAdapter(
                         }
                     }
                 Injekt.get<InsertTrack>().awaitBulk(tracksToUpdate)
+            }
+            // Carry the merged sources over. The link rows hang off the old manga and would go
+            // with it; the sources themselves are as valid for the new row as for the old one.
+            // The target itself is skipped: a merge pointing at the manga's own source is a no-op.
+            val mergedSources: MergedSources = Injekt.get()
+            mergedSources.await(prevManga.id!!).forEach { merge ->
+                mergedSources.addAtEnd(manga.id!!, merge.source, merge.url, ownSource = source.id)
             }
             val updateManga: UpdateManga = Injekt.get()
             // Update favorite status

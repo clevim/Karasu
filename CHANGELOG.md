@@ -18,9 +18,25 @@ First Karasu release. Based on [yokai 1.10.2](https://github.com/null2264/yokai/
 - Rebrand to Karasu (own `applicationId`, icons, widgets)
 - KOReader shelf sync: push selected manga as CBZ to a self-hosted container, read back finished chapters, filter conditions
 - Release calendar with schedule/interval and grace period per manga, plus missing-chapter detection
+  - Set a manga's release frequency by hand from its ⋮ menu when the measured one is wrong
+  - Fix a series that skipped a week being shown next week instead of today
+  - Fix several scanlators (or merged sources) posting the same chapter being counted as several releases, which made weekly series look stalled
+  - Finished series (completed, cancelled, licensed) no longer sit under "stalled"
 - Merged sources on manga details
+  - Fix chapters read through a merged source missing from History and "continue reading"
+  - Merged sources now follow the manga through a source migration
+  - Merging a series that is already in the library as its own entry folds that entry in (categories kept)
+  - Per source: keep only as a fallback (no updates, no chapters listed), or make it the primary source
+  - Marking a chapter read also marks its other-language rows
 - FlareSolverr support for Cloudflare bypass
 - Disk caching for Coil images
+- Chapter translation (OCR + ML Kit / OpenRouter)
+  - Translate a chapter without downloading it (pages go through the reader's image cache)
+  - Translations are cached per line, so re-translating and recurring lines cost no requests
+  - Per-manga translation notes (names, honorifics, terms) handed to the LLM engine
+  - Long-press a page → "Translated bubbles" to see the original text and correct a translation
+  - "Translate downloaded chapters" on the manga menu
+  - Fix the OpenRouter API key being written into backups
 - Remove Firebase Crashlytics/Analytics (crash logs stay local: crash screen + "Dump crash logs")
 - Remove Shikimori tracker
 - Vendor FlexibleAdapter (JitPack no longer builds it)

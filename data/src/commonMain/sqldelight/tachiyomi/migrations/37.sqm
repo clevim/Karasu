@@ -1,0 +1,6 @@
+CREATE TABLE manga_translation_context(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    context TEXT NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);

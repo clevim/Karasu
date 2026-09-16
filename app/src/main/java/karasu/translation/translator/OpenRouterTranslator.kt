@@ -49,6 +49,8 @@ class OpenRouterTranslator(
     override val toLang: String,
     private val apiKey: String,
     private val modelName: String,
+    /** The user's notes on this manga, appended to the system prompt when present. */
+    private val context: String = "",
 ) : TextTranslator {
 
     private val network: NetworkHelper by injectLazy()
@@ -267,7 +269,8 @@ class OpenRouterTranslator(
         - The text is OCR: translate the obvious meaning, not the typos. Pass through sound
           effects and gibberish as they are.
         - Replace any site link or watermark with "$WATERMARK".
-    """.trimIndent()
+    """.trimIndent() + if (context.isBlank()) "" else "\n\nNotes from the reader about this series, follow them:\n$context"
+
 
     private fun String.extractJson(): String = extractJson(this)
 

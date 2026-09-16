@@ -4,6 +4,9 @@ CREATE TABLE merged_manga(
     source INTEGER NOT NULL,
     url TEXT NOT NULL,
     priority INTEGER NOT NULL,
+    -- 0 makes the source a reserve: never synced, its chapters never listed, only asked for
+    -- pages when the others fail.
+    updates_enabled INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY(manga_id) REFERENCES mangas (_id)
     ON DELETE CASCADE
 );
@@ -24,6 +27,11 @@ FROM merged_manga;
 insert:
 INSERT INTO merged_manga(manga_id, source, url, priority)
 VALUES (:manga_id, :source, :url, :priority);
+
+updateUpdatesEnabled:
+UPDATE merged_manga
+SET updates_enabled = :updates_enabled
+WHERE manga_id = :manga_id AND source = :source;
 
 updatePriority:
 UPDATE merged_manga

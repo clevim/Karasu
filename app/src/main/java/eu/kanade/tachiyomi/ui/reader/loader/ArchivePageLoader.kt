@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import karasu.core.archive.ArchiveReader
+import karasu.translation.ChapterTranslator
 import karasu.translation.model.PageTranslation
 
 /**
@@ -35,7 +36,10 @@ internal class ArchivePageLoader(
             .mapIndexed { i, entry ->
                 ReaderPage(i).apply {
                     stream = { reader.getInputStream(entry.name)!! }
+                    // By name, or by position for a chapter translated before it was downloaded.
                     translation = translations[entry.name]
+                        ?: translations[ChapterTranslator.onlinePageKey(i)]
+                    translationKey = if (entry.name in translations || translation == null) entry.name else ChapterTranslator.onlinePageKey(i)
                     status = Page.State.Ready
                 }
             }

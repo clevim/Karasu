@@ -208,7 +208,7 @@
     <string name="merged_sources">Fontes mescladas</string>
     <string name="no_merged_sources">Nenhuma fonte mesclada ainda</string>
     <string name="merged_source_summary">%1$d capítulos novos, %2$d já cobertos</string>
-    <string name="merged_sources_hint">Arraste pela alça para mudar qual fonte prevalece em um capítulo compartilhado.</string>
+    <string name="merged_sources_hint">Arraste pela alça para mudar qual fonte prevalece em um capítulo compartilhado. O menu de cada linha tem o resto. Capítulos sem número de fontes mescladas não aparecem.</string>
     <string name="long_press_category">Pressione e segure para editar uma categoria</string>
     <!-- Updates -->
     <string name="update">Atualizar</string>
@@ -941,6 +941,8 @@
     <string name="release_estimate_between">Entre %1$s e %2$s</string>
     <string name="release_estimate_on">Previsto para %1$s</string>
     <string name="release_calendar">Calendário de lançamentos</string>
+    <string name="release_interval">Frequência de lançamento</string>
+    <string name="release_interval_auto">Automática (medida pelos capítulos)</string>
     <string name="release_calendar_later">Mais adiante</string>
     <string name="release_calendar_nothing_expected">Nada previsto</string>
     <string name="release_calendar_stalled">Parecem ter parado</string>
@@ -960,6 +962,13 @@
     <string name="recalculate_release_estimates_running">Recalculando…</string>
     <string name="recalculate_release_estimates_done">%1$d obras posicionadas no calendário</string>
     <string name="translation">Tradução</string>
+    <string name="translation_notes">Notas para tradução</string>
+    <string name="translate_downloaded_chapters">Traduzir capítulos baixados</string>
+    <string name="translate_downloaded_none">Nada a traduzir: nenhum capítulo baixado está sem tradução</string>
+    <string name="translation_bubbles">Balões traduzidos</string>
+    <string name="translation_bubble_hint">Tradução</string>
+    <string name="translation_notes_summary">Enviadas ao tradutor com todo capítulo desta série. Nomes de personagens, como tratar honoríficos, termos recorrentes.</string>
+    <string name="translation_notes_hint">ex.: "Kaguya" fica "Kaguya"; manter "-senpai"; "o Conselho" é o conselho estudantil</string>
     <string name="show_translations">Mostrar traduções</string>
     <string name="show_translations_summary">Desenha o texto traduzido por cima da página nos
         capítulos que já foram traduzidos.</string>
@@ -972,6 +981,9 @@
     <string name="translation_api_key">Chave da API</string>
     <string name="translation_api_key_summary">Necessária para os motores que traduzem na nuvem.</string>
     <string name="translation_model">Modelo</string>
+    <string name="translation_clear_cache">Limpar cache de tradução</string>
+    <string name="translation_clear_cache_done">Cache de tradução limpo</string>
+    <string name="translation_clear_cache_summary">Frases já traduzidas são reaproveitadas entre capítulos. Limpe para refazer uma tradução errada.</string>
     <string name="translation_model_summary">Qualquer id de modelo do openrouter.ai. Evite modelos de raciocínio: eles gastam a resposta inteira pensando e não devolvem nada aproveitável.</string>
     <string name="translate_chapter">Traduzir</string>
     <string name="translation_queued">Na fila de tradução</string>
@@ -1325,6 +1337,10 @@
     <string name="merge_source_missing">extensão não instalada</string>
     <string name="merge_entry_gone">obra não está mais nessa fonte</string>
     <string name="merge_never_synced">nenhum capítulo trazido ainda</string>
+    <string name="merged_source_reserve">Só como reserva</string>
+    <string name="merged_source_reserve_short">só reserva</string>
+    <string name="merged_source_make_primary">Tornar fonte principal</string>
+    <string name="merged_source_make_primary_confirm">Esta fonte vira a entrada da biblioteca: capítulos lidos, categorias, tracking e histórico passam pra ela, e a fonte atual continua mesclada como reserva. Capítulos sem número de fontes mescladas nunca aparecem.</string>
     <string name="merge_likely_wrong_manga">os números dos capítulos não batem — obra errada?</string>
     <string name="no_other_source_available">Nenhuma outra fonte tem esse capítulo</string>
     <string name="now_reading_from">Lendo agora de %1$s</string>

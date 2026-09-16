@@ -1,0 +1,19 @@
+-- Free text the user wrote about a manga for the LLM translator: character names, how to render
+-- honorifics, recurring terms. Handed to the engine with every batch of that manga's bubbles.
+CREATE TABLE manga_translation_context(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    context TEXT NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+find:
+SELECT context FROM manga_translation_context WHERE manga_id = :manga_id;
+
+upsert:
+INSERT INTO manga_translation_context(manga_id, context)
+VALUES (:manga_id, :context)
+ON CONFLICT(manga_id) DO UPDATE SET context = :context;
+
+delete:
+DELETE FROM manga_translation_context WHERE manga_id = :manga_id;

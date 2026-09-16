@@ -255,6 +255,8 @@ dependencies {
 
     // Tests
     testImplementation(libs.bundles.test)
+    // JVM SQLite, so the .sq queries can be run against an in-memory schema in unit tests.
+    testImplementation(libs.sqldelight.sqlite.driver)
     testRuntimeOnly(libs.bundles.test.runtime)
     androidTestImplementation(libs.bundles.test.android)
     testImplementation(kotlinx.coroutines.test)

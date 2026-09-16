@@ -20,6 +20,10 @@ class MergedMangaRepositoryImpl(private val handler: DatabaseHandler) : MergedMa
         handler.await { merged_mangaQueries.updatePriority(priority.toLong(), mangaId, source) }
     }
 
+    override suspend fun updateUpdatesEnabled(mangaId: Long, source: Long, enabled: Boolean) {
+        handler.await { merged_mangaQueries.updateUpdatesEnabled(if (enabled) 1L else 0L, mangaId, source) }
+    }
+
     override suspend fun delete(mangaId: Long, source: Long) {
         handler.await { merged_mangaQueries.deleteByMangaIdAndSource(mangaId, source) }
     }
@@ -34,5 +38,6 @@ class MergedMangaRepositoryImpl(private val handler: DatabaseHandler) : MergedMa
         source: Long,
         url: String,
         priority: Long,
-    ): MergedMangaSource = MergedMangaSource(id, mangaId, source, url, priority.toInt())
+        updatesEnabled: Long,
+    ): MergedMangaSource = MergedMangaSource(id, mangaId, source, url, priority.toInt(), updatesEnabled == 1L)
 }

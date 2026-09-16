@@ -137,6 +137,7 @@ class MangaBackupRestorer(
                 insertManga.await(Manga.create(merge.url, title, merge.source))
             }
             mergedSources.add(mangaId, merge.source, merge.url, merge.priority)
+            if (!merge.updatesEnabled) mergedSources.setReserve(mangaId, merge.source, true)
         }
     }
 

@@ -88,6 +88,27 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_release_interval"
+        android:icon="@drawable/ic_calendar_month_24dp"
+        android:title="@string/release_interval"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_translation"
+        android:icon="@drawable/ic_translate_24dp"
+        android:title="@string/translation"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/translate_downloaded"
+                android:title="@string/translate_downloaded_chapters" />
+            <item
+                android:id="@+id/action_translation_notes"
+                android:title="@string/translation_notes" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_missing_chapters"
         android:icon="@drawable/ic_warning_white_24dp"
         android:title="@string/missing_chapters"

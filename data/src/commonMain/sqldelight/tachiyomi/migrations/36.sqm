@@ -1,0 +1,9 @@
+CREATE TABLE translation_cache(
+    engine TEXT NOT NULL,
+    from_lang TEXT NOT NULL,
+    to_lang TEXT NOT NULL,
+    source TEXT NOT NULL,
+    translation TEXT NOT NULL,
+    last_used INTEGER NOT NULL,
+    PRIMARY KEY(engine, from_lang, to_lang, source)
+);

@@ -14,4 +14,5 @@ data class BackupMergedSource(
     @ProtoNumber(1) var source: Long,
     @ProtoNumber(2) var url: String,
     @ProtoNumber(3) var priority: Int = 0,
+    @ProtoNumber(4) var updatesEnabled: Boolean = true,
 )

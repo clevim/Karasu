@@ -62,13 +62,17 @@ SELECT
     C.*,
     H.*
 FROM mangas AS M
+-- Through the row the chapter is shown under, so a chapter read on a merged source counts for
+-- the library entry it was merged into rather than vanishing behind its hidden row.
+JOIN chapter_owner_view AS O
+ON O.manga_id = M._id
 JOIN chapters AS C
-ON M._id = C.manga_id
+ON C._id = O.chapter_id
 JOIN history AS H
 ON C._id = H.history_chapter_id
 AND H.history_last_read > 0
 LEFT JOIN scanlators_view AS S
-ON C.manga_id = S.manga_id
+ON M._id = S.manga_id
 AND C.scanlator = S.name
 -- Reading something straight from a source still records where you stopped, but it is not on the
 -- shelf, so it does not belong in a list of what you are keeping up with. Adding it to the library
@@ -87,24 +91,29 @@ SELECT
     C.*,
     H.*
 FROM mangas AS M
+JOIN chapter_owner_view AS O
+ON O.manga_id = M._id
 JOIN chapters AS C
-ON M._id = C.manga_id
+ON C._id = O.chapter_id
 JOIN history AS H
 ON C._id = H.history_chapter_id
 JOIN (
     SELECT
-        C2.manga_id AS manga_id,
+        O2.manga_id AS manga_id,
         C2._id AS history_chapter_id,
         MAX(H2.history_last_read) AS history_last_read
-    FROM chapters AS C2 JOIN history AS H2
+    FROM chapters AS C2
+    JOIN chapter_owner_view AS O2
+    ON O2.chapter_id = C2._id
+    JOIN history AS H2
     ON C2._id = H2.history_chapter_id
-    GROUP BY C2.manga_id
+    GROUP BY O2.manga_id
 ) AS max_last_read
-ON C.manga_id = max_last_read.manga_id
+ON O.manga_id = max_last_read.manga_id
 AND max_last_read.history_chapter_id = H.history_chapter_id
 AND max_last_read.history_last_read > 0
 LEFT JOIN scanlators_view AS S
-ON C.manga_id = S.manga_id
+ON M._id = S.manga_id
 AND C.scanlator = S.name
 WHERE M.favorite = 1
 AND lower(M.title) LIKE '%' || :search || '%'
@@ -126,10 +135,12 @@ FROM (  -- Check if there's any unread chapters and whether to include read chap
     SELECT M2.*
     FROM mangas AS M2
     LEFT JOIN (
-        SELECT manga_id, COUNT(*) AS value
-        FROM chapters
-        WHERE read = 0
-        GROUP BY manga_id
+        SELECT O3.manga_id AS manga_id, COUNT(*) AS value
+        FROM chapters AS C3
+        JOIN chapter_owner_view AS O3
+        ON O3.chapter_id = C3._id
+        WHERE C3.read = 0
+        GROUP BY O3.manga_id
     ) AS unread
     ON M2._id = unread.manga_id
     WHERE (
@@ -138,24 +149,29 @@ FROM (  -- Check if there's any unread chapters and whether to include read chap
     GROUP BY M2._id
     ORDER BY title
 ) AS M
+JOIN chapter_owner_view AS O
+ON O.manga_id = M._id
 JOIN chapters AS C
-ON M._id = C.manga_id
+ON C._id = O.chapter_id
 JOIN history
 ON C._id = history.history_chapter_id
 JOIN (
     SELECT
-        C2.manga_id AS manga_id,
+        O2.manga_id AS manga_id,
         C2._id AS history_chapter_id,
         MAX(H2.history_last_read) AS history_last_read
-    FROM chapters AS C2 JOIN history AS H2
+    FROM chapters AS C2
+    JOIN chapter_owner_view AS O2
+    ON O2.chapter_id = C2._id
+    JOIN history AS H2
     ON C2._id = H2.history_chapter_id
-    GROUP BY C2.manga_id
+    GROUP BY O2.manga_id
 ) AS max_last_read  -- Most recent chapters
-ON C.manga_id = max_last_read.manga_id
+ON O.manga_id = max_last_read.manga_id
 AND max_last_read.history_chapter_id = history.history_chapter_id
 AND max_last_read.history_last_read > 0
 LEFT JOIN scanlators_view AS S
-ON C.manga_id = S.manga_id
+ON M._id = S.manga_id
 AND C.scanlator = S.name
 WHERE M.favorite = 1
 AND lower(title) LIKE '%' || :search || '%'

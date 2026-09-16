@@ -252,6 +252,8 @@
     <string name="auto_migration_daily">Every day</string>
     <string name="auto_migration_off">Off</string>
     <string name="release_calendar">Release calendar</string>
+    <string name="release_interval">Release frequency</string>
+    <string name="release_interval_auto">Automatic (measured from the chapters)</string>
     <string name="release_calendar_later">Later on</string>
     <string name="release_calendar_nothing_expected">Nothing expected</string>
     <string name="release_calendar_stalled">Seem to have stopped</string>
@@ -272,6 +274,13 @@
     <string name="recalculate_release_estimates_done">%1$d entries placed on the calendar</string>
     <!-- On-device / API chapter translation -->
     <string name="translation">Translation</string>
+    <string name="translation_notes">Translation notes</string>
+    <string name="translate_downloaded_chapters">Translate downloaded chapters</string>
+    <string name="translate_downloaded_none">Nothing to translate: no downloaded chapter is missing a translation</string>
+    <string name="translation_bubbles">Translated bubbles</string>
+    <string name="translation_bubble_hint">Translation</string>
+    <string name="translation_notes_summary">Given to the translator with every chapter of this series. Character names, how to handle honorifics, recurring terms.</string>
+    <string name="translation_notes_hint">e.g. "Kaguya" stays "Kaguya"; keep "-senpai"; "the Council" is the student council</string>
     <string name="show_translations">Show translations</string>
     <string name="show_translations_summary">Draw the translated text over the page on chapters
         that have been translated.</string>
@@ -284,6 +293,9 @@
     <string name="translation_api_key">API key</string>
     <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>
     <string name="translation_model">Model</string>
+    <string name="translation_clear_cache">Clear translation cache</string>
+    <string name="translation_clear_cache_done">Translation cache cleared</string>
+    <string name="translation_clear_cache_summary">Lines already translated are reused across chapters. Clear it to have a wrong translation redone.</string>
     <string name="translation_model_summary">Any model id from openrouter.ai. Avoid reasoning models: they spend their whole reply thinking and return nothing usable.</string>
     <string name="translate_chapter">Translate</string>
     <string name="translation_queued">Queued for translation</string>
@@ -455,6 +467,10 @@
     <string name="merge_source_missing">extension not installed</string>
     <string name="merge_entry_gone">entry no longer on this source</string>
     <string name="merge_never_synced">no chapters pulled in yet</string>
+    <string name="merged_source_reserve">Only as a fallback</string>
+    <string name="merged_source_reserve_short">fallback only</string>
+    <string name="merged_source_make_primary">Make primary source</string>
+    <string name="merged_source_make_primary_confirm">This source becomes the library entry: read chapters, categories, tracking and history move to it, and the current source stays merged in as a fallback. Merged sources' unnumbered chapters are never shown.</string>
     <string name="merge_likely_wrong_manga">chapter numbers don\'t match — wrong entry?</string>
     <string name="no_other_source_available">No other source has this chapter</string>
     <string name="now_reading_from">Now reading from %1$s</string>
@@ -903,8 +919,7 @@
     <string name="merged_sources">Merged sources</string>
     <string name="no_merged_sources">No merged sources yet</string>
     <string name="merged_source_summary">%1$d new chapters, %2$d already covered</string>
-    <string name="merged_sources_hint">Drag the handle to change which source wins for a shared
-        chapter.</string>
+    <string name="merged_sources_hint">Drag the handle to change which source wins for a shared chapter. The menu on a row has the rest. Unnumbered chapters from merged sources are not shown.</string>
     <string name="copy_value">Copy</string>
     <string name="no_chapters_found_for_migration">No chapters found, this series cannot be used for
         migration</string>

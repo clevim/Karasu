@@ -181,6 +181,8 @@ import android.R as AR
 import eu.kanade.tachiyomi.databinding.TranslationProgressDialogBinding
 import karasu.translation.model.Progress
 import karasu.translation.model.Translation
+import eu.kanade.tachiyomi.util.system.setTextInput
+import karasu.translation.model.TranslationBlock
 import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
 
@@ -1643,11 +1645,20 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                 ),
             )
         }
-        MaterialMenuSheet(this, items) { _, item ->
+        // Only when the page actually carries bubbles: an entry that opens on "nothing here"
+        // is one nobody taps twice.
+        val translated = page.translation?.blocks.orEmpty().isNotEmpty()
+        val itemsWithTranslation = if (translated) {
+            items + MaterialMenuSheet.MenuSheetItem(8, R.drawable.ic_translate_24dp, MR.strings.translation_bubbles)
+        } else {
+            items
+        }
+        MaterialMenuSheet(this, itemsWithTranslation) { _, item ->
             when (item) {
                 0 -> shareImage(page)
                 1 -> saveImage(page)
                 2 -> showSetCoverPrompt(page)
+                8 -> showTranslationBubbles(page)
                 3 -> extraPage?.let { shareImage(it) }
                 4 -> extraPage?.let { saveImage(it) }
                 5 -> extraPage?.let { showSetCoverPrompt(it) }
@@ -1756,6 +1767,33 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
                 }
             }
             .launchIn(lifecycleScope)
+    }
+
+    /**
+     * The page's bubbles as text: what was read and what it became. Tapping one edits it, which
+     * is also the way to see the original when the translation reads wrong.
+     */
+    private fun showTranslationBubbles(page: ReaderPage) {
+        val blocks = page.translation?.blocks.orEmpty()
+        if (blocks.isEmpty()) return
+        val labels = blocks.map { "${it.text.trim()}\n→ ${it.translation.ifBlank { "…" }}" }.toTypedArray()
+        materialAlertDialog()
+            .setTitle(MR.strings.translation_bubbles.getString(this))
+            .setItems(labels) { _, index -> showTranslationEdit(page, blocks[index]) }
+            .setNegativeButton(AR.string.cancel, null)
+            .show()
+    }
+
+    private fun showTranslationEdit(page: ReaderPage, block: TranslationBlock) {
+        var corrected = block.translation
+        materialAlertDialog()
+            .setTitle(block.text.trim())
+            .setTextInput(hint = MR.strings.translation_bubble_hint.getString(this), prefill = block.translation) { corrected = it }
+            .setPositiveButton(AR.string.ok) { _, _ ->
+                if (corrected != block.translation) viewModel.correctTranslation(page, block, corrected)
+            }
+            .setNegativeButton(AR.string.cancel, null)
+            .show()
     }
 
     private fun showSetCoverPrompt(page: ReaderPage) {

@@ -1,0 +1,9 @@
+CREATE VIEW chapter_owner_view AS
+SELECT
+    C._id AS chapter_id,
+    coalesce(MM.manga_id, C.manga_id) AS manga_id
+FROM chapters AS C
+JOIN mangas AS SRC
+ON SRC._id = C.manga_id
+LEFT JOIN merged_manga AS MM
+ON MM.url = SRC.url AND MM.source = SRC.source;

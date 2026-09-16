@@ -71,7 +71,7 @@ class GetChapter(
     private suspend fun chaptersFromMergedSources(
         mangaId: Long,
         filterScanlators: Boolean,
-    ): List<MergedChapters> = mergedSources.await(mangaId).mapNotNull { merge ->
+    ): List<MergedChapters> = mergedSources.await(mangaId).filter { it.updatesEnabled }.mapNotNull { merge ->
         // Each merged source keeps its own manga row, so its chapters sync and download
         // under a real source of their own. Here we only borrow them for the reading list.
         val childId = getManga.awaitByUrlAndSource(merge.url, merge.source)?.id ?: return@mapNotNull null

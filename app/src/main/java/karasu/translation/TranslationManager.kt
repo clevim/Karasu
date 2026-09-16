@@ -9,11 +9,17 @@ import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.system.launchIO
 import karasu.domain.manga.interactor.GetManga
 import karasu.translation.data.TranslationProvider
+import kotlinx.coroutines.flow.MutableStateFlow
+import karasu.translation.model.sourceText
+import karasu.translation.model.TranslationBlock
+import karasu.domain.translation.TranslationPreferences
+import karasu.translation.data.TranslationCache
 import karasu.translation.model.PageTranslation
 import karasu.translation.model.Translation
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import uy.kohesive.injekt.injectLazy
 
 class TranslationManager(context: Context) {
@@ -23,6 +29,39 @@ class TranslationManager(context: Context) {
     private val sourceManager: SourceManager by injectLazy()
 
     private val translator = ChapterTranslator(context)
+    private val cache: TranslationCache by injectLazy()
+    private val preferences: TranslationPreferences by injectLazy()
+
+    /** Bumped whenever a translation on screen is edited, so the overlays redraw. */
+    val revision = MutableStateFlow(0)
+
+    /**
+     * Writes the reader's correction of one bubble: into the chapter's file, so it survives
+     * reopening, and into the cache, so the same line comes out corrected in later chapters.
+     */
+    suspend fun correctTranslation(
+        manga: Manga,
+        chapter: Chapter,
+        source: Source,
+        pageKey: String,
+        page: PageTranslation,
+        block: TranslationBlock,
+        corrected: String,
+    ) {
+        block.translation = corrected
+        val all = getChapterTranslation(manga, chapter, source).toMutableMap()
+        all[pageKey] = page
+        val dir = provider.getMangaDir(manga, source) ?: return
+        val file = dir.createFile(provider.getTranslationFileName(chapter)) ?: return
+        file.openOutputStream().use { Json.encodeToStream(all.toMap(), it) }
+        cache.store(
+            translator.engineKey(translator.contextFor(manga.id)),
+            preferences.translateFrom().get().code,
+            preferences.translateTo().get(),
+            mapOf(block.sourceText to corrected),
+        )
+        revision.value++
+    }
 
     fun translateChapter(manga: Manga, chapter: Chapter, source: Source) {
         translator.queueChapter(manga, chapter, source)

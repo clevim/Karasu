@@ -38,6 +38,8 @@ import karasu.data.DatabaseHandler
 import karasu.domain.SplashState
 import karasu.domain.storage.StorageManager
 import karasu.translation.TranslationManager
+import karasu.translation.data.TranslationCache
+import karasu.translation.data.TranslationContexts
 import karasu.translation.data.TranslationProvider
 
 fun appModule(app: Application) = module {
@@ -129,6 +131,8 @@ fun appModule(app: Application) = module {
 
     single { TranslationProvider() }
     single { TranslationManager(app) }
+    single { TranslationCache(get()) }
+    single { TranslationContexts(get()) }
 
     single { CustomMangaManager(app) }
 

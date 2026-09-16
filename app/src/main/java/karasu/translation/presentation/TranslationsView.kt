@@ -38,6 +38,10 @@ import karasu.translation.model.PageTranslation
 import karasu.translation.model.TranslationBlock
 import karasu.translation.model.luminance
 import kotlinx.coroutines.flow.MutableStateFlow
+import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.Injekt
+import karasu.translation.TranslationManager
+import androidx.compose.runtime.key
 import kotlin.math.max
 
 /**
@@ -97,9 +101,15 @@ class WebtoonTranslationsView @JvmOverloads constructor(
 
 @Composable
 private fun TranslationBlocks(translation: PageTranslation, scale: Float) {
-    // Backgrounds first, so a box never covers the text of a neighbouring block.
-    translation.blocks.forEach { BlockBackground(it, scale) }
-    translation.blocks.forEach { BlockText(it, scale) }
+    // The blocks are edited in place, which Compose cannot see; the manager's revision is what
+    // says "something changed", and reading it here is what makes the overlay redraw.
+    val manager = remember { Injekt.get<TranslationManager>() }
+    val revision by manager.revision.collectAsState()
+    key(revision) {
+        // Backgrounds first, so a box never covers the text of a neighbouring block.
+        translation.blocks.forEach { BlockBackground(it, scale) }
+        translation.blocks.forEach { BlockText(it, scale) }
+    }
 }
 
 @Composable

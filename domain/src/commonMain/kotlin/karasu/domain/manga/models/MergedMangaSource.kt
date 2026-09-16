@@ -13,4 +13,6 @@ data class MergedMangaSource(
     val source: Long,
     val url: String,
     val priority: Int,
+    /** False makes it a reserve: no sync, no chapters in the list, pages only as a fallback. */
+    val updatesEnabled: Boolean = true,
 )

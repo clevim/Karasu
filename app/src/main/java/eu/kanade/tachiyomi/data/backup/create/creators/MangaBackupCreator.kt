@@ -102,7 +102,7 @@ class MangaBackupCreator(
             val merges = manga.id?.let { mergedSources.await(it) }.orEmpty()
             if (merges.isNotEmpty()) {
                 mangaObject.mergedSources = merges.map {
-                    BackupMergedSource(it.source, it.url, it.priority)
+                    BackupMergedSource(it.source, it.url, it.priority, it.updatesEnabled)
                 }
             }
         }

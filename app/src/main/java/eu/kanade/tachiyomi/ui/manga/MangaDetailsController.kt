@@ -92,6 +92,7 @@ import eu.kanade.tachiyomi.ui.manga.chapter.ChaptersSortBottomSheet
 import eu.kanade.tachiyomi.ui.manga.chapter.languageSources
 import eu.kanade.tachiyomi.ui.manga.chapter.showChapterLanguageDialog
 import eu.kanade.tachiyomi.ui.manga.merge.MergeSearchController
+import eu.kanade.tachiyomi.ui.manga.merge.MergedSourceRow
 import eu.kanade.tachiyomi.ui.manga.merge.showMergedSourcesDialog
 import eu.kanade.tachiyomi.ui.manga.track.TrackItem
 import eu.kanade.tachiyomi.ui.manga.track.TrackingBottomSheet
@@ -123,6 +124,7 @@ import eu.kanade.tachiyomi.util.system.isTablet
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.launchUI
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
+import eu.kanade.tachiyomi.util.system.setTextInput
 import eu.kanade.tachiyomi.util.system.rootWindowInsetsCompat
 import eu.kanade.tachiyomi.util.system.setCustomTitleAndMessage
 import eu.kanade.tachiyomi.util.system.timeSpanFromNow
@@ -825,6 +827,11 @@ class MangaDetailsController :
         return false
     }
 
+    /** The old entry left the library, so the screen swaps to the one that took its place. */
+    fun openMangaAfterMerge(mangaId: Long) {
+        router.replaceTopController(MangaDetailsController(mangaId).withFadeTransaction())
+    }
+
     fun showError(message: String) {
         view ?: return
         binding.swipeRefresh.isRefreshing = presenter.isLoading
@@ -1281,6 +1288,11 @@ class MangaDetailsController :
         // item that always answers "nothing is missing" is one nobody reads twice.
         menu.findItem(R.id.action_missing_chapters)?.isVisible =
             !presenter.isLockedFromSearch && presenter.chapterGaps.isNotEmpty()
+        // A schedule is only kept for library entries, so the question only makes sense there.
+        menu.findItem(R.id.action_release_interval)?.isVisible =
+            !presenter.isLockedFromSearch && presenter.manga.favorite
+        menu.findItem(R.id.action_translation)?.isVisible = !presenter.isLockedFromSearch
+        menu.findItem(R.id.action_translation_notes)?.isVisible = presenter.translationNotesApply
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -1304,6 +1316,14 @@ class MangaDetailsController :
                 }
             R.id.action_merged_sources -> if (!isNotOnline()) showMergedSourcesDialog()
             R.id.action_missing_chapters -> showMissingChaptersDialog()
+            R.id.action_release_interval -> showReleaseIntervalDialog()
+            R.id.action_translation_notes -> showTranslationNotesDialog()
+            R.id.translate_downloaded -> {
+                val queued = presenter.translateDownloadedChapters()
+                activity?.toast(
+                    if (queued == 0) MR.strings.translate_downloaded_none else MR.strings.translation_queued,
+                )
+            }
             R.id.action_mark_all_as_read -> {
                 activity!!.materialAlertDialog()
                     .setMessage(MR.strings.mark_all_chapters_as_read)
@@ -1782,6 +1802,44 @@ class MangaDetailsController :
      * number nothing you already have carries. Another source might, which is what the merge
      * button is for — and it is also why the gaps are recomputed after every merge.
      */
+    /**
+     * Lets the user state how often this manga releases, overriding what the schedule measured.
+     * One choice, applied on tap: the list is short and "OK" would be a second tap for nothing.
+     */
+    private fun showReleaseIntervalDialog() {
+        val activity = activity ?: return
+        val labels = arrayOf(activity.getString(MR.strings.release_interval_auto)) +
+            RELEASE_INTERVAL_DAYS.map { activity.getString(MR.plurals.release_interval_every_days, it, it) }
+        val checked = RELEASE_INTERVAL_DAYS.indexOf(presenter.manualReleaseIntervalDays) + 1
+
+        activity.materialAlertDialog().apply {
+            setTitle(activity.getString(MR.strings.release_interval))
+            setSingleChoiceItems(labels, checked) { dialog, which ->
+                presenter.setManualReleaseInterval(RELEASE_INTERVAL_DAYS.getOrNull(which - 1))
+                dialog.dismiss()
+            }
+            setNegativeButton(AR.string.cancel, null)
+        }.show()
+    }
+
+    /** Names, terms and how to render them: what the LLM translator gets told about this series. */
+    private fun showTranslationNotesDialog() {
+        viewScope.launchIO {
+            val current = presenter.translationNotes()
+            withUIContext {
+                val activity = activity ?: return@withUIContext
+                var notes = current
+                activity.materialAlertDialog()
+                    .setTitle(activity.getString(MR.strings.translation_notes))
+                    .setMessage(activity.getString(MR.strings.translation_notes_summary))
+                    .setTextInput(hint = activity.getString(MR.strings.translation_notes_hint), prefill = current) { notes = it }
+                    .setPositiveButton(AR.string.ok) { _, _ -> presenter.setTranslationNotes(notes) }
+                    .setNegativeButton(AR.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
     private fun showMissingChaptersDialog() {
         val activity = activity ?: return
         val gaps = presenter.chapterGaps
@@ -1821,12 +1879,26 @@ class MangaDetailsController :
                     // A broken merge is invisible otherwise — it just stops contributing, and this
                     // dialog is the only place anyone would go looking.
                     val problem = health[it.source]?.label()?.let(context::getString)
-                    it.source to if (problem == null) label else "$label — $problem"
+                    MergedSourceRow(
+                        source = it.source,
+                        label = if (problem == null) label else "$label — $problem",
+                        reserve = !it.updatesEnabled,
+                    )
                 }
                 activity?.showMergedSourcesDialog(
                     sources = sources,
                     onRemove = presenter::removeMergedSource,
                     onReorder = presenter::reorderMergedSources,
+                    onSetReserve = presenter::setMergedSourceReserve,
+                    onMakePrimary = { source ->
+                        val ctx = activity ?: return@showMergedSourcesDialog
+                        ctx.materialAlertDialog()
+                            .setTitle(ctx.getString(MR.strings.merged_source_make_primary))
+                            .setMessage(ctx.getString(MR.strings.merged_source_make_primary_confirm))
+                            .setPositiveButton(AR.string.ok) { _, _ -> presenter.makeMergedSourcePrimary(source) }
+                            .setNegativeButton(AR.string.cancel, null)
+                            .show()
+                    },
                     onAdd = {
                         router.pushController(
                             MergeSearchController(presenter.manga)
@@ -2084,6 +2156,9 @@ class MangaDetailsController :
     }
 
     companion object {
+        /** Offered intervals, in days. Anything else is what "automatic" is for. */
+        private val RELEASE_INTERVAL_DAYS = listOf(1, 2, 3, 7, 14, 30)
+
         const val UPDATE_EXTRA = "update"
         const val SMART_SEARCH_CONFIG_EXTRA = "smartSearchConfig"
 
