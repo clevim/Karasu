@@ -28,6 +28,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' }}
   cancel-in-progress: true
 
+# The repo default is read-only. Releases need to write contents; the test report writes a check.
+permissions:
+  contents: write
+  checks: write
+
 jobs:
   build:
     name: Build app
@@ -38,7 +43,7 @@ jobs:
 
     steps:
       - name: Clone repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -127,21 +132,21 @@ jobs:
         run: ./gradlew testReleaseUnitTest test${{ env.BUILD_TYPE }}UnitTest
 
       - name: Upload R8 APK to artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: env.VERSION_TAG != ''
         with:
           name: arm64-v8a-${{ github.sha }}
           path: app/build/outputs/apk/standard/*/karasu*-arm64-v8a-*.apk
 
       - name: Upload R8 mapping
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: env.VERSION_TAG != ''
         with:
           name: mapping-${{ github.sha }}
           path: app/build/outputs/mapping/standard*
 
       - name: Publish test report
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: success() || failure()
         with:
           include_passed: true
@@ -218,7 +223,7 @@ jobs:
 
       - name: Create Release
         if: startsWith(env.VERSION_TAG, 'v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.VERSION_TAG }}
           name: Karasu ${{ env.VERSION_TAG }}
@@ -254,7 +259,7 @@ jobs:
 
       - name: Create Nightly
         if: startsWith(env.VERSION_TAG, 'r') && env.NIGHTLY_PAT != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           repository: clevim/Karasu-nightly
           tag_name: ${{ env.VERSION_TAG }}
