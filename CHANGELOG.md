@@ -10,6 +10,36 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.10.3]
+
+### Additions
+- DeepSeek as a translation engine. The API key and the model are now kept per engine, so switching
+  between OpenRouter and DeepSeek no longer means typing the key back in
+- Translation notes grow on their own: the engine reports the names and terms it settled on, and
+  later chapters of the series are told to reuse them
+- Extension list: tap a group header to roll it up or open it again; what is rolled up is remembered
+- Reader › Translation › "Fit text to the balloon" (experimental, off by default) — measures the
+  speech balloon off the page instead of guessing it from the text, so translations letter larger
+
+### Changes
+- An extension carried by several repos at the same version is listed once instead of once per repo
+- Only the glossary terms a batch actually mentions are sent to the engine, instead of all of them
+  with every batch of every chapter
+
+### Fixes
+- Sources that keep their own id on a chapter failed to open every chapter with "Refresh chapter
+  list", refreshing included — Asura Scans is the one that brought it up. That metadata
+  (extensions-lib 1.6 `memo`) was thrown away when the chapter was stored, and is now kept, backed
+  up and restored
+- A merged source that only implements the combined 1.6 chapter-list call could not serve as a
+  fallback
+- The merged-source fallback never ran in the reader: it asked about the borrowed chapter's own
+  row, which has no merges, instead of the manga being read
+- A chapter borrowed from a merged source had its translation filed in one place when downloaded
+  and another when read online, so neither could find the other's
+- The chapter translator asked the manga's own source for the pages of a borrowed chapter, and
+  translated nothing
+
 ## [1.10.2]
 
 First Karasu release. Based on [yokai 1.10.2](https://github.com/null2264/yokai/releases/tag/v1.10.2) — everything below under "From yokai" is inherited from upstream.
