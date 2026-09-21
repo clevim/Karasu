@@ -797,6 +797,9 @@ class MangaDetailsPresenter(
      * The row for the other source already exists — global search inserts every result it
      * shows — so this only records the link and pulls that row's chapters in.
      */
+    /** The sources already merged into this entry. */
+    suspend fun mergedSourceIds(): Set<Long> = mergedSources.await(manga.id!!).map { it.source }.toSet()
+
     fun addMergedSource(source: Long, url: String) {
         presenterScope.launchIO {
             if (!mergedSources.addAtEnd(mangaId, source, url, ownSource = manga.source)) return@launchIO

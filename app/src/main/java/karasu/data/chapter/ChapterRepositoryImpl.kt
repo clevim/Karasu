@@ -64,6 +64,9 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
     override suspend fun getScanlatorsByChapter(mangaId: Long): List<String> =
         handler.awaitList { chaptersQueries.getScanlatorsByMangaId(mangaId) { it.orEmpty() } }
 
+    override suspend fun getAllScanlators(): List<String> =
+        handler.awaitList { chaptersQueries.getAllScanlators() }
+
     override fun getScanlatorsByChapterAsFlow(mangaId: Long): Flow<List<String>> =
         handler.subscribeToList { chaptersQueries.getScanlatorsByMangaId(mangaId) { it.orEmpty() } }
 

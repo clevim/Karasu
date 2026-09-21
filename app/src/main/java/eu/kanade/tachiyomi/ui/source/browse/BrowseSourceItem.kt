@@ -23,6 +23,8 @@ class BrowseSourceItem(
     private val catalogueAsList: Preference<Boolean>,
     private val catalogueListType: Preference<Int>,
     private val outlineOnCovers: Preference<Boolean>,
+    /** A line under the title in list layout; the recommendations put their reason here. */
+    val subtitle: String? = null,
 ) :
     AbstractFlexibleItem<BrowseSourceHolder>() {
 
@@ -80,6 +82,7 @@ class BrowseSourceItem(
         payloads: MutableList<Any?>?,
     ) {
         holder.onSetValues(manga)
+        holder.onSetSubtitle(subtitle)
         holder.bindChapterCount(manga)
     }
 

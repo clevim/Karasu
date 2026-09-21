@@ -73,6 +73,12 @@ enum class Themes(@StyleRes val styleRes: Int, val nightMode: Int, val nameRes: 
         R.style.Theme_Tachiyomi_Doki,
         AppCompatDelegate.MODE_NIGHT_YES,
         MR.strings.doki,
+    ),
+    DRACULA(
+        R.style.Theme_Tachiyomi_Dracula,
+        AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM,
+        MR.strings.alucard,
+        MR.strings.dracula,
     )
     ;
 

@@ -58,6 +58,11 @@ class BrowseSourceListHolder(
         setImage(manga)
     }
 
+    override fun onSetSubtitle(subtitle: String?) {
+        binding.subtitle.text = subtitle
+        binding.subtitle.isVisible = !subtitle.isNullOrBlank()
+    }
+
     override fun setImage(manga: Manga) {
         // Update the cover.
         isFavorite = manga.favorite

@@ -103,6 +103,9 @@ import eu.kanade.tachiyomi.ui.security.SecureActivityDelegate
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.controllers.SettingsMainController
 import eu.kanade.tachiyomi.ui.source.BrowseController
+import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.source.RecommendationSource
+import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.ui.source.browse.BrowseSourceController
 import eu.kanade.tachiyomi.ui.source.globalsearch.GlobalSearchController
 import eu.kanade.tachiyomi.util.manga.MangaCoverMetadata
@@ -147,6 +150,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import karasu.core.migration.Migrator
 import karasu.domain.base.BasePreferences
@@ -1068,6 +1073,14 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
                     router.pushController(ReleaseCalendarController().withFadeTransaction())
                 }
             }
+            SHORTCUT_RECOMMENDATIONS -> {
+                nav.selectedItemId = R.id.nav_browse
+                nav.post {
+                    (Injekt.get<SourceManager>().get(RecommendationSource.ID) as? CatalogueSource)?.let {
+                        router.pushController(BrowseSourceController(it).withFadeTransaction())
+                    }
+                }
+            }
             SHORTCUT_MIGRATE_REVIEW -> {
                 // The targets the nightly pass found but would not apply on its own. Same review
                 // screen as a hand-started migration, with the picks already filled in.
@@ -1652,6 +1665,7 @@ open class MainActivity : BaseActivity<MainActivityBinding>() {
         // Shortcut actions
         const val SHORTCUT_LIBRARY = "eu.kanade.tachiyomi.SHOW_LIBRARY"
         const val SHORTCUT_RELEASE_CALENDAR = "eu.kanade.tachiyomi.SHOW_RELEASE_CALENDAR"
+        const val SHORTCUT_RECOMMENDATIONS = "eu.kanade.tachiyomi.SHOW_RECOMMENDATIONS"
         const val SHORTCUT_RECENTLY_UPDATED = "eu.kanade.tachiyomi.SHOW_RECENTLY_UPDATED"
         const val SHORTCUT_RECENTLY_READ = "eu.kanade.tachiyomi.SHOW_RECENTLY_READ"
         const val SHORTCUT_BROWSE = "eu.kanade.tachiyomi.SHOW_BROWSE"

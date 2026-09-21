@@ -2,6 +2,7 @@ package karasu.core.di
 
 import eu.kanade.tachiyomi.source.MergedSourceFallback
 import eu.kanade.tachiyomi.util.chapter.MergedSourceSync
+import android.app.Application
 import org.koin.dsl.module
 import karasu.data.category.CategoryRepositoryImpl
 import karasu.data.chapter.ChapterRepositoryImpl
@@ -52,6 +53,16 @@ import karasu.domain.manga.failures.ReadFailures
 import karasu.domain.manga.failures.interactor.GetBrokenSources
 import karasu.domain.manga.failures.interactor.UpdateFailures
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.recommendation.BuildRecommendations
+import karasu.domain.recommendation.DiscardRecommendations
+import karasu.domain.recommendation.GetTasteProfile
+import karasu.domain.recommendation.RecommendationFeedbackStore
+import karasu.domain.recommendation.RecommendationStore
+import karasu.domain.recommendation.TrackerExtrasStore
+import karasu.domain.recommendation.EnrichFromTrackers
+import karasu.domain.recommendation.FindMergeCandidates
+import karasu.domain.recommendation.MergeSuggestionsStore
+import karasu.domain.migration.MangaAliases
 import karasu.domain.manga.interval.FetchInterval
 import karasu.domain.manga.interval.GetReleaseSchedule
 import karasu.domain.manga.interval.RecalculateReleaseEstimates
@@ -110,7 +121,17 @@ fun domainModule() = module {
     single<MangaUpdateFailureRepository> { MangaUpdateFailureRepositoryImpl(get()) }
     factory { UpdateFailures(get()) }
     factory { FetchInterval(get()) }
-    factory { GetReleaseSchedule(get(), get()) }
+    factory { GetReleaseSchedule(get(), get(), get()) }
+    factory { GetTasteProfile(get<Application>(), get(), get(), get(), get(), get(), get(), get()) }
+    single { RecommendationFeedbackStore(get()) }
+    factory { BuildRecommendations(get(), get(), get(), get(), get(), get()) }
+    single { RecommendationStore(get<Application>()) }
+    factory { DiscardRecommendations(get(), get(), get()) }
+    single { TrackerExtrasStore(get()) }
+    factory { EnrichFromTrackers(get(), get(), get(), get(), get()) }
+    single { MergeSuggestionsStore(get<Application>()) }
+    factory { MangaAliases(get(), get(), get()) }
+    factory { FindMergeCandidates(get(), get(), get(), get(), get(), get(), get()) }
     factory { RecalculateReleaseEstimates(get(), get(), get()) }
     // In-memory, so every reader and the broken-sources screen have to be looking at the same one.
     single { ReadFailures() }

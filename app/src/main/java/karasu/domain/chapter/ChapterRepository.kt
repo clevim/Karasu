@@ -27,6 +27,7 @@ interface ChapterRepository {
     suspend fun getRecents(filterScanlators: Boolean, search: String = "", limit: Long = 25L, offset: Long = 0L): List<MangaChapter>
 
     suspend fun getScanlatorsByChapter(mangaId: Long): List<String>
+    suspend fun getAllScanlators(): List<String>
     fun getScanlatorsByChapterAsFlow(mangaId: Long): Flow<List<String>>
 
     suspend fun delete(chapter: Chapter): Boolean

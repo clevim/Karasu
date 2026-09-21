@@ -151,6 +151,46 @@
         <item quantity="one">%d item sairia desta categoria agora</item>
         <item quantity="other">%d itens sairiam desta categoria agora</item>
     </plurals>
+    <plurals name="recommendation_built">
+        <item quantity="one">%d recommendação pronta</item>
+        <item quantity="other">%d recomendações prontas</item>
+    </plurals>
+    <plurals name="recommendation_restore_banned">
+        <item quantity="one">Trazer de volta %d tag removida</item>
+        <item quantity="other">Trazer de volta %d tags removidas</item>
+    </plurals>
+    <plurals name="recommendation_target_count">
+        <item quantity="one">%d obra, lida em lotes de cinquenta</item>
+        <item quantity="other">%d obras, lidas em lotes de cinquenta</item>
+    </plurals>
+    <plurals name="recommendation_years">
+        <item quantity="one">%d ano atrás</item>
+        <item quantity="other">%d anos atrás</item>
+    </plurals>
+    <plurals name="recommendation_every_days">
+        <item quantity="one">Todo dia</item>
+        <item quantity="other">A cada %d dias</item>
+    </plurals>
+    <plurals name="recommendation_chapters">
+        <item quantity="one">%d capítulo</item>
+        <item quantity="other">%d capítulos</item>
+    </plurals>
+    <plurals name="recommendation_support">
+        <item quantity="one">em %d obra</item>
+        <item quantity="other">em %d obras</item>
+    </plurals>
+    <plurals name="recommendation_tags_selected">
+        <item quantity="one">%d selecionada</item>
+        <item quantity="other">%d selecionadas</item>
+    </plurals>
+    <plurals name="recommendation_unmerge">
+        <item quantity="one">Desfazer %d mesclagem</item>
+        <item quantity="other">Desfazer %d mesclagens</item>
+    </plurals>
+    <plurals name="recommendation_forget_verdicts">
+        <item quantity="one">Esquecer %d veredito</item>
+        <item quantity="other">Esquecer %d vereditos</item>
+    </plurals>
 
     <plurals name="broken_sources_entries">
         <item quantity="one">%d item afetado</item>

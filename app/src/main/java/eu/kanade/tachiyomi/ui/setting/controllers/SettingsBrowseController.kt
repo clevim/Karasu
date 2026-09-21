@@ -13,6 +13,15 @@ import karasu.i18n.MR
 import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
+import eu.kanade.tachiyomi.data.recommendation.RecommendationJob
+import eu.kanade.tachiyomi.data.recommendation.RecommendationJob.Companion.label
+import karasu.domain.recommendation.BuildProgress
+import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.Injekt
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
+import karasu.domain.recommendation.RecommendationStore
+import android.text.format.DateUtils
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys
 import eu.kanade.tachiyomi.data.preference.changesIn
@@ -32,6 +41,10 @@ import eu.kanade.tachiyomi.ui.setting.onChange
 import eu.kanade.tachiyomi.ui.setting.onClick
 import eu.kanade.tachiyomi.ui.setting.preference
 import eu.kanade.tachiyomi.ui.setting.preferenceCategory
+import karasu.domain.category.interactor.GetCategories
+import kotlinx.coroutines.runBlocking
+import eu.kanade.tachiyomi.ui.setting.multiSelectListPreferenceMat
+import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.switchPreference
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
@@ -39,6 +52,8 @@ import eu.kanade.tachiyomi.util.lang.addBetaTag
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.formatHourOfDay
 import eu.kanade.tachiyomi.util.system.launchUI
+import eu.kanade.tachiyomi.util.system.withUIContext
+import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.view.setAction
 import eu.kanade.tachiyomi.util.view.snack
 import eu.kanade.tachiyomi.util.view.withFadeTransaction
@@ -50,6 +65,8 @@ import karasu.domain.base.BasePreferences.ExtensionInstaller
 import karasu.presentation.extension.repo.ExtensionRepoController
 
 class SettingsBrowseController : SettingsLegacyController() {
+
+    private val getCategories: GetCategories by injectLazy()
 
     /**
      * Languages that actually have an installed source, sorted by name.
@@ -75,6 +92,7 @@ class SettingsBrowseController : SettingsLegacyController() {
             switchPreference {
                 bindTo(preferences.hideInLibraryItems())
                 titleRes = MR.strings.hide_in_library_items
+                defaultValue = true
             }
         }
 
@@ -300,6 +318,109 @@ class SettingsBrowseController : SettingsLegacyController() {
             }
             infoPreference(MR.strings.does_not_prevent_unofficial_nsfw)
         }
+
+        preferenceCategory {
+            titleRes = MR.strings.recommendations
+
+            // What gets built.
+            intListPreference(activity) {
+                bindTo(preferences.recommendationTarget())
+                titleRes = MR.strings.recommendation_target
+                entries = RECOMMENDATION_TARGETS.map { context.getString(MR.plurals.recommendation_target_count, it, it) }
+                entryValues = RECOMMENDATION_TARGETS
+                defaultValue = 150
+            }
+
+            multiSelectListPreferenceMat(activity) {
+                bindTo(preferences.recommendationCategories())
+                titleRes = MR.strings.recommendation_categories
+                summaryRes = MR.strings.recommendation_categories_summary
+
+                // FIXME: Don't do blocking (same as the library settings)
+                val categories = listOf(Category.createDefault(context)) + runBlocking { getCategories.await() }
+                entries = categories.map { it.name }
+                entryValues = categories.map { it.id.toString() }
+                noSelectionRes = MR.strings.all
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.recommendationRecentYears())
+                titleRes = MR.strings.recommendation_recent_years
+                entries = RECOMMENDATION_RECENT_YEARS.map { context.getString(MR.plurals.recommendation_years, it, it) }
+                entryValues = RECOMMENDATION_RECENT_YEARS
+                defaultValue = 3
+            }
+
+            // When it gets built.
+            intListPreference(activity) {
+                bindTo(preferences.recommendationHour())
+                titleRes = MR.strings.recommendation_update_hour
+                entries = listOf(context.getString(MR.strings.auto_migration_off)) +
+                    MIGRATE_HOURS.map { context.formatHourOfDay(it) }
+                entryValues = listOf(-1) + MIGRATE_HOURS
+                defaultValue = 3
+
+                onChange {
+                    viewScope.launchUI { RecommendationJob.setupTask(context) }
+                    true
+                }
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.recommendationIntervalDays())
+                titleRes = MR.strings.recommendation_update_every
+                entries = RECOMMENDATION_INTERVALS.map { context.getString(MR.plurals.recommendation_every_days, it, it) }
+                entryValues = RECOMMENDATION_INTERVALS
+                defaultValue = 15
+
+                preferences.recommendationHour().changesIn(viewScope) { isVisible = it >= 0 }
+
+                onChange {
+                    viewScope.launchUI { RecommendationJob.setupTask(context) }
+                    true
+                }
+            }
+
+            switchPreference {
+                bindTo(preferences.recommendationOnlyOnWifi())
+                titleRes = MR.strings.recommendation_only_on_wifi
+                defaultValue = true
+
+                preferences.recommendationHour().changesIn(viewScope) { isVisible = it >= 0 }
+
+                onChange {
+                    viewScope.launchUI { RecommendationJob.setupTask(context) }
+                    true
+                }
+            }
+
+            // Right now.
+            preference {
+                titleRes = MR.strings.recommendation_rebuild_now
+                val store = Injekt.get<RecommendationStore>()
+                fun refreshSummary(progress: BuildProgress?) {
+                    if (progress != null) {
+                        summary = progress.label(context)
+                        return
+                    }
+                    // Off the main thread: the snapshot is a file, and a few hundred entries to parse.
+                    viewScope.launchIO {
+                        val text = store.read()?.let { snapshot ->
+                            context.getString(
+                                MR.strings.recommendation_last_built,
+                                DateUtils.getRelativeTimeSpanString(snapshot.builtAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS),
+                            )
+                        } ?: context.getString(MR.strings.recommendation_never_built)
+                        withUIContext { summary = text }
+                    }
+                }
+                RecommendationJob.progressFlow(context).onEach { refreshSummary(it) }.launchIn(viewScope)
+                onClick {
+                    RecommendationJob.runNow(context, RecommendationJob.MODE_FULL)
+                    refreshSummary(BuildProgress(BuildProgress.Stage.PROFILE))
+                }
+            }
+        }
     }
 
     override fun onActivityResumed(activity: Activity) {
@@ -310,5 +431,9 @@ class SettingsBrowseController : SettingsLegacyController() {
     private companion object {
         /** Overnight-heavy: the pass is a burst of searches nobody should be waiting on. */
         val MIGRATE_HOURS = listOf(0, 3, 6, 9, 12, 18, 21)
+        /** Taste moves slowly and a build is a night of requests: no reason to run it daily. */
+        val RECOMMENDATION_INTERVALS = listOf(7, 15, 30, 90, 180)
+        val RECOMMENDATION_TARGETS = listOf(25, 50, 150, 250, 500)
+        val RECOMMENDATION_RECENT_YEARS = listOf(1, 2, 3, 5, 10)
     }
 }

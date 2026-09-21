@@ -71,6 +71,12 @@ object Notifications {
      * library moved on its own. That is worth being able to keep loud while muting the rest.
      */
     const val CHANNEL_AUTO_MIGRATE = "auto_migrate_channel"
+
+    /** A rebuild of the recommendations the reader asked for has finished. */
+    const val CHANNEL_RECOMMENDATIONS = "recommendations_channel"
+    const val ID_RECOMMENDATIONS = -107
+    const val CHANNEL_RECOMMENDATIONS_PROGRESS = "recommendations_progress_channel"
+    const val ID_RECOMMENDATIONS_PROGRESS = -108
     const val ID_AUTO_MIGRATE = -106
 
     /**
@@ -198,6 +204,21 @@ object Notifications {
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
                 group = GROUP_LIBRARY
+            },
+            NotificationChannel(
+                CHANNEL_RECOMMENDATIONS,
+                context.getString(MR.strings.recommendations),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                group = GROUP_LIBRARY
+            },
+            NotificationChannel(
+                CHANNEL_RECOMMENDATIONS_PROGRESS,
+                context.getString(MR.strings.recommendation_refreshing),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                group = GROUP_LIBRARY
+                setShowBadge(false)
             },
             NotificationChannel(
                 CHANNEL_BACKUP_RESTORE_PROGRESS,

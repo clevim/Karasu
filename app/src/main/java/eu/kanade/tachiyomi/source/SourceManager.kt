@@ -44,7 +44,12 @@ class SourceManager(
         scope.launch {
             extensionManager.installedExtensionsFlow
                 .collectLatest { extensions ->
-                    val mutableMap = ConcurrentHashMap<Long, Source>(mapOf(LocalSource.ID to LocalSource(context)))
+                    val mutableMap = ConcurrentHashMap<Long, Source>(
+                        mapOf(
+                            LocalSource.ID to LocalSource(context),
+                            RecommendationSource.ID to RecommendationSource(context),
+                        ),
+                    )
                     extensions.forEach { extension ->
                         extension.sources.forEach {
                             mutableMap[it.id] = it

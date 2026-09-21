@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.core.view.isGone
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.WebtoonLayoutManager
@@ -234,7 +235,9 @@ class WebtoonViewer(val activity: ReaderActivity, val hasMargins: Boolean = fals
         if (recycler.isGone) {
             Logger.d { "Recycler first layout" }
             val pages = chapters.currChapter.pages ?: return
-            moveToPage(pages[min(chapters.currChapter.requestedPage, pages.lastIndex)])
+            val page = pages[min(chapters.currChapter.requestedPage, pages.lastIndex)]
+            pendingOffset = chapters.currChapter.requestedOffset.takeIf { it > 0f }?.let { page to it }
+            moveToPage(page)
             recycler.isVisible = true
         }
     }
@@ -255,12 +258,51 @@ class WebtoonViewer(val activity: ReaderActivity, val hasMargins: Boolean = fals
         }
     }
 
+    /**
+     * How far down the item at [position] the top of the screen is, 0..1. Zero when the item
+     * starts on screen: resuming at its top is then at most a few lines early, never late.
+     */
+    private fun offsetOf(position: Int): Float {
+        val child = layoutManager.findViewByPosition(position) ?: return 0f
+        if (child.height <= 0) return 0f
+        return ((layoutManager.paddingTop - child.top).toFloat() / child.height).coerceIn(0f, 1f)
+    }
+
+    /**
+     * The page to land partway down once its image is decoded, and how far. Set on first layout
+     * and applied from [onPageDecoded]: before the decode the item has no height to scroll into.
+     */
+    private var pendingOffset: Pair<ReaderPage, Float>? = null
+
+    fun onPageDecoded(page: ReaderPage) {
+        val (pending, fraction) = pendingOffset ?: return
+        if (pending != page) return
+        pendingOffset = null
+        val position = adapter.items.indexOf(page).takeIf { it != -1 } ?: return
+        val child = layoutManager.findViewByPosition(position) ?: return
+        // The decode may still have a layout pending that gives the item its real height, and a
+        // scroll must not be asked for from inside that layout.
+        child.doOnLayout {
+            recycler.post {
+                // A tenth of a screen of leeway before the saved spot, so the resume is never past it.
+                val offset = fraction * it.height - recycler.height * RESUME_LEEWAY
+                layoutManager.scrollToPositionWithOffset(position, -offset.toInt().coerceAtLeast(0))
+                onScrolled()
+            }
+        }
+    }
+
     fun onScrolled(pos: Int? = null) {
         val position = pos ?: layoutManager.findLastEndVisibleItemPosition()
         val item = adapter.items.getOrNull(position)
         val allowPreload = checkAllowPreload(item as? ReaderPage)
+        if (item is ReaderPage && pendingOffset == null) {
+            activity.onPageOffsetChanged(item, offsetOf(position))
+        }
         if (item != null && currentPage != item) {
             currentPage = item
+            // Moved on before the saved spot could be applied: it no longer applies.
+            if (pendingOffset?.first != item) pendingOffset = null
             when (item) {
                 is ReaderPage -> onPageSelected(item, allowPreload)
                 is ChapterTransition -> onTransitionSelected(item)
@@ -342,3 +384,6 @@ class WebtoonViewer(val activity: ReaderActivity, val hasMargins: Boolean = fals
 }
 
 private const val RECYCLER_VIEW_CACHE_SIZE = 4
+
+/** Fraction of the screen to land above the saved spot when resuming. */
+private const val RESUME_LEEWAY = 0.1f

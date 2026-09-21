@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Dracula: the dark half (draculatheme.com/spec, Dracula Classic)
+  ~
+  ~ Background #282A36 · Floating #343746 · Foreground #F8F8F2 · Selection #44475A · Comment #6272A4
+  ~ Purple #BD93F9 · Pink #FF79C6 · Cyan #8BE9FD
+-->
+<resources>
+    <color name="dracula_primary">#BD93F9</color>
+    <color name="dracula_on_primary">#282A36</color>
+    <color name="dracula_primary_variant">#44475A</color>
+    <color name="dracula_primary_inverse">#644AC9</color>
+    <color name="dracula_secondary">#FF79C6</color>
+    <color name="dracula_on_secondary">#282A36</color>
+    <color name="dracula_secondary_variant">#8BE9FD</color>
+    <color name="dracula_highlight">#1FFF79C6</color>
+    <color name="dracula_tertiary">#44475A</color>
+    <color name="dracula_on_tertiary">#F8F8F2</color>
+    <color name="dracula_tab_bar_icon">#BD93F9</color>
+    <color name="dracula_background">#282A36</color>
+    <color name="dracula_on_background">#F8F8F2</color>
+    <color name="dracula_surface">#343746</color>
+    <color name="dracula_on_surface">#F8F8F2</color>
+    <color name="dracula_elevation_overlay">@color/dracula_primary</color>
+</resources>

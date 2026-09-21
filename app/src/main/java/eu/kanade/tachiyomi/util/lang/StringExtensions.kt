@@ -194,6 +194,19 @@ fun String.addBetaTag(context: Context, useSuperScript: Boolean = true): Spanned
     }
 }
 
+/** Like [addBetaTag], for what is further from done than beta. */
+fun String.addExperimentalTag(context: Context, useSuperScript: Boolean = true): Spanned {
+    val text = context.getString(MR.strings.experimental)
+    val color = context.getResourceColor(R.attr.colorSecondary)
+    return buildSpannedString {
+        append(this@addExperimentalTag)
+        val tag: SpannableStringBuilder.() -> Unit = {
+            bold { scale(0.75f) { color(color) { append(text) } } }
+        }
+        if (useSuperScript) superscript(tag) else tag()
+    }
+}
+
 fun String.toNormalized(): String = replace("’", "'")
 
 fun String.getUrlWithoutDomain(): String {

@@ -92,6 +92,10 @@ import eu.kanade.tachiyomi.ui.manga.chapter.ChaptersSortBottomSheet
 import eu.kanade.tachiyomi.ui.manga.chapter.languageSources
 import eu.kanade.tachiyomi.ui.manga.chapter.showChapterLanguageDialog
 import eu.kanade.tachiyomi.ui.manga.merge.MergeSearchController
+import karasu.domain.migration.MangaAliases
+import karasu.domain.recommendation.MergeSuggestionsStore
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.ui.manga.merge.MergedSourceRow
 import eu.kanade.tachiyomi.ui.manga.merge.showMergedSourcesDialog
 import eu.kanade.tachiyomi.ui.manga.track.TrackItem
@@ -493,6 +497,31 @@ class MangaDetailsController :
             } else {
                 binding.tabletRecycler.updateLayoutParams<ConstraintLayout.LayoutParams> { matchConstraintPercentWidth = 0.4f }
             }
+        }
+    }
+
+    /**
+     * The nightly pass found this series on another of the reader's sources: one tap merges it.
+     * Offered once per entry and source, whatever the answer.
+     */
+    private fun offerMergeSuggestion(view: View) {
+        val manga = manga ?: return
+        if (!manga.favorite) return
+        val store = Injekt.get<MergeSuggestionsStore>()
+        val suggestion = store.pending(manga.id).firstOrNull() ?: return
+        val sourceName = presenter.sourceManager.get(suggestion.sourceId)?.name ?: return
+        val mangaId = manga.id ?: return
+        snack = view.snack(view.context.getString(MR.strings.merge_suggestion, sourceName), Snackbar.LENGTH_LONG) {
+            setAction(MR.strings.merge_suggestion_action) { presenter.addMergedSource(suggestion.sourceId, suggestion.url) }
+            // Either way it is not offered again: merged, it is in; waved away, the reader said no.
+            // The nightly look would otherwise keep serving the same find until its recheck.
+            addCallback(
+                object : Snackbar.Callback() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        store.ignore(mangaId, suggestion.sourceId)
+                    }
+                },
+            )
         }
     }
 
@@ -909,7 +938,11 @@ class MangaDetailsController :
         }
     }
 
+    /** Offered once per screen, the first time the entry is on screen. */
+    private var mergeOffered = false
+
     fun updateHeader() {
+        if (!mergeOffered) view?.let { mergeOffered = true; offerMergeSuggestion(it) }
         view ?: return
         binding.swipeRefresh.isRefreshing = presenter.isLoading
         adapter?.setChapters(presenter.chapters)
@@ -1900,11 +1933,18 @@ class MangaDetailsController :
                             .show()
                     },
                     onAdd = {
-                        router.pushController(
-                            MergeSearchController(presenter.manga)
-                                .apply { targetController = this@MangaDetailsController }
-                                .withFadeTransaction(),
-                        )
+                        val manga = presenter.manga
+                        viewScope.launchIO {
+                            val excluded = presenter.mergedSourceIds() + manga.source
+                            val aliases = MangaAliases(Injekt.get(), Injekt.get()).local(manga)
+                            withUIContext {
+                                router.pushController(
+                                    MergeSearchController(manga, excluded, aliases)
+                                        .apply { targetController = this@MangaDetailsController }
+                                        .withFadeTransaction(),
+                                )
+                            }
+                        }
                     },
                 )
             }

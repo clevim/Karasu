@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,7 +37,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,7 +54,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.compose.pluralStringResource
 import dev.icerock.moko.resources.compose.stringResource
@@ -66,6 +62,12 @@ import karasu.domain.category.models.RuleCondition
 import karasu.domain.category.models.RuleField
 import karasu.domain.category.models.RuleOperator
 import karasu.i18n.MR
+import karasu.presentation.core.enterAlwaysAppBarScrollBehavior
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.AppBarType
+import eu.kanade.tachiyomi.util.compose.LocalBackPress
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.launch
 
 /** How much a switched-off rule fades, while staying legible and editable. */
@@ -95,42 +97,30 @@ fun CategoryRuleScreen(
     val scope = rememberCoroutineScope()
     val deletedMessage = stringResource(MR.strings.category_rule_deleted)
     val undoLabel = stringResource(MR.strings.undo)
+    val onBack = LocalBackPress.current ?: {}
+    val listState = rememberLazyListState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // The same small app bar every other pushed screen has: back arrow, the category as title,
+    // "Rules" underneath. Nothing invented to stand in for it.
+    KarasuScaffold(
+        onNavigationIconClicked = onBack,
+        title = categoryName,
+        appBarType = AppBarType.SMALL,
+        scrollBehavior = enterAlwaysAppBarScrollBehavior(
+            canScroll = { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 },
+        ),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
         LazyColumn(
-            // The screen has no app bar, so without this the category name draws under the status bar.
+            state = listState,
             modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding(),
+                .fillMaxSize()
+                .padding(innerPadding),
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
                 Column {
-                    // A real header, not a bare line of text. Category names are often a single
-                    // emoji or two words, which floating loose at the top of a screen reads as
-                    // debris rather than as a title — the overline and the filled bar are what
-                    // say "these are the rules of this category".
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            Text(
-                                text = stringResource(MR.strings.category_rules),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                                text = categoryName,
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
                     Text(
                         text = stringResource(
                             if (transitions.isEmpty()) MR.strings.category_rules_empty
@@ -210,15 +200,6 @@ fun CategoryRuleScreen(
                 }
             }
         }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            // Same reason the list needs statusBarsPadding: no scaffold here, so the undo action
-            // would otherwise sit under the navigation bar and be unreachable.
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding(),
-        )
     }
 }
 
@@ -347,23 +328,32 @@ private fun RuleHeader(
                 .padding(end = 4.dp)
                 .semantics { contentDescription = toggleDescription },
         )
-        IconButton(onClick = { onMove(position - 1) }, enabled = position > 0) {
-            Icon(
-                Icons.Default.KeyboardArrowUp,
-                contentDescription = stringResource(MR.strings.category_rule_move_up),
-            )
-        }
-        IconButton(onClick = { onMove(position + 1) }, enabled = position < count - 1) {
-            Icon(
-                Icons.Default.KeyboardArrowDown,
-                contentDescription = stringResource(MR.strings.category_rule_move_down),
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = stringResource(MR.strings.category_rule_delete),
-            )
+        // Reorder and delete are rare next to enable/disable; behind the overflow, as the rest of
+        // the app keeps its secondary actions, the header stops reading as a toolbar.
+        var menu by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(MR.strings.more))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.category_rule_move_up)) },
+                    leadingIcon = { Icon(Icons.Default.KeyboardArrowUp, contentDescription = null) },
+                    enabled = position > 0,
+                    onClick = { menu = false; onMove(position - 1) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.category_rule_move_down)) },
+                    leadingIcon = { Icon(Icons.Default.KeyboardArrowDown, contentDescription = null) },
+                    enabled = position < count - 1,
+                    onClick = { menu = false; onMove(position + 1) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.category_rule_delete)) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    onClick = { menu = false; onDelete() },
+                )
+            }
         }
     }
 }

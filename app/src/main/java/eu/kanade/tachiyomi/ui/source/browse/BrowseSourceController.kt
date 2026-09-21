@@ -1,7 +1,13 @@
 package eu.kanade.tachiyomi.ui.source.browse
 
 import android.os.Build
+import android.app.Activity
+import android.R as AR
 import android.os.Bundle
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -34,6 +40,15 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.LocalSource
+import eu.kanade.tachiyomi.source.RecommendationSource
+import eu.kanade.tachiyomi.ui.setting.controllers.SettingsBrowseController
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.distinctUntilChanged
+import eu.kanade.tachiyomi.data.recommendation.RecommendationJob
+import eu.kanade.tachiyomi.data.recommendation.RecommendationJob.Companion.label
+import karasu.presentation.recommendation.RecommendationTagsController
+import karasu.domain.recommendation.RecommendationFeedback
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -51,6 +66,7 @@ import eu.kanade.tachiyomi.util.addOrRemoveToFavorites
 import eu.kanade.tachiyomi.util.system.connectivityManager
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.e
+import eu.kanade.tachiyomi.util.system.getResourceColor
 import eu.kanade.tachiyomi.util.system.launchIO
 import eu.kanade.tachiyomi.util.system.materialAlertDialog
 import eu.kanade.tachiyomi.util.system.openInBrowser
@@ -78,6 +94,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.source.browse.filter.models.SavedSearch
@@ -152,6 +170,10 @@ open class BrowseSourceController(bundle: Bundle) :
     /** Current filter sheet */
     private var filterSheet: SourceFilterSheet? = null
     private var lastPosition: Int = -1
+    private var tagsEdited = false
+
+    /** The recommendation build the adapter's cards came from, to notice when a newer one exists. */
+    private var shownBuild: Long? = null
 
     // Basically a cache just so the filter sheet is shown faster
     var savedSearches by mutableStateOf(emptyList<SavedSearch>())
@@ -192,6 +214,51 @@ open class BrowseSourceController(bundle: Bundle) :
 
     override fun onViewCreated(view: View) {
         super.onViewCreated(view)
+        if (presenter.source is RecommendationSource) {
+            // A rebuild started here, from settings, or by the source itself on a first open
+            // with nothing built: the snack follows its stages, and the list reloads when it
+            // lands.
+            var wasRunning = false
+            RecommendationJob.stateFlow(view.context)
+                .distinctUntilChanged()
+                .onEach { state ->
+                    when {
+                        state is RecommendationJob.Companion.RunState.Running -> {
+                            if (!wasRunning) {
+                                // A rebuild wiped the list: the old cards are what it was asked
+                                // to get rid of. A batch being added leaves them where they are.
+                                val window = presenter.source as? RecommendationSource
+                                viewScope.launchIO {
+                                    if (window?.currentBuild() == null) {
+                                        withUIContext {
+                                            adapter?.clear()
+                                            showProgressBar()
+                                        }
+                                    }
+                                }
+                            }
+                            wasRunning = true
+                            val text = state.progress.label(view.context)
+                            snack?.takeIf { it.isShown && it.duration == Snackbar.LENGTH_INDEFINITE }?.setText(text)
+                                ?: run { snack = view.snack(text, Snackbar.LENGTH_INDEFINITE) }
+                        }
+                        wasRunning -> {
+                            wasRunning = false
+                            snack?.dismiss()
+                            if (state is RecommendationJob.Companion.RunState.Failed) {
+                                snack = view.snack(MR.strings.recommendation_refresh_failed, Snackbar.LENGTH_LONG)
+                            } else {
+                                snack = view.snack(MR.strings.recommendation_refreshed)
+                            }
+                        }
+                    }
+                    // Whatever the state, cards from an older build than the one on disk are
+                    // replaced. This is the check that cannot miss: it does not depend on having
+                    // watched the job run.
+                    if (state !is RecommendationJob.Companion.RunState.Running) refreshIfStale()
+                }
+                .launchIn(viewScope)
+        }
 
         // Initialize adapter, scroll listener and recycler views
         adapter = FlexibleAdapter(null, this, false)
@@ -376,6 +443,10 @@ open class BrowseSourceController(bundle: Bundle) :
 
         val isLocalSource = presenter.source is LocalSource
         menu.findItem(R.id.action_local_source_help).isVisible = isLocalSource
+        menu.findItem(R.id.action_recommendation_tags).isVisible = presenter.source is RecommendationSource
+        menu.findItem(R.id.action_recommendation_refresh).isVisible = presenter.source is RecommendationSource
+        menu.findItem(R.id.action_recommendation_settings).isVisible = presenter.source is RecommendationSource
+        menu.findItem(R.id.action_recommendation_rebuild).isVisible = presenter.source is RecommendationSource
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -384,6 +455,17 @@ open class BrowseSourceController(bundle: Bundle) :
             R.id.action_display_mode -> swapDisplayMode()
             R.id.action_open_in_web_view -> openInWebView()
             R.id.action_local_source_help -> openLocalSourceHelpGuide()
+            // The progress flow above picks it up and says where it is.
+            // Refresh: one more batch of fifty, or a fresh build when there is nothing queued.
+            R.id.action_recommendation_refresh -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_CONTINUE) }
+            R.id.action_recommendation_rebuild -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_FULL) }
+            R.id.action_recommendation_settings -> router.pushController(
+                SettingsBrowseController().apply { preferenceKey = RECOMMENDATION_SETTINGS_KEY }.withFadeTransaction(),
+            )
+            R.id.action_recommendation_tags -> {
+                tagsEdited = true
+                router.pushController(RecommendationTagsController().withFadeTransaction())
+            }
             R.id.action_source_settings -> openSourceSettings()
             else -> return super.onOptionsItemSelected(item)
         }
@@ -600,6 +682,12 @@ open class BrowseSourceController(bundle: Bundle) :
             adapter?.notifyItemChanged(lastPosition, false)
             lastPosition = -1
         }
+        // Weights changed under the list: refetch. Only after the tags screen, so coming back
+        // from a manga keeps the scroll position.
+        if (type == ControllerChangeType.POP_ENTER && tagsEdited) {
+            tagsEdited = false
+            presenter.restartPager()
+        }
     }
 
     /**
@@ -626,12 +714,35 @@ open class BrowseSourceController(bundle: Bundle) :
      * @param page the current page.
      * @param mangas the list of manga of the page.
      */
+    /**
+     * The presenter keeps its pages across view recreations, so a list built while this screen
+     * was covered would come back as it was. The build stamp the cards came from is compared
+     * with the one on disk, and a newer one restarts the pager, which clears the adapter.
+     */
+    private fun refreshIfStale() {
+        val window = presenter.source as? RecommendationSource ?: return
+        viewScope.launchIO {
+            val current = window.currentBuild()
+            if (current != null && current != shownBuild) {
+                withUIContext { presenter.restartPager() }
+            }
+        }
+    }
+
+    override fun onAttach(view: View) {
+        super.onAttach(view)
+        refreshIfStale()
+    }
+
     fun onAddPage(page: Int, mangas: List<BrowseSourceItem>) {
         val adapter = adapter ?: return
         hideProgressBar()
         if (page == 1) {
             adapter.clear()
             resetProgressItem()
+            (presenter.source as? RecommendationSource)?.let { window ->
+                viewScope.launchIO { shownBuild = window.currentBuild() }
+            }
         }
         adapter.onLoadMoreComplete(mangas)
         if (isControllerVisible) {
@@ -891,6 +1002,45 @@ open class BrowseSourceController(bundle: Bundle) :
         val manga = (adapter?.getItem(position) as? BrowseSourceItem?)?.manga ?: return
         val view = view ?: return
         val activity = activity ?: return
+        val window = presenter.source as? RecommendationSource
+        if (window != null) {
+            // On the window the long press is a verdict, not only "add to library" — and the one
+            // place the grade can say why this is here.
+            val title = SpannableStringBuilder(manga.title)
+            window.describe(manga.source, manga.url)?.let { why ->
+                val start = title.length + 1
+                title.append("\n").append(why)
+                title.setSpan(RelativeSizeSpan(0.75f), start, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                title.setSpan(ForegroundColorSpan(activity.getResourceColor(AR.attr.textColorSecondary)), start, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            activity.materialAlertDialog()
+                .setTitle(title)
+                .setItems(
+                    arrayOf(
+                        activity.getString(if (manga.favorite) MR.strings.remove_from_library else MR.strings.add_to_library),
+                        activity.getString(MR.strings.recommendation_not_interested),
+                        activity.getString(MR.strings.recommendation_already_read),
+                    ),
+                ) { _, which ->
+                    val kind = when (which) {
+                        1 -> RecommendationFeedback.Kind.NOT_INTERESTED
+                        2 -> RecommendationFeedback.Kind.ALREADY_READ
+                        else -> null
+                    }
+                    if (kind == null) {
+                        toggleFavorite(manga, position, view, activity)
+                    } else {
+                        window.feedback(manga.source, manga.url, kind)
+                        adapter?.removeItem(position)
+                    }
+                }
+                .show()
+            return
+        }
+        toggleFavorite(manga, position, view, activity)
+    }
+
+    private fun toggleFavorite(manga: Manga, position: Int, view: View, activity: Activity) {
         viewScope.launchIO {
             withUIContext { snack?.dismiss() }
             snack = manga.addOrRemoveToFavorites(
@@ -902,6 +1052,8 @@ open class BrowseSourceController(bundle: Bundle) :
                 onMangaAdded = {
                     adapter?.notifyItemChanged(position)
                     snack = view.snack(MR.strings.added_to_library)
+                    // Taking a recommendation is the clearest yes the window ever gets.
+                    (presenter.source as? RecommendationSource)?.feedback(manga.source, manga.url, RecommendationFeedback.Kind.ADDED)
                 },
                 onMangaMoved = { adapter?.notifyItemChanged(position) },
                 onMangaDeleted = { presenter.confirmDeletion(manga) },
@@ -917,6 +1069,9 @@ open class BrowseSourceController(bundle: Bundle) :
 
     companion object {
         const val SOURCE_ID_KEY = "sourceId"
+
+        /** The preference the settings screen scrolls to and highlights. */
+        private const val RECOMMENDATION_SETTINGS_KEY = "recommendation_hour"
 
         const val SEARCH_QUERY_KEY = "searchQuery"
         const val USE_LATEST_KEY = "useLatest"

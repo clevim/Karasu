@@ -128,6 +128,11 @@ SELECT scanlator
 FROM chapters
 WHERE manga_id = :mangaId;
 
+getAllScanlators:
+SELECT DISTINCT scanlator
+FROM chapters
+WHERE scanlator IS NOT NULL AND scanlator != '';
+
 delete:
 DELETE FROM chapters
 WHERE _id = :chapterId;

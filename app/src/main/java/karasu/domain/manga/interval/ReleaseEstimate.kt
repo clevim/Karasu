@@ -1,6 +1,8 @@
 package karasu.domain.manga.interval
 
 import kotlin.math.abs
+import java.time.ZoneId
+import java.time.Instant
 
 /**
  * What the app has worked out about when a manga releases.
@@ -78,6 +80,14 @@ data class ReleaseEstimate(
     fun pollInterval(): Long = (checkWindow / CHECKS_PER_WINDOW).coerceIn(MIN_POLL, days(1))
 
     companion object {
+        /**
+         * Bumped whenever the arithmetic here or in [releaseDates] changes. Stored estimates
+         * were produced by the old arithmetic and are only rewritten as chapters arrive, so on
+         * the first launch of a build with a new number the app recalculates them all at once
+         * rather than being quietly wrong for weeks.
+         */
+        const val ESTIMATOR_VERSION = 2
+
         /** Never poll a manga faster than this, however sure the estimate is. */
         val MIN_POLL = hours(2)
 
@@ -116,6 +126,13 @@ data class ReleaseEstimate(
 
         /** Missed windows before a series counts as stalled rather than merely late. */
         private const val STALL_CYCLES = 3
+
+        /** An interval in this range is "weekly" for the purpose of holding a weekday. */
+        private val WEEKLY_MIN = days(6)
+        private val WEEKLY_MAX = days(8)
+
+        /** This share of releases on one weekday is a weekday the series keeps. */
+        private const val WEEKDAY_AGREEMENT = 0.7
 
         /**
          * How long a missed release is still read as "any moment now" before the date rolls on.
@@ -202,10 +219,32 @@ data class ReleaseEstimate(
             }.coerceAtMost(interval)
 
             return ReleaseEstimate(
-                nextRelease = events.first() + interval,
+                nextRelease = anchoredNext(events, interval),
                 interval = interval,
                 spread = spread,
             )
+        }
+
+        /**
+         * The next release, and for a weekly series that keeps its weekday, the next of *that*
+         * weekday rather than "last release plus seven days".
+         *
+         * The difference is one late chapter: a Monday series that posted Wednesday would
+         * otherwise expect next Wednesday, and slide a little further every time the source
+         * slips. Anchored, it expects Monday again. The earliest Monday that is at least half a
+         * cycle out, so a chapter that came a day *early* does not make tomorrow the next one.
+         */
+        private fun anchoredNext(events: List<Long>, interval: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
+            val plain = events.first() + interval
+            if (interval !in WEEKLY_MIN..WEEKLY_MAX || events.size < 3) return plain
+            val days = events.map { Instant.ofEpochMilli(it).atZone(zone) }
+            val weekday = days.groupingBy { it.dayOfWeek }.eachCount().maxByOrNull { it.value } ?: return plain
+            if (weekday.value < events.size * WEEKDAY_AGREEMENT) return plain
+            var candidate = Instant.ofEpochMilli(events.first() + interval / 2).atZone(zone)
+            while (candidate.dayOfWeek != weekday.key) candidate = candidate.plusDays(1)
+            // Same time of day the series actually posts, so the check window still fits around it.
+            val typical = days.first()
+            return candidate.withHour(typical.hour).withMinute(typical.minute).toInstant().toEpochMilli()
         }
 
         /** Newest first, dropping anything that lands inside the previous event's window. */

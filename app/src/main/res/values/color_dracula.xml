@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Alucard: the light half of the Dracula theme (draculatheme.com/spec, Alucard Classic)
+  ~
+  ~ Background #FFFBEB · Foreground #1F1F1F · Selection #CFCFDE · Comment #6C664B
+  ~ Purple #644AC9 · Pink #A3144D · Cyan #036A96
+-->
+<resources>
+    <color name="dracula_primary">#644AC9</color>
+    <color name="dracula_on_primary">#FFFBEB</color>
+    <color name="dracula_primary_variant">#CFCFDE</color>
+    <color name="dracula_primary_inverse">#BD93F9</color>
+    <color name="dracula_secondary">#A3144D</color>
+    <color name="dracula_on_secondary">#FFFBEB</color>
+    <color name="dracula_secondary_variant">#036A96</color>
+    <color name="dracula_highlight">#1F644AC9</color>
+    <color name="dracula_tertiary">#CFCFDE</color>
+    <color name="dracula_on_tertiary">#644AC9</color>
+    <color name="dracula_tab_bar_icon">#644AC9</color>
+    <color name="dracula_background">#FFFBEB</color>
+    <color name="dracula_on_background">#1F1F1F</color>
+    <color name="dracula_surface">#FFFBEB</color>
+    <color name="dracula_on_surface">#1F1F1F</color>
+    <color name="dracula_elevation_overlay">@color/dracula_primary</color>
+</resources>

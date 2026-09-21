@@ -28,24 +28,26 @@ class WebtoonLayoutManager(activity: ReaderActivity, private val extraLayoutSpac
     }
 
     /**
-     * Returns the position of the last item whose end side is visible on screen.
+     * Returns the position of the last item whose end side is visible on screen, or of the item
+     * spanning the whole screen when one image is taller than it.
+     *
+     * Without the second case a page taller than the screen was never "current": its end was
+     * off screen, so the page before it was reported instead, and that is what got saved as the
+     * reading position. Ported from Mihon (mihonapp/mihon#562).
      */
     fun findLastEndVisibleItemPosition(): Int {
         ensureLayoutState()
-        @ViewBoundsCheck.ViewBounds val preferredBoundsFlag =
-            (ViewBoundsCheck.FLAG_CVE_LT_PVE or ViewBoundsCheck.FLAG_CVE_EQ_PVE)
-
-        val fromIndex = childCount - 1
-        val toIndex = -1
-
-        val child = if (mOrientation == HORIZONTAL) {
-            mHorizontalBoundCheck
-                .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
-        } else {
-            mVerticalBoundCheck
-                .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
+        val callback = if (mOrientation == HORIZONTAL) mHorizontalBoundCheck else mVerticalBoundCheck
+        val start = callback.mCallback.parentStart
+        val end = callback.mCallback.parentEnd
+        for (i in childCount - 1 downTo 0) {
+            val child = getChildAt(i)!!
+            val childStart = callback.mCallback.getChildStart(child)
+            val childEnd = callback.mCallback.getChildEnd(child)
+            if (childEnd <= end || childStart < start) {
+                return getPosition(child)
+            }
         }
-
-        return if (child == null) NO_POSITION else getPosition(child)
+        return NO_POSITION
     }
 }
