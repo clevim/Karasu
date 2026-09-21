@@ -228,6 +228,25 @@
         <item name="background">@color/backgroundDoki</item>
         <item name="colorOnTertiary">@color/colorOnDownloadBadgeDayNight</item>
     </style>
+    <!--== Dracula / Alucard ==-->
+    <style name="Theme.Tachiyomi.Dracula">
+        <item name="colorPrimary">@color/dracula_primary</item>
+        <item name="colorPrimaryInverse">@color/dracula_primary_inverse</item>
+        <item name="colorPrimaryVariant">@color/dracula_primary_variant</item>
+        <item name="colorOnPrimary">@color/dracula_on_primary</item>
+        <item name="colorSecondary">@color/dracula_secondary</item>
+        <item name="colorOnSecondary">@color/dracula_on_secondary</item>
+        <item name="colorSecondaryVariant">@color/dracula_secondary_variant</item>
+        <item name="colorTertiary">@color/dracula_tertiary</item>
+        <item name="colorOnTertiary">@color/dracula_on_tertiary</item>
+        <item name="colorControlHighlight">@color/dracula_highlight</item>
+        <item name="tabBarIconColor">@color/dracula_tab_bar_icon</item>
+        <item name="background">@color/dracula_background</item>
+        <item name="colorOnBackground">@color/dracula_on_background</item>
+        <item name="colorSurface">@color/dracula_surface</item>
+        <item name="actionBarTintColor">@color/dracula_on_surface</item>
+        <item name="elevationOverlayColor">@color/dracula_elevation_overlay</item>
+    </style>
     <style name="Theme.Tachiyomi.Monet"/>
 
     <!--===============-->

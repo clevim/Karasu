@@ -146,6 +146,46 @@
         <item quantity="one">%d entry would move right now</item>
         <item quantity="other">%d entries would move right now</item>
     </plurals>
+    <plurals name="recommendation_built">
+        <item quantity="one">%d recommendation ready</item>
+        <item quantity="other">%d recommendations ready</item>
+    </plurals>
+    <plurals name="recommendation_restore_banned">
+        <item quantity="one">Bring back %d removed tag</item>
+        <item quantity="other">Bring back %d removed tags</item>
+    </plurals>
+    <plurals name="recommendation_target_count">
+        <item quantity="one">%d series, read in batches of fifty</item>
+        <item quantity="other">%d series, read in batches of fifty</item>
+    </plurals>
+    <plurals name="recommendation_years">
+        <item quantity="one">%d year ago</item>
+        <item quantity="other">%d years ago</item>
+    </plurals>
+    <plurals name="recommendation_every_days">
+        <item quantity="one">Every day</item>
+        <item quantity="other">Every %d days</item>
+    </plurals>
+    <plurals name="recommendation_chapters">
+        <item quantity="one">%d chapter</item>
+        <item quantity="other">%d chapters</item>
+    </plurals>
+    <plurals name="recommendation_support">
+        <item quantity="one">on %d series</item>
+        <item quantity="other">on %d series</item>
+    </plurals>
+    <plurals name="recommendation_tags_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <plurals name="recommendation_unmerge">
+        <item quantity="one">Undo %d merge</item>
+        <item quantity="other">Undo %d merges</item>
+    </plurals>
+    <plurals name="recommendation_forget_verdicts">
+        <item quantity="one">Forget %d verdict</item>
+        <item quantity="other">Forget %d verdicts</item>
+    </plurals>
 
     <plurals name="broken_sources_entries">
         <item quantity="one">%d entry affected</item>

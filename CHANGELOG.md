@@ -10,9 +10,85 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.11.0]
+
+### Additions
+- **Recommendations**, as a source of its own under "For you" in Browse. Learns a taste profile
+  from what you read (reading is the driver; tracker scores only scale it; a dropped series counts
+  against its tags; what you read long ago fades), then asks four public catalogues — AniList,
+  MangaUpdates, Kitsu and MyAnimeList — for the best-rated and most-read series under every tag
+  you are into, merges what they agree on (a series all four name scores highest), and finds each
+  one in the sources your library uses, with MangaDex alternative titles as a fallback for pt-BR
+  names. Your sources' own genre filters are searched too, deeper for stronger tags, and the
+  trackers' "similar to" suggestions for your strongest seeds round it out. Everything is read in
+  detail before it is shown and ranked on its full tags, tag pairs you like together, and the
+  community's score
+- Recommendations learn from you: long-press a cover for *Not interested* (its tags lose weight,
+  relative to how much your library backs them) or *Already read*; adding to the library from the
+  window reinforces the tags it was recommended for. Verdicts can be forgotten on the tags screen
+- "Your tags" screen: every learned tag with its weight and how many series back it; drag a
+  slider to fix a weight, add a tag, strike one that is not a genre, long-press to select and
+  merge tags you consider the same. Merges, bans and weights are yours and are backed up
+- Recommendations are built in batches of fifty up to the number you choose (25 to 500; Settings ›
+  Browse › Recommendations), on a schedule (every week to every six months, at your hour, Wi-Fi
+  only) that carries on the next day by itself when a big target needs more than one night, or on
+  demand: "Fetch 50 more" adds a batch, "Rebuild from scratch" starts over. Stage-by-stage
+  progress, a notification when done, and the list refreshes itself when the library grows by ten
+  or more. How far back a "recent start" may go in the catalogues is a setting too
+- Recommendation filters: only with these tags (only tags something in the list carries), include
+  saved-but-unread, sort by best match / newest / fewest chapters, and "hide sources with
+  unreliable dates" (on by default). A long-press on a cover says why it is there: tags or "like
+  X", chapter count, last chapter, community score, and whether it is new, gone quiet or a bit
+  outside your usual
+- Trackers enrich the library overnight: their genres and tags join the entry's own (as a custom
+  edit, so a refresh keeps them), and every other name they know feeds migration and merged-source
+  search — which is where a scanlator's own Portuguese title finally finds the series elsewhere
+- Merged sources: the app looks overnight for library entries on your other sources and offers a
+  one-tap merge on the entry's page
+- Release calendar: month view (toggle in the app bar), "Arrived today", "On hiatus", a "Only what
+  I'm caught up on" filter (also honoured by the widget and the morning digest), a "probably"
+  estimate for entries too new to have a rhythm (borrowed from the source's other series), and
+  tracker status (AniList, MAL, Kitsu, MangaUpdates) overriding a source that never updated its own
+- Webtoon reader: "continue reading" returns to the exact spot on a tall page, a tenth of a
+  screen early, instead of the top of the page
+- Dracula / Alucard theme (follows the system: Alucard light, Dracula dark)
+- Category rules, "Your tags" and the release calendar share the app's standard app bar
+
+### Changes
+- "Hide library items" in Browse is now on by default: what you already have on a source no
+  longer shows up when browsing that source
+- Recommendations skip one-shots (by tag, title or chapter names), series with no chapters, and
+  series gone quiet for longer than their size allows (three months for a new one, up to two years
+  for a long one; finished series are exempt). Series from sources that report no real dates are
+  ranked lower and hidden by default, and their chapter count does not make them "new". Every
+  rebuild starts from nothing: the previous list and the rows it left behind are discarded first
+- Tag names are unified across languages (Ação / Action / Acción), and source metadata dressed as
+  a genre ("Classificação: Sugestivo", scanlator names, years) is dropped
+- Merged-source search no longer offers the entry's own source or sources already merged in, and
+  tries the series' other names on a source that found nothing under the library title
+- A weekly series that posted late once keeps expecting its usual weekday
+- One slot in five on the recommendation list goes to something a little outside your usual, so
+  the list keeps surprising instead of narrowing on the same five tags
+
 ### Fixes
 - Tapping an extension group header did nothing: the row's ripple was on a child view, and a
   clickable child swallows the touch before it reaches the row the click listener is on
+- Sources that report every chapter as uploaded "0 minutes ago" no longer rewrite every chapter on
+  each update, pollute "recently updated", or fool the release calendar and the recommendations:
+  such dates are treated as unknown, and the calendar learns from when chapters actually arrive
+- Release calendar: a source that stamps a date as midnight UTC no longer lands a day early west
+  of Greenwich; webtoon "current page" was one behind when the image was taller than the screen
+- Release estimates are recalculated once when the estimator changes, instead of staying wrong
+  until each series' next fetch
+- Recommendations: a stale list could survive a rebuild that finished while the screen was
+  covered; a re-rank could overwrite a batch the build had just written; looking a title up in the
+  sources ran one source at a time with no timeout, so one silent source could hold a build for
+  an hour; "Fetch 50 more" did nothing once the target was met
+- Tag names from sources and from your own typing are sanitised before they are sent to AniList
+  or Kitsu
+
+### Other
+- Chapter memo is treated as source-owned; per-chapter reading offsets live in a preference
 
 ## [1.10.3]
 

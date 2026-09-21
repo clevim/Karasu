@@ -157,6 +157,33 @@ class FetchIntervalTest {
     }
 
     @Test
+    fun `a stamp at midnight UTC is a date, and lands on that date wherever the reader is`() {
+        val saoPaulo = java.time.ZoneId.of("America/Sao_Paulo")
+        // 2023-11-13 00:00 UTC: a Monday. Read as an instant in São Paulo it is Sunday 21:00.
+        val mondayUtcMidnight = java.time.LocalDate.of(2023, 11, 13).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+        val local = java.time.Instant.ofEpochMilli(asLocalRelease(mondayUtcMidnight, saoPaulo)).atZone(saoPaulo)
+        local.toLocalDate() shouldBe java.time.LocalDate.of(2023, 11, 13)
+        local.hour shouldBe 12
+        // A stamp with a time of day really happened then, and is not touched.
+        asLocalRelease(mondayUtcMidnight + 3_600_000L, saoPaulo) shouldBe mondayUtcMidnight + 3_600_000L
+        asLocalRelease(0L, saoPaulo) shouldBe 0L
+    }
+
+    @Test
+    fun `a weekly series that posted late once still expects its usual weekday`() {
+        // Nine Mondays, then the tenth chapter two days late, on a Wednesday.
+        val mondays = weekly(count = 9, lastAgo = 9 * day)
+        val lateWednesday = now - 9 * day + week + 2 * day
+        val estimate = estimate(listOf(lateWednesday) + mondays, none(), now + week)!!
+        val zone = java.time.ZoneId.systemDefault()
+        val expected = java.time.Instant.ofEpochMilli(estimate.nextRelease).atZone(zone).dayOfWeek
+        val usual = java.time.Instant.ofEpochMilli(mondays.first()).atZone(zone).dayOfWeek
+        expected shouldBe usual
+        // And not tomorrow: at least half a cycle after the late one.
+        (estimate.nextRelease - lateWednesday >= week / 2) shouldBe true
+    }
+
+    @Test
     fun `a skipped week is due this cycle, not the one after`() {
         // Last chapter two Mondays ago, so the estimate says last Monday. Today is Monday: the
         // miss is exactly one cycle old, which is past the grace and must roll on — by one

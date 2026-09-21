@@ -1539,6 +1539,9 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
      * bottom menu and delegates the change to the view model.
      */
     @SuppressLint("SetTextI18n")
+    /** The webtoon viewer's report of how far down the current page the screen is. */
+    fun onPageOffsetChanged(page: ReaderPage, fraction: Float) = viewModel.onPageOffsetChanged(page, fraction)
+
     fun onPageSelected(page: ReaderPage, hasExtraPage: Boolean) {
         viewModel.onPageSelected(page, hasExtraPage)
         val pages = page.chapter.pages ?: return

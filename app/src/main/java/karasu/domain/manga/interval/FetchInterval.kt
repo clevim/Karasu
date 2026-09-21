@@ -3,6 +3,9 @@ package karasu.domain.manga.interval
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import karasu.data.DatabaseHandler
 import kotlin.math.roundToInt
+import java.time.ZoneOffset
+import java.time.ZoneId
+import java.time.Instant
 
 /**
  * Stores when each manga is expected to release, and therefore when to ask about it.
@@ -135,12 +138,27 @@ class FetchInterval(
  * row that carries that number. Unnumbered chapters have nothing to collapse against and are
  * kept as they are.
  */
-fun releaseDates(chapters: List<Chapter>): Pair<List<Long>, List<Long>> {
+fun releaseDates(chapters: List<Chapter>, zone: ZoneId = ZoneId.systemDefault()): Pair<List<Long>, List<Long>> {
     val (numbered, unnumbered) = chapters.partition { it.isRecognizedNumber }
     val perNumber = numbered.groupBy { (it.chapter_number * 1000f).roundToInt() }.values
-    val uploads = perNumber.map { group -> group.map { it.date_upload }.filter { it > 0 }.minOrNull() ?: 0L } +
-        unnumbered.map { it.date_upload }
+    val uploads = (perNumber.map { group -> group.map { it.date_upload }.filter { it > 0 }.minOrNull() ?: 0L } +
+        unnumbered.map { it.date_upload }).map { asLocalRelease(it, zone) }
     val fetches = perNumber.map { group -> group.minOf { it.date_fetch } } +
         unnumbered.map { it.date_fetch }
     return uploads to fetches
 }
+
+/**
+ * A stamp at exactly midnight UTC is a date the source knew, not a moment: "Monday", stored the
+ * only way a date fits in a millisecond field. Read as an instant it is Sunday evening anywhere
+ * west of Greenwich, and the whole calendar slides a day early. So it becomes noon, local, of
+ * that date — the middle of the day it named. A stamp with a time of day is left exactly as it
+ * is: that one really happened then.
+ */
+fun asLocalRelease(stamp: Long, zone: ZoneId = ZoneId.systemDefault()): Long {
+    if (stamp <= 0 || stamp % DAY_MS != 0L) return stamp
+    val date = Instant.ofEpochMilli(stamp).atZone(ZoneOffset.UTC).toLocalDate()
+    return date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+}
+
+private const val DAY_MS = 24L * 60 * 60 * 1000

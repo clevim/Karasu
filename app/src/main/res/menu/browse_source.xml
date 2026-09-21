@@ -29,6 +29,30 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_recommendation_tags"
+        android:icon="@drawable/ic_tune_24dp"
+        android:title="@string/recommendation_tags"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_recommendation_refresh"
+        android:icon="@drawable/ic_refresh_24dp"
+        android:title="@string/recommendation_refresh"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_recommendation_rebuild"
+        android:icon="@drawable/ic_refresh_24dp"
+        android:title="@string/recommendation_rebuild"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_recommendation_settings"
+        android:icon="@drawable/ic_settings_24dp"
+        android:title="@string/recommendation_settings"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_local_source_help"
         android:icon="@drawable/ic_help_24dp"
         android:title="@string/local_source_help_guide"

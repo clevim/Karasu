@@ -109,7 +109,8 @@ class ReleasesGlanceWidget : GlanceAppWidget() {
             .toSet()
         val grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get())
         val calendar = runCatching {
-            getReleaseSchedule.await(categories).calendar(dayCount = 7, grace = grace)
+            getReleaseSchedule.await(categories, onlyCaughtUp = preferences.releaseCalendarOnlyCaughtUp().get())
+                .calendar(dayCount = 7, grace = grace)
         }
             .getOrNull()
             ?: return ReleasesWidgetData(today = true, covers = emptyList())

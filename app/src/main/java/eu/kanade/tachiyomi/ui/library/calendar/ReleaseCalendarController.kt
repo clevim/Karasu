@@ -20,6 +20,9 @@ import karasu.domain.manga.interval.ReleaseCalendar
 import karasu.domain.manga.interval.ReleaseEstimate
 import karasu.domain.manga.interval.ReleaseSchedule
 import karasu.domain.manga.interval.calendar
+import karasu.domain.manga.interval.month
+import karasu.domain.manga.interval.ReleaseMonth
+import java.time.YearMonth
 import karasu.presentation.library.ReleaseCalendarScreen
 import uy.kohesive.injekt.injectLazy
 
@@ -37,6 +40,9 @@ class ReleaseCalendarController : BaseComposeController() {
 
     private var schedule by mutableStateOf<ReleaseSchedule?>(null)
     private var calendar by mutableStateOf<ReleaseCalendar?>(null)
+    private var month by mutableStateOf<ReleaseMonth?>(null)
+    private var monthView by mutableStateOf(preferences.releaseCalendarMonthView().get())
+    private var onlyCaughtUp by mutableStateOf(preferences.releaseCalendarOnlyCaughtUp().get())
 
     /**
      * Reloaded on every attach and every resume rather than once per composition.
@@ -51,12 +57,11 @@ class ReleaseCalendarController : BaseComposeController() {
             val categories = preferences.releaseScheduleCategories().get()
                 .mapNotNull { it.toIntOrNull() }
                 .toSet()
-            val loaded = withIOContext { getReleaseSchedule.await(categories) }
+            val loaded = withIOContext { getReleaseSchedule.await(categories, onlyCaughtUp = onlyCaughtUp) }
+            val grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get())
             schedule = loaded
-            calendar = loaded.calendar(
-                dayCount = DAYS_SHOWN,
-                grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get()),
-            )
+            calendar = loaded.calendar(dayCount = DAYS_SHOWN, grace = grace)
+            month = loaded.month(YearMonth.now(), grace = grace)
         }
     }
 
@@ -75,6 +80,18 @@ class ReleaseCalendarController : BaseComposeController() {
         ReleaseCalendarScreen(
             schedule = schedule,
             calendar = calendar,
+            month = month,
+            monthView = monthView,
+            onMonthViewChange = {
+                monthView = it
+                preferences.releaseCalendarMonthView().set(it)
+            },
+            onlyCaughtUp = onlyCaughtUp,
+            onOnlyCaughtUpChange = {
+                onlyCaughtUp = it
+                preferences.releaseCalendarOnlyCaughtUp().set(it)
+                load()
+            },
             contentPadding = PaddingValues(bottom = 32.dp),
             onMangaClick = { manga ->
                 manga.id?.let { router.pushController(MangaDetailsController(it).withFadeTransaction()) }

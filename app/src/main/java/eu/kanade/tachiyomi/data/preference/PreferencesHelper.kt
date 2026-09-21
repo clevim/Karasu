@@ -245,6 +245,50 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
      */
     fun releaseScheduleCategories() = preferenceStore.getStringSet("release_schedule_categories", emptySet())
 
+    /** Calendar as a month grid rather than the list of days. */
+    fun releaseCalendarMonthView() = preferenceStore.getBoolean("release_calendar_month_view", false)
+
+    /** Calendar, widget and digest leave out entries the reader is behind on. */
+    fun releaseCalendarOnlyCaughtUp() = preferenceStore.getBoolean("release_calendar_only_caught_up", false)
+
+    /** The estimator whose output the stored estimates came from; a newer one recalculates once. */
+    fun releaseEstimateVersion() = preferenceStore.getInt(Preference.appStateKey("release_estimate_version"), 0)
+
+    /** JSON object of chapter id to how far into its last read page the reader was (0..1). */
+    fun readerPageOffsets() = preferenceStore.getString("reader_page_offsets", "{}")
+
+    /** Hour of the day the recommendations are rebuilt, or -1 for never. */
+    fun recommendationHour() = preferenceStore.getInt("recommendation_hour", 3)
+
+    /** Library categories the taste profile is learned from. Empty means the whole library. */
+    fun recommendationCategories() = preferenceStore.getStringSet("recommendation_categories", emptySet())
+
+    /** How many recommendations to build up to. Bigger takes more nights; the job resumes itself. */
+    fun recommendationTarget() = preferenceStore.getInt("recommendation_target", 150)
+
+    /** How far back a series may have started to count as a recent start in the catalogue pass. */
+    fun recommendationRecentYears() = preferenceStore.getInt("recommendation_recent_years", 3)
+
+    /** Days between rebuilds. */
+    fun recommendationIntervalDays() = preferenceStore.getInt("recommendation_interval_days", 15)
+
+    fun recommendationOnlyOnWifi() = preferenceStore.getBoolean("recommendation_only_on_wifi", true)
+
+    /** JSON object of lowercase canonical tag to the name of the group the reader merged it into. */
+    fun recommendationTagMerges() = preferenceStore.getString("recommendation_tag_merges", "{}")
+
+    /** JSON list of the reader's verdicts on recommendations. A preference so it is backed up. */
+    fun recommendationFeedback() = preferenceStore.getString("recommendation_feedback", "[]")
+
+    /** JSON object of manga id to what its trackers know (tags, other names). Backed up with the rest. */
+    fun recommendationTrackerExtras() = preferenceStore.getString("recommendation_tracker_extras", "{}")
+
+    /** Tags the reader struck from the profile for good: things a source called a genre that are not one. */
+    fun recommendationBannedTags() = preferenceStore.getStringSet("recommendation_banned_tags", emptySet())
+
+    /** JSON object of tag to weight (-1..1): the reader's overrides on the learned taste profile. */
+    fun recommendationTagWeights() = preferenceStore.getString("recommendation_tag_weights", "{}")
+
     fun libraryUpdateMangaRestriction() = preferenceStore.getStringSet("library_update_manga_restriction", setOf(MANGA_HAS_UNREAD, MANGA_NON_COMPLETED, MANGA_NON_READ))
 
     fun libraryUpdateCategories() = preferenceStore.getStringSet("library_update_categories", emptySet())
@@ -423,7 +467,7 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
 
     fun onlySearchPinned() = preferenceStore.getBoolean(Keys.onlySearchPinned, false)
 
-    fun hideInLibraryItems() = preferenceStore.getBoolean("browse_hide_in_library_items", false)
+    fun hideInLibraryItems() = preferenceStore.getBoolean("browse_hide_in_library_items", true)
 
     // Tutorial preferences
     fun shownFilterTutorial() = preferenceStore.getBoolean("shown_filter_tutorial", false)

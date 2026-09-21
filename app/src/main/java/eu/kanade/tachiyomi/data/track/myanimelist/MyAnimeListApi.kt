@@ -244,7 +244,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         // Karasu's own MyAnimeList client, registered as an android app: public, no secret, PKCE.
         // Its single registered redirect is karasu://myanimelist-auth, which is why neither the
         // authorize URL nor the token exchange sends redirect_uri.
-        private const val CLIENT_ID = "2fd75c9c4d50cd157b1479216400f7f5"
+        const val CLIENT_ID = "2fd75c9c4d50cd157b1479216400f7f5"
 
         private const val BASE_OAUTH_URL = "https://myanimelist.net/v1/oauth2"
         private const val BASE_API_URL = "https://api.myanimelist.net/v2"

@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.LocalSource
+import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.system.withUIContext
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,12 @@ class SourcePresenter(
 
     var sourceItems = emptyList<SourceItem>()
     var lastUsedItem: SourceItem? = null
+
+    /** The recommendations window, pinned under "last used" rather than filed under "other". */
+    val recommendationItem: SourceItem?
+        get() = (sourceManager.get(RecommendationSource.ID) as? CatalogueSource)
+            ?.takeUnless { it.id.toString() in preferences.hiddenSources().get() }
+            ?.let { SourceItem(it, LangItem(RECOMMENDATIONS_KEY)) }
 
     var lastUsedJob: Job? = null
 
@@ -139,6 +146,8 @@ class SourcePresenter(
 
         return sourceManager.getCatalogueSources()
             .filter { it.lang in languages || it.id == LocalSource.ID }
+            // Shown as its own section above the languages, see [recommendationItem].
+            .filterNot { it.id == RecommendationSource.ID }
             .filterNot { it.id.toString() in hiddenCatalogues }
             .sortedBy { "(${it.lang}) ${it.name}" }
     }
@@ -146,6 +155,7 @@ class SourcePresenter(
     companion object {
         const val PINNED_KEY = "pinned"
         const val LAST_USED_KEY = "last_used"
+        const val RECOMMENDATIONS_KEY = "recommendations"
 
         private var lastSources: List<SourceItem>? = null
         private var lastUsedItemRem: SourceItem? = null

@@ -52,6 +52,11 @@ suspend fun syncChaptersWithSource(
     // is deleted below, so a merged list would delete the other sources' chapters here.
     val dbChapters = getChapter.awaitAllRaw(manga.id!!, false)
 
+    // A source with no dates of its own stamps the moment it was asked on every chapter, so
+    // every chapter is "0 minutes ago" and every sync sees every date changed. Those stamps are
+    // dropped here, once, before anything reads them: the chapter list, the library's "recently
+    // updated", the release calendar and the recommendations all get "unknown" instead of a lie.
+    val fetchStamped = datesAreTheFetch(rawSourceChapters.map { it.date_upload })
     val sourceChapters = rawSourceChapters
         .distinctBy { it.url }
         .mapIndexed { i, sChapter ->
@@ -60,6 +65,7 @@ suspend fun syncChaptersWithSource(
                 name = with(ChapterSanitizer) { sChapter.name.sanitize(manga.title) }
                 manga_id = manga.id
                 source_order = i
+                if (fetchStamped) date_upload = 0L
             }
         }
 
@@ -254,3 +260,17 @@ internal fun shouldUpdateDbChapter(dbChapter: Chapter, sourceChapter: Chapter): 
         dbChapter.chapter_number != sourceChapter.chapter_number ||
         dbChapter.source_order != sourceChapter.source_order
 }
+
+/**
+ * True when the upload dates are the time of the request rather than of the releases: three or
+ * more chapters, all within a day of each other, and that day is now. A series really posted
+ * in a single day exists, but not one whose whole run was posted today.
+ */
+internal fun datesAreTheFetch(dates: List<Long>, now: Long = System.currentTimeMillis()): Boolean {
+    val real = dates.filter { it > 0 }
+    if (real.size < 3) return false
+    val span = real.max() - real.min()
+    return span < FETCH_STAMP_WINDOW_MS && now - real.max() < FETCH_STAMP_WINDOW_MS
+}
+
+private const val FETCH_STAMP_WINDOW_MS = 24L * 60 * 60 * 1000

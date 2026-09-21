@@ -251,6 +251,7 @@ class WebtoonPageHolder(
         progressContainer.isVisible = false
         removeErrorLayout()
         addTranslationsView()
+        page?.let(viewer::onPageDecoded)
     }
 
     /**

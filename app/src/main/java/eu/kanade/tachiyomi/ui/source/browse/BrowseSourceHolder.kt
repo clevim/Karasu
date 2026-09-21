@@ -25,6 +25,9 @@ abstract class BrowseSourceHolder(view: View, adapter: FlexibleAdapter<IFlexible
      */
     abstract fun onSetValues(manga: Manga)
 
+    /** Only the list layout has room for one. */
+    open fun onSetSubtitle(subtitle: String?) {}
+
     /**
      * Updates the image for this holder. Useful to update the image when the manga is initialized
      * and the url is now known.

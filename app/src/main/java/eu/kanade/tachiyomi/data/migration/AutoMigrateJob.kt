@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.smartsearch.SmartSearchEngine
 import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -143,7 +144,8 @@ class AutoMigrateJob(private val context: Context, workerParams: WorkerParameter
      * confident about, so listing pt-BR before English is what makes pt-BR win a tie.
      */
     private fun candidateSources(languages: List<String>, exclude: Long): List<CatalogueSource> {
-        val installed = sourceManager.getCatalogueSources().filter { it.id != exclude }
+        val installed = sourceManager.getCatalogueSources()
+            .filter { it.id != exclude && it.id != RecommendationSource.ID }
         return languages.flatMap { lang -> installed.filter { it.lang.equals(lang, ignoreCase = true) } }
     }
 
@@ -296,7 +298,6 @@ class AutoMigrateJob(private val context: Context, workerParams: WorkerParameter
          * twice a year and never walk it back. Landing exactly on the hour counts as passed, so
          * rescheduling at the moment the job fires books the next slot, not the same one again.
          */
-        @VisibleForTesting
         fun millisUntil(day: Int, hour: Int, now: ZonedDateTime = ZonedDateTime.now()): Long {
             val todayAt = now.truncatedTo(ChronoUnit.DAYS).withHour(hour)
             var next = if (todayAt.isAfter(now)) todayAt else todayAt.plusDays(1)

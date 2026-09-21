@@ -50,7 +50,8 @@ class ReleaseDigestJob(private val context: Context, workerParams: WorkerParamet
         // Day one of the calendar rather than a fresh query, so the notification and the screen
         // it opens can never disagree — including about overdue entries, which the calendar puts
         // on today because the chapter has not arrived and is therefore still coming.
-        val today = Injekt.get<GetReleaseSchedule>().await(categories)
+        val schedule = Injekt.get<GetReleaseSchedule>().await(categories, onlyCaughtUp = preferences.releaseCalendarOnlyCaughtUp().get())
+        val today = schedule
             .calendar(
                 dayCount = 1,
                 grace = ReleaseEstimate.graceOf(preferences.releaseMissGraceDays().get()),

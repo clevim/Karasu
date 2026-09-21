@@ -755,6 +755,11 @@ class BrowseController :
      */
     fun setLastUsedSource(item: SourceItem?) {
         adapter?.removeAllScrollableHeaders()
+        // Added bottom-up: the recommendations sit right under "last used", above the languages.
+        presenter.recommendationItem?.let {
+            adapter?.addScrollableHeader(it)
+            adapter?.addScrollableHeader(LangItem(SourcePresenter.RECOMMENDATIONS_KEY))
+        }
         if (item != null) {
             adapter?.addScrollableHeader(item)
             adapter?.addScrollableHeader(LangItem(SourcePresenter.LAST_USED_KEY))

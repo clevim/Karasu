@@ -10,6 +10,7 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SManga
@@ -45,6 +46,10 @@ open class GlobalSearchPresenter(
     private val initialQuery: String? = "",
     private val initialExtensionFilter: String? = null,
     private val sourcesToUse: List<CatalogueSource>? = null,
+    /** Sources that make no sense to search: for a merge, the ones the series is already on. */
+    private val excludedSources: Set<Long> = emptySet(),
+    /** Other names the series goes by, tried on a source in turn when the query found nothing. */
+    private val fallbackQueries: List<String> = emptyList(),
     val sourceManager: SourceManager = Injekt.get(),
     private val preferences: PreferencesHelper = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
@@ -104,6 +109,8 @@ open class GlobalSearchPresenter(
         val list = sourceManager.getCatalogueSources()
             .filter { it.lang in languages }
             .filterNot { it.id.toString() in hiddenCatalogues }
+            // The recommendations window is not a catalogue: a hit from it would be filed under its id.
+            .filterNot { it.id == RecommendationSource.ID }
             .sortedBy { "(${it.lang}) ${it.name}" }
 
         return if (preferences.onlySearchPinned().get()) {
@@ -125,7 +132,13 @@ open class GlobalSearchPresenter(
     private fun List<CatalogueSource>.healthyFirst(): List<CatalogueSource> =
         sortedBy { readFailures.isSourceFailing(it.id) }
 
-    private fun getSourcesToQuery(): List<CatalogueSource> {
+    private fun getSourcesToQuery(): List<CatalogueSource> = pickSourcesToQuery().filterNot { it.id in excludedSources }
+
+    private companion object {
+        const val MAX_FALLBACKS = 4
+    }
+
+    private fun pickSourcesToQuery(): List<CatalogueSource> {
         if (sourcesToUse != null) return sourcesToUse.healthyFirst()
         val filter = extensionFilter
         val enabledSources = getEnabledSources().healthyFirst()
@@ -171,6 +184,21 @@ open class GlobalSearchPresenter(
      *
      * @param query query on which to search.
      */
+    /**
+     * The query, then each fallback name until one finds something. A pt-BR source lists the
+     * series under the group's own title; a tracker's romaji or English name is what finds it.
+     */
+    private suspend fun searchWithFallbacks(source: CatalogueSource, query: String): MangasPage {
+        // Every extra name is another request on every source that came back empty.
+        val names = listOf(query) + fallbackQueries.filter { !it.equals(query, ignoreCase = true) }.take(MAX_FALLBACKS)
+        var last = MangasPage(emptyList(), false)
+        for (name in names) {
+            last = source.getSearchManga(1, name, source.getFilterList())
+            if (last.mangas.isNotEmpty()) return last
+        }
+        return last
+    }
+
     fun search(query: String) {
         // Return if there's nothing to do
         if (this.query == query) return
@@ -196,7 +224,7 @@ open class GlobalSearchPresenter(
                             return@mainLaunch
                         }
                         val mangas = try {
-                            source.getSearchManga(1, query, source.getFilterList())
+                            searchWithFallbacks(source, query)
                                 .also { readFailures.clearSource(source.id) }
                         } catch (error: Exception) {
                             // Remembering this is what makes the ordering above self-correcting:

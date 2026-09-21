@@ -7,7 +7,10 @@ import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.jsonMime
 import eu.kanade.tachiyomi.network.parseAs
+import karasu.domain.recommendation.TrackerExtrasStore
 import karasu.domain.track.interactor.GetTrack
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -29,6 +32,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class MangaAliases(
     private val getTrack: GetTrack,
     private val network: NetworkHelper,
+    private val extras: TrackerExtrasStore = Injekt.get(),
 ) {
 
     /**
@@ -41,7 +45,10 @@ class MangaAliases(
         val tracked = runCatching { getTrack.awaitAllByMangaId(manga.id) }
             .getOrDefault(emptyList())
             .map { it.title }
-        return (listOf(manga.title) + tracked).clean()
+        // Then every other name the bound trackers listed, fetched overnight: the scanlation
+        // group's own Portuguese title is exactly the kind of name only they know.
+        val known = extras.get(manga.id)?.titles.orEmpty()
+        return (listOf(manga.title) + tracked + known).clean()
     }
 
     /**

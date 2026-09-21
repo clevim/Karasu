@@ -108,6 +108,7 @@ class ReaderViewModel(
     private val downloadManager: DownloadManager = Injekt.get(),
     private val coverCache: CoverCache = Injekt.get(),
     private val preferences: PreferencesHelper = Injekt.get(),
+    private val pageOffsets: PageOffsetStore = PageOffsetStore(Injekt.get()),
     private val chapterFilter: ChapterFilter = Injekt.get(),
     private val storageManager: StorageManager = Injekt.get(),
     private val downloadPreferences: DownloadPreferences = Injekt.get(),
@@ -199,7 +200,7 @@ class ReaderViewModel(
             .onEach { currentChapter ->
                 chapterId = currentChapter.chapter.id!!
                 if (secondRun || !currentChapter.chapter.read) {
-                    currentChapter.requestedPage = currentChapter.chapter.last_page_read
+                    currentChapter.requestLastRead()
                 }
                 secondRun = true
             }
@@ -740,8 +741,31 @@ class ReaderViewModel(
      * Saves this [readerChapter]'s progress (last read page and whether it's read).
      * If incognito mode isn't on or has at least 1 tracker
      */
+    /** Where the reader left this chapter: the page the app always saved, and how far into it. */
+    private fun ReaderChapter.requestLastRead() {
+        requestedPage = chapter.last_page_read
+        requestedOffset = pageOffsets.get(chapter.id)
+    }
+
+    /**
+     * How far into the current page the screen is, as last reported by the viewer. Kept in
+     * memory and written with the page — or on leaving, since a strip several screens tall is
+     * read for minutes without the page ever changing.
+     */
+    private var pageOffset: Pair<Long, Float>? = null
+
+    fun onPageOffsetChanged(page: ReaderPage, fraction: Float) {
+        pageOffset = page.chapter.chapter.id!! to fraction
+    }
+
+    private fun savePageOffset(chapterId: Long) {
+        if (preferences.incognitoMode().get()) return
+        val (id, fraction) = pageOffset ?: return
+        pageOffsets.set(chapterId, if (id == chapterId) fraction else 0f)
+    }
+
     private suspend fun saveChapterProgress(readerChapter: ReaderChapter, page: ReaderPage, hasExtraPage: Boolean) {
-        readerChapter.requestedPage = readerChapter.chapter.last_page_read
+        readerChapter.requestLastRead()
         getChapter.awaitById(readerChapter.chapter.id!!)?.let { dbChapter ->
             readerChapter.chapter.bookmark = dbChapter.bookmark
         }
@@ -750,6 +774,7 @@ class ReaderViewModel(
         if (shouldTrack && page.status !is Page.State.Error) {
             readerChapter.chapter.last_page_read = page.index
             readerChapter.chapter.pages_left = (readerChapter.pages?.size ?: page.index) - page.index
+            savePageOffset(readerChapter.chapter.id!!)
             // For double pages, check if the second to last page is doubled up
             if (
                 (readerChapter.pages?.lastIndex == page.index && page.firstHalf != true) ||
@@ -803,6 +828,7 @@ class ReaderViewModel(
 
     fun flushReadTimer() {
         getCurrentChapter()?.let {
+            it.chapter.id?.let(::savePageOffset)
             viewModelScope.launchNonCancellableIO {
                 saveChapterHistory(it)
             }
@@ -885,7 +911,7 @@ class ReaderViewModel(
             if (currChapters != null) {
                 // Save current page
                 val currChapter = currChapters.currChapter
-                currChapter.requestedPage = currChapter.chapter.last_page_read
+                currChapter.requestLastRead()
 
                 mutableState.update {
                     it.copy(

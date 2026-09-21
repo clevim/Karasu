@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,6 +35,33 @@ import karasu.domain.manga.interval.ReleaseSchedule
 import karasu.domain.manga.interval.ScheduledRelease
 import karasu.domain.manga.models.cover
 import karasu.i18n.MR
+import karasu.domain.manga.interval.ReleaseMonth
+import java.time.YearMonth
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import karasu.presentation.core.enterAlwaysAppBarScrollBehavior
+import karasu.presentation.KarasuScaffold
+import karasu.presentation.AppBarType
+import eu.kanade.tachiyomi.util.compose.LocalBackPress
+import androidx.compose.foundation.lazy.rememberLazyListState
 import karasu.presentation.manga.components.MangaCover
 import karasu.presentation.manga.components.MangaCoverRatio
 
@@ -57,86 +83,145 @@ private val COVER_WIDTH = 96.dp
 fun ReleaseCalendarScreen(
     schedule: ReleaseSchedule?,
     calendar: ReleaseCalendar?,
+    month: ReleaseMonth?,
+    monthView: Boolean,
+    onMonthViewChange: (Boolean) -> Unit,
+    onlyCaughtUp: Boolean,
+    onOnlyCaughtUpChange: (Boolean) -> Unit,
     onMangaClick: (Manga) -> Unit,
     onSettingsClick: () -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-    if (schedule == null || calendar == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
+    val onBack = LocalBackPress.current ?: {}
+    val listState = rememberLazyListState()
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding(),
-        contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, end = 4.dp, top = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(MR.strings.release_calendar),
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f),
+    // The same small app bar every other pushed screen has; the settings shortcut is its action.
+    KarasuScaffold(
+        onNavigationIconClicked = onBack,
+        title = stringResource(MR.strings.release_calendar),
+        appBarType = AppBarType.SMALL,
+        scrollBehavior = enterAlwaysAppBarScrollBehavior(
+            canScroll = { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 },
+        ),
+        actions = {
+            // Two toggles that change what is on screen, then the settings that change how it
+            // is computed. Toggles are filled when on, the way filter icons read elsewhere.
+            IconButton(onClick = { onOnlyCaughtUpChange(!onlyCaughtUp) }) {
+                Icon(
+                    imageVector = if (onlyCaughtUp) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                    contentDescription = stringResource(MR.strings.release_calendar_only_caught_up),
+                    tint = if (onlyCaughtUp) MaterialTheme.colorScheme.primary else LocalContentColor.current,
                 )
-                IconButton(onClick = onSettingsClick) {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = stringResource(MR.strings.settings),
+            }
+            IconButton(onClick = { onMonthViewChange(!monthView) }) {
+                Icon(
+                    imageVector = if (monthView) Icons.Outlined.ViewList else Icons.Outlined.CalendarMonth,
+                    contentDescription = stringResource(if (monthView) MR.strings.release_calendar_list_view else MR.strings.release_calendar_month_view),
+                )
+            }
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = stringResource(MR.strings.settings),
+                )
+            }
+        },
+    ) { innerPadding ->
+        if (schedule == null || calendar == null || month == null) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            return@KarasuScaffold
+        }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(innerPadding),
+            contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // What landed today comes first: "did it come out?" is the question the day starts with.
+            if (schedule.arrived.isNotEmpty()) {
+                item {
+                    SectionHeader(title = stringResource(MR.strings.release_calendar_arrived))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(schedule.arrived, key = { "arrived-" + (it.id ?: it.url) }) { manga ->
+                            MangaCard(manga = manga, hint = "✓", onClick = { onMangaClick(manga) })
+                        }
+                    }
+                }
+            }
+
+            if (monthView) {
+                item {
+                    MonthGrid(month = month, onMangaClick = onMangaClick)
+                }
+            } else {
+                items(calendar.days, key = { it.date.toString() }) { day ->
+                    DaySection(
+                        title = day.date.label(),
+                        releases = day.releases,
+                        onMangaClick = onMangaClick,
                     )
                 }
             }
-        }
 
-        items(calendar.days, key = { it.date.toString() }) { day ->
-            DaySection(
-                title = day.date.label(),
-                releases = day.releases,
-                onMangaClick = onMangaClick,
-            )
-        }
-
-        if (calendar.later.isNotEmpty()) {
-            item {
-                DaySection(
-                    title = stringResource(MR.strings.release_calendar_later),
-                    releases = calendar.later,
-                    onMangaClick = onMangaClick,
-                )
+            if (calendar.later.isNotEmpty()) {
+                item {
+                    DaySection(
+                        title = stringResource(MR.strings.release_calendar_later),
+                        releases = calendar.later,
+                        onMangaClick = onMangaClick,
+                    )
+                }
             }
-        }
 
-        if (schedule.stalled.isNotEmpty()) {
-            item {
-                DaySection(
-                    title = stringResource(MR.strings.release_calendar_stalled),
-                    subtitle = stringResource(MR.strings.release_calendar_stalled_summary),
-                    releases = schedule.stalled,
-                    onMangaClick = onMangaClick,
-                )
+            if (schedule.onHiatus.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = stringResource(MR.strings.release_calendar_hiatus),
+                        subtitle = stringResource(MR.strings.release_calendar_hiatus_summary),
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(schedule.onHiatus, key = { "hiatus-" + (it.id ?: it.url) }) { manga ->
+                            MangaCard(manga = manga, hint = null, onClick = { onMangaClick(manga) })
+                        }
+                    }
+                }
             }
-        }
 
-        if (schedule.unknown.isNotEmpty()) {
-            item {
-                SectionHeader(
-                    title = stringResource(MR.strings.release_calendar_unknown),
-                    subtitle = stringResource(MR.strings.release_calendar_unknown_summary),
-                )
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(schedule.unknown, key = { it.id ?: it.url }) { manga ->
-                        MangaCard(manga = manga, hint = null, onClick = { onMangaClick(manga) })
+            if (schedule.stalled.isNotEmpty()) {
+                item {
+                    DaySection(
+                        title = stringResource(MR.strings.release_calendar_stalled),
+                        subtitle = stringResource(MR.strings.release_calendar_stalled_summary),
+                        releases = schedule.stalled,
+                        onMangaClick = onMangaClick,
+                    )
+                }
+            }
+
+            if (schedule.unknown.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = stringResource(MR.strings.release_calendar_unknown),
+                        subtitle = stringResource(MR.strings.release_calendar_unknown_summary),
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(schedule.unknown, key = { it.id ?: it.url }) { manga ->
+                            MangaCard(manga = manga, hint = null, onClick = { onMangaClick(manga) })
+                        }
                     }
                 }
             }
@@ -169,7 +254,9 @@ private fun DaySection(
             items(releases, key = { it.manga.id ?: it.manga.url }) { release ->
                 MangaCard(
                     manga = release.manga,
-                    hint = release.estimate.accuracyLabel(),
+                    // A guess borrowed from the source's other series says so, instead of
+                    // dressing up as a measurement with a "±" on it.
+                    hint = if (release.guessed) stringResource(MR.strings.release_calendar_probably) else release.estimate.accuracyLabel(),
                     onClick = { onMangaClick(release.manga) },
                 )
             }
@@ -257,3 +344,80 @@ private fun karasu.domain.manga.interval.ReleaseEstimate.accuracyLabel(): String
         else -> stringResource(MR.strings.release_calendar_give_or_take_days, days.toString())
     }
 }
+
+/**
+ * The month as a grid: a cell per day, a dot per expected release, the day's covers below the
+ * grid for whichever day is tapped. Today is tapped by default, so the grid opens on something.
+ */
+@Composable
+private fun MonthGrid(month: ReleaseMonth, onMangaClick: (Manga) -> Unit) {
+    val today = LocalDate.now()
+    var selected by remember(month.month) { mutableStateOf(if (today.yearMonth == month.month) today else month.month.atDay(1)) }
+    val byDate = month.days.associateBy { it.date }
+    // Cells before the first of the month, so weekdays line up with their column.
+    val firstColumn = (month.days.first().date.dayOfWeek.value % 7)
+    val cells: List<LocalDate?> = List(firstColumn) { null } + month.days.map { it.date }
+    val rows = cells.chunked(7)
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+            text = month.month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+                .replaceFirstChar { it.titlecase(Locale.getDefault()) } + " " + month.month.year,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            for (i in 0 until 7) {
+                Text(
+                    text = java.time.DayOfWeek.of(if (i == 0) 7 else i).getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        rows.forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                row.forEach { date -> DayCell(date, byDate[date]?.releases?.size ?: 0, date == selected, date == today) { date?.let { selected = it } } }
+                repeat(7 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+        val releases = byDate[selected]?.releases.orEmpty()
+        DaySection(title = selected.label(), releases = releases, onMangaClick = onMangaClick)
+    }
+}
+
+@Composable
+private fun RowScope.DayCell(date: LocalDate?, count: Int, selected: Boolean, isToday: Boolean, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .weight(1f)
+            .padding(2.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .then(if (date != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 6.dp),
+    ) {
+        Text(
+            text = date?.dayOfMonth?.toString().orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+        // Up to three dots; past that the number says it.
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.height(8.dp)) {
+            if (count in 1..3) repeat(count) { Dot() }
+            if (count > 3) Text(text = count.toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun Dot() {
+    Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+}
+
+private val LocalDate.yearMonth: YearMonth get() = YearMonth.from(this)

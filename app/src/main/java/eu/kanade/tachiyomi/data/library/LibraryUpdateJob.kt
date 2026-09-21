@@ -31,6 +31,7 @@ import eu.kanade.tachiyomi.data.download.DownloadJob
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
 import eu.kanade.tachiyomi.data.migration.AutoMigrateJob
+import eu.kanade.tachiyomi.data.recommendation.RecommendationJob
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.DEVICE_BATTERY_NOT_LOW
 import eu.kanade.tachiyomi.data.preference.DEVICE_CHARGING
@@ -860,6 +861,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // do with how often the library is refreshed. Its own hour is its off switch, and
             // re-registering here is what survives a reboot or an app update.
             AutoMigrateJob.setupTask(context)
+            RecommendationJob.setupTask(context)
         }
 
         fun cancelAllWorks(context: Context) {

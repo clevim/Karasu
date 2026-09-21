@@ -61,6 +61,8 @@ import eu.kanade.tachiyomi.util.system.AuthenticatorUtil
 import eu.kanade.tachiyomi.util.system.GLUtil
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import eu.kanade.tachiyomi.util.system.launchIO
+import karasu.domain.manga.interval.ReleaseEstimate
+import karasu.domain.manga.interval.RecalculateReleaseEstimates
 import eu.kanade.tachiyomi.util.system.localeContext
 import eu.kanade.tachiyomi.util.system.notification
 import eu.kanade.tachiyomi.util.system.setToDefault
@@ -151,6 +153,14 @@ open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.F
 
         scope.launchIO {
             with(TachiyomiWidgetManager()) { this@App.init() }
+        }
+
+        // The release estimator changed since these estimates were written: redo them once.
+        if (preferences.releaseEstimateVersion().get() != ReleaseEstimate.ESTIMATOR_VERSION) {
+            scope.launchIO {
+                runCatching { Injekt.get<RecalculateReleaseEstimates>().await() }
+                    .onSuccess { preferences.releaseEstimateVersion().set(ReleaseEstimate.ESTIMATOR_VERSION) }
+            }
         }
 
         // Show notification to disable Incognito Mode when it's enabled

@@ -21,6 +21,9 @@ data class ReaderChapter(val chapter: Chapter) {
 
     var requestedPage: Int = 0
 
+    /** How far into [requestedPage] to land, 0..1. Only the webtoon viewer honours it. */
+    var requestedOffset: Float = 0f
+
     private var references = 0
 
     fun ref() {

@@ -14,6 +14,11 @@ import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.safeMemo
+import eu.kanade.tachiyomi.source.RecommendationSource
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import eu.kanade.tachiyomi.ui.base.presenter.BaseCoroutinePresenter
 import eu.kanade.tachiyomi.ui.source.filter.CheckboxItem
 import eu.kanade.tachiyomi.ui.source.filter.CheckboxSectionItem
@@ -204,17 +209,19 @@ open class BrowseSourcePresenter(
             pager.asFlow()
                 .map { (first, second) ->
                     first to second
-                        .map { networkToLocalManga(it, sourceId) }
-                        .filter { !preferences.hideInLibraryItems().get() || !it.favorite }
+                        .map { networkToLocalManga(it, sourceId) to it.safeMemo()[RecommendationSource.BECAUSE_MEMO]?.jsonPrimitive?.contentOrNull }
+                        // The recommendations are library entries by design; hiding them would empty it.
+                        .filter { (manga, _) -> sourceId == RecommendationSource.ID || !preferences.hideInLibraryItems().get() || !manga.favorite }
                 }
-                .onEach { initializeMangas(it.second) }
+                .onEach { initializeMangas(it.second.map { (manga, _) -> manga }) }
                 .map { (first, second) ->
-                    first to second.map {
+                    first to second.map { (manga, because) ->
                         BrowseSourceItem(
-                            it,
+                            manga,
                             browseAsList,
                             sourceListType,
                             outlineCovers,
+                            subtitle = because,
                         )
                     }
                 }
@@ -264,7 +271,9 @@ open class BrowseSourcePresenter(
      * @param sManga the manga from the source.
      * @return a manga from the database.
      */
-    private suspend fun networkToLocalManga(sManga: SManga, sourceId: Long): Manga {
+    private suspend fun networkToLocalManga(sManga: SManga, browsedSourceId: Long): Manga {
+        // A recommendation is a window onto a manga of another source: never a row of its own.
+        val sourceId = sManga.safeMemo()[RecommendationSource.SOURCE_MEMO]?.jsonPrimitive?.longOrNull ?: browsedSourceId
         var localManga = getManga.awaitByUrlAndSource(sManga.url, sourceId)
         if (localManga == null) {
             val newManga = Manga.create(sManga.url, sManga.title, sourceId)
