@@ -13,3 +13,8 @@ JOIN mangas AS SRC
 ON SRC._id = C.manga_id
 LEFT JOIN merged_manga AS MM
 ON MM.url = SRC.url AND MM.source = SRC.source;
+
+ownerMangaId:
+SELECT manga_id
+FROM chapter_owner_view
+WHERE chapter_id = :chapterId;

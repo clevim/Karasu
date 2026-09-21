@@ -40,6 +40,7 @@ import karasu.translation.model.luminance
 import kotlinx.coroutines.flow.MutableStateFlow
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.Injekt
+import karasu.domain.translation.TranslationPreferences
 import karasu.translation.TranslationManager
 import androidx.compose.runtime.key
 import kotlin.math.max
@@ -105,33 +106,40 @@ private fun TranslationBlocks(translation: PageTranslation, scale: Float) {
     // says "something changed", and reading it here is what makes the overlay redraw.
     val manager = remember { Injekt.get<TranslationManager>() }
     val revision by manager.revision.collectAsState()
+    val useBalloons = remember { Injekt.get<TranslationPreferences>().balloonBounds().get() }
     key(revision) {
         // Backgrounds first, so a box never covers the text of a neighbouring block.
-        translation.blocks.forEach { BlockBackground(it, scale) }
-        translation.blocks.forEach { BlockText(it, scale) }
+        translation.blocks.forEach { BlockBackground(it, scale, useBalloons) }
+        translation.blocks.forEach { BlockText(it, scale, useBalloons) }
     }
 }
 
 @Composable
-private fun BlockBackground(block: TranslationBlock, scale: Float) {
+private fun BlockBackground(block: TranslationBlock, scale: Float, useBalloons: Boolean) {
     Box(
         modifier = Modifier
-            .offset(block.paddedX(scale).pxToDp(), block.paddedY(scale).pxToDp())
-            .requiredSize(block.paddedWidth(scale).pxToDp(), block.paddedHeight(scale).pxToDp())
+            .offset(block.paddedX(scale, useBalloons).pxToDp(), block.paddedY(scale, useBalloons).pxToDp())
+            .requiredSize(
+                block.paddedWidth(scale, useBalloons).pxToDp(),
+                block.paddedHeight(scale, useBalloons).pxToDp(),
+            )
             .rotate(block.uprightAngle())
             .background(Color(block.background), RoundedCornerShape(4.dp)),
     )
 }
 
 @Composable
-private fun BlockText(block: TranslationBlock, scale: Float) {
+private fun BlockText(block: TranslationBlock, scale: Float, useBalloons: Boolean) {
     // Black on a light page, white on a dark one. The fill matches the page now, so the lettering
     // has to follow it or a caption on a black gutter comes out black on black.
     val ink = if (luminance(block.background) > 0.5f) Color.Black else Color.White
     Box(
         modifier = Modifier
-            .offset(block.paddedX(scale).pxToDp(), block.paddedY(scale).pxToDp())
-            .requiredSize(block.paddedWidth(scale).pxToDp(), block.paddedHeight(scale).pxToDp())
+            .offset(block.paddedX(scale, useBalloons).pxToDp(), block.paddedY(scale, useBalloons).pxToDp())
+            .requiredSize(
+                block.paddedWidth(scale, useBalloons).pxToDp(),
+                block.paddedHeight(scale, useBalloons).pxToDp(),
+            )
             .rotate(block.uprightAngle()),
     ) {
         BasicText(
@@ -157,21 +165,30 @@ private fun BlockText(block: TranslationBlock, scale: Float) {
 }
 
 /**
- * ML Kit's box hugs the glyphs; padding it by half a symbol puts the white box roughly where the
- * original lettering sat inside the bubble.
+ * Where the translation is lettered: the balloon found when the page was read, or, when none was,
+ * ML Kit's glyph box padded by half a symbol to stand in for it.
  */
-private fun TranslationBlock.paddedX(scale: Float) = max((x - symWidth * PAD) * scale, 0f)
-private fun TranslationBlock.paddedY(scale: Float) = max((y - symHeight * PAD) * scale, 0f)
-private fun TranslationBlock.paddedWidth(scale: Float) = (width + symWidth * PAD * 2) * scale
-private fun TranslationBlock.paddedHeight(scale: Float) = (height + symHeight * PAD * 2) * scale
+private fun TranslationBlock.box(useBalloons: Boolean) = balloon.takeIf { useBalloons }
+
+private fun TranslationBlock.paddedX(scale: Float, useBalloons: Boolean) =
+    max((box(useBalloons)?.x ?: (x - symWidth * PAD)) * scale, 0f)
+private fun TranslationBlock.paddedY(scale: Float, useBalloons: Boolean) =
+    max((box(useBalloons)?.y ?: (y - symHeight * PAD)) * scale, 0f)
+private fun TranslationBlock.paddedWidth(scale: Float, useBalloons: Boolean) =
+    (box(useBalloons)?.width ?: (width + symWidth * PAD * 2)) * scale
+private fun TranslationBlock.paddedHeight(scale: Float, useBalloons: Boolean) =
+    (box(useBalloons)?.height ?: (height + symHeight * PAD * 2)) * scale
 
 /**
  * Padding around the glyph box, in glyphs.
  *
  * A bubble is always roomier than the lettering inside it, and the box handed back is the
  * lettering. Fitting the translation into the tighter box is what made the auto-size give up and
- * render 6pt text in a bubble with space to spare — the complaint manga-image-translator answers
- * with its `--manga2eng` renderer, which fits the balloon instead of the text line.
+ * render 6pt text in a bubble with space to spare.
+ *
+ * Only the fallback now: `findBalloon` measures the real thing while the page is still decoded.
+ * This is what is left for text with no balloon around it, and for translations made before that
+ * existed.
  */
 private const val PAD = 0.4f
 

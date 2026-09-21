@@ -440,7 +440,10 @@ class Downloader(
             download.status = Download.State.DOWNLOADED
 
             if (translationPreferences.autoTranslateAfterDownload().get()) {
-                translationManager.translateChapter(download.manga, download.chapter, source)
+                // `source` may have moved to whichever merged source served the pages; the
+                // translation is filed under the manga being read and its own source, which
+                // is also where `findChapterDir` will look for what was just downloaded.
+                translationManager.translateChapter(download.manga, download.chapter, download.source)
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error

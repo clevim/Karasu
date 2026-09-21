@@ -80,7 +80,7 @@ class ExtensionBottomSheet @JvmOverloads constructor(context: Context, attrs: At
     val presenter = ExtensionBottomPresenter()
     var currentSourceTitle: String? = null
 
-    private var extensions: List<ExtensionItem> = emptyList()
+    private var extensions: List<IFlexible<*>> = emptyList()
     var canExpand = false
     private lateinit var binding: ExtensionsBottomSheetBinding
 
@@ -248,6 +248,11 @@ class ExtensionBottomSheet @JvmOverloads constructor(context: Context, attrs: At
         }
     }
 
+    override fun onHeaderClicked(position: Int) {
+        val header = extAdapter?.getItem(position) as? ExtensionGroupItem ?: return
+        presenter.toggleGroup(header.key)
+    }
+
     override fun onExtSortClicked(view: TextView, position: Int) {
         view.popupMenu(
             InstalledExtensionsOrder.entries.map { it.value to it.nameRes },
@@ -345,7 +350,7 @@ class ExtensionBottomSheet @JvmOverloads constructor(context: Context, attrs: At
             }.show()
     }
 
-    fun setExtensions(extensions: List<ExtensionItem>, updateController: Boolean = true) {
+    fun setExtensions(extensions: List<IFlexible<*>>, updateController: Boolean = true) {
         this.extensions = extensions
         if (updateController) {
             controller.presenter.updateSources()
@@ -379,8 +384,12 @@ class ExtensionBottomSheet @JvmOverloads constructor(context: Context, attrs: At
 
     fun drawExtensions() {
         if (controller.extQuery.isNotBlank()) {
+            // Searching ignores which groups are rolled up: a hit the user cannot see is no
+            // hit at all. Headers are dropped and re-inserted by the adapter around what matched.
+            // Over every row, not over what is on screen: a group the user rolled up is still
+            // a group their search should find things in.
             extAdapter?.updateDataSet(
-                extensions.filter {
+                presenter.searchableExtensions().filter {
                     it.extension.name.contains(controller.extQuery, ignoreCase = true)
                 },
             )

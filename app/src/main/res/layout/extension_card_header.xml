@@ -7,7 +7,23 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="?selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/collapse_indicator"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:alpha=".7"
+            android:importantForAccessibility="no"
+            app:layout_constraintBottom_toBottomOf="@id/title"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@id/title"
+            android:layout_marginStart="@dimen/material_component_text_fields_padding_above_and_below_label"
+            app:tint="?android:textColorPrimary"
+            tools:src="@drawable/ic_expand_less_24dp" />
 
         <TextView
             android:id="@+id/title"
@@ -18,9 +34,9 @@
             android:layout_height="wrap_content"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@id/collapse_indicator"
             android:layout_marginBottom="8dp"
-            android:paddingStart="@dimen/material_component_text_fields_padding_above_and_below_label"
+            android:paddingStart="8dp"
             android:paddingEnd="0dp"
             android:layout_marginTop="20dp"
             tools:text="Title"/>

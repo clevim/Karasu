@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.data.backup.models
 
 import eu.kanade.tachiyomi.data.database.models.ChapterImpl
+import eu.kanade.tachiyomi.source.model.toMemo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
@@ -23,6 +24,14 @@ data class BackupChapter(
 
     // J2K specific values
     @ProtoNumber(800) var pagesLeft: Int = 0,
+    /**
+     * The source's own metadata for this row (extensions-lib 1.6 `memo`).
+     *
+     * Carried through the backup because some sources cannot fetch anything without it: dropping
+     * it here meant a restore put back chapters that could not be opened until every series had
+     * been refreshed by hand — the very failure the memo column was added to stop.
+     */
+    @ProtoNumber(801) var memo: String = "{}",
 ) {
     fun toChapterImpl(): ChapterImpl {
         return ChapterImpl().apply {
@@ -37,6 +46,7 @@ data class BackupChapter(
             date_upload = this@BackupChapter.dateUpload
             source_order = this@BackupChapter.sourceOrder
             pages_left = this@BackupChapter.pagesLeft
+            memo = this@BackupChapter.memo.toMemo()
         }
     }
 
@@ -55,6 +65,7 @@ data class BackupChapter(
             sourceOrder: Long,
             dateFetch: Long,
             dateUpload: Long,
+            memo: String,
         ) = BackupChapter(
             url = url,
             name = name,
@@ -67,6 +78,7 @@ data class BackupChapter(
             sourceOrder = sourceOrder.toInt(),
             dateFetch = dateFetch,
             dateUpload = dateUpload,
+            memo = memo,
         )
     }
 }

@@ -103,7 +103,20 @@ class MergedSourceFallback(
                 val target = if (candidate.mangaUrl == null) {
                     chapter
                 } else {
-                    val chapters = source.getChapterList(SManga.create().apply { url = candidate.mangaUrl })
+                    // The combined 1.6 call, not `getChapterList`: an extension may implement
+                    // only this one — Asura Scans has no `chapterListParse` at all — and the
+                    // default bridges back to `getChapterList` for the 1.5 ones anyway.
+                    //
+                    // ponytail: the manga is built from a url and nothing else, so it carries no
+                    // `memo`. A source that needs one to list chapters cannot serve as a fallback
+                    // and gets recorded as a read failure. Fixing it means storing the memo per
+                    // merged entry; worth it if such a source turns up as somebody's fallback.
+                    val chapters = source.getMangaUpdate(
+                        SManga.create().apply { url = candidate.mangaUrl },
+                        chapters = emptyList(),
+                        fetchDetails = false,
+                        fetchChapters = true,
+                    ).chapters
                     matchChapter(chapters, chapter.chapter_number, mangaTitle)
                 }
                 if (target == null) {

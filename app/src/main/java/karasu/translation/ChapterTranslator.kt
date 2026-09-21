@@ -10,6 +10,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.source.MergedSourceFallback
+import eu.kanade.tachiyomi.source.SourcedPages
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.database.models.readingModeType
@@ -25,7 +27,9 @@ import karasu.translation.data.CachedTranslator
 import karasu.translation.data.TranslationCache
 import karasu.translation.data.TranslationContexts
 import karasu.translation.data.TranslationProvider
+import karasu.translation.model.BalloonBox
 import karasu.translation.model.PageTranslation
+import karasu.translation.model.SeriesNotes
 import karasu.translation.model.Progress
 import karasu.translation.model.Translation
 import karasu.translation.model.TranslationBlock
@@ -33,7 +37,9 @@ import karasu.translation.model.luminance
 import karasu.translation.model.WHITE
 import karasu.translation.model.dropDuplicateBlocks
 import karasu.translation.model.mergeStackedBlocks
+import karasu.translation.recognizer.IntRect
 import karasu.translation.recognizer.TextRecognizer
+import karasu.translation.recognizer.findBalloon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +74,7 @@ class ChapterTranslator(private val context: Context) {
     private val contexts: TranslationContexts by injectLazy()
     private val readerPreferences: PreferencesHelper by injectLazy()
     private val chapterCache: ChapterCache by injectLazy()
+    private val mergedSourceFallback: MergedSourceFallback by injectLazy()
 
     private val _queueState = MutableStateFlow<List<Translation>>(emptyList())
     val queueState = _queueState.asStateFlow()
@@ -189,7 +196,13 @@ class ChapterTranslator(private val context: Context) {
             translation.progress = translation.progress.copy(phase = Progress.Phase.TRANSLATING)
             val engine = preferences.engine().get()
             val context = contextFor(translation.manga.id)
-            CachedTranslator(engine.build(preferences, fromLang, toLang, context), cache, engineKey(context)).use { it.translate(pages) }
+            val translator = CachedTranslator(
+                engine.build(preferences, fromLang, toLang, context),
+                cache,
+                engineKey(context),
+            )
+            translator.use { it.translate(pages) }
+            rememberTerms(translation.manga.id, translator.learned)
         }
 
         val file = mangaDir.createFile(provider.getTranslationFileName(translation.chapter))
@@ -198,19 +211,38 @@ class ChapterTranslator(private val context: Context) {
         translation.status = Translation.State.TRANSLATED
     }
 
+    /**
+     * Folds the terms this chapter settled on into the manga's notes, under a heading of their own.
+     *
+     * The notes go into the prompt of every later chapter, which is the whole point: chapter forty
+     * then calls a character what chapter one called them. Kept apart from what the user wrote so
+     * their own notes are never edited, appended only so a name already decided stays decided, and
+     * capped because the whole thing is resent with every batch.
+     */
+    private suspend fun rememberTerms(mangaId: Long?, learned: Map<String, String>) {
+        if (mangaId == null || learned.isEmpty()) return
+        val merged = mergeLearnedTerms(contexts.get(mangaId), learned) ?: return
+        contexts.set(mangaId, merged)
+    }
+
     /** The user's notes on the manga, for engines that can read them. */
-    suspend fun contextFor(mangaId: Long?): String {
-        if (!preferences.engine().get().needsApiKey) return ""
-        return mangaId?.let { contexts.get(it) }.orEmpty()
+    suspend fun contextFor(mangaId: Long?): SeriesNotes {
+        if (!preferences.engine().get().needsApiKey) return SeriesNotes()
+        return parseSeriesNotes(mangaId?.let { contexts.get(it) }.orEmpty())
     }
 
     /**
-     * What the cache files translations under. The model and the notes are part of it for the
-     * LLM engine: change either and the same line is, deliberately, a different translation.
+     * What the cache files translations under. The model and the reader's notes are part of it for
+     * the LLM engine: change either and the same line is, deliberately, a different translation.
      */
-    fun engineKey(context: String): String {
+    fun engineKey(context: SeriesNotes): String {
         val engine = preferences.engine().get()
-        return if (engine.needsApiKey) "${engine.name}:${preferences.engineModel().get()}:${context.hashCode()}" else engine.name
+        return if (engine.needsApiKey) {
+            // Only the reader's own notes. See [SeriesNotes] for why the glossary stays out.
+            "${engine.name}:${preferences.engineModel(engine).get()}:${context.notes.hashCode()}"
+        } else {
+            engine.name
+        }
     }
 
     /**
@@ -311,6 +343,9 @@ class ChapterTranslator(private val context: Context) {
                     val bounds = block.boundingBox!!
                     val symbol = block.lines.firstOrNull()?.elements?.firstOrNull()
                         ?.symbols?.firstOrNull()?.boundingBox ?: return@mapNotNull null
+                    // Sampled once and used twice: it is the fill the overlay paints, and the
+                    // colour the balloon walk measures against.
+                    val background = sampleBackground(scaled, bounds)
                     TranslationBlock(
                         text = block.text,
                         width = bounds.width() / scale,
@@ -320,7 +355,8 @@ class ChapterTranslator(private val context: Context) {
                         symWidth = symbol.width() / scale,
                         symHeight = symbol.height() / scale,
                         angle = block.lines.first().angle,
-                        background = sampleBackground(scaled, bounds),
+                        background = background,
+                        balloon = findBalloon(scaled, bounds, background, scale, yOffset),
                     )
                 }
         } finally {
@@ -337,9 +373,7 @@ class ChapterTranslator(private val context: Context) {
      * page's pixels exist — the reader decodes the page again for itself and never sees this
      * bitmap, which is recycled a few lines below.
      *
-     * ponytail: eight points and a median, not a balloon mask. manga-image-translator floodfills
-     * the actual bubble (`ballon_extractor.py`), which needs OpenCV and the whole page in memory.
-     * Move up to that if flat fills stop being enough.
+     * The same pixels also give the balloon itself — see [findBalloon].
      */
     private fun sampleBackground(bitmap: Bitmap, bounds: Rect): Int {
         val margin = max(2, bounds.height() / 4)
@@ -357,6 +391,35 @@ class ChapterTranslator(private val context: Context) {
         // Median by brightness: one sample that landed on the bubble outline or on a neighbouring
         // glyph cannot drag the fill away from what the page actually is.
         return colors.sortedBy(::luminance).getOrNull(colors.size / 2) ?: WHITE
+    }
+
+    /**
+     * The balloon around a text box, in page coordinates, or null when there is none to find.
+     *
+     * Runs here for the same reason the background is sampled here: this is the last moment the
+     * page's pixels exist. The answer is stored with the translation, so the reader pays nothing
+     * for it and a page translated once never looks for its balloons again.
+     */
+    private fun findBalloon(
+        bitmap: Bitmap,
+        bounds: Rect,
+        background: Int,
+        scale: Float,
+        yOffset: Int,
+    ): BalloonBox? {
+        val found = findBalloon(
+            width = bitmap.width,
+            height = bitmap.height,
+            pixelAt = bitmap::getPixel,
+            text = IntRect(bounds.left, bounds.top, bounds.right, bounds.bottom),
+            fill = background,
+        ) ?: return null
+        return BalloonBox(
+            x = found.left / scale,
+            y = found.top / scale + yOffset,
+            width = found.width / scale,
+            height = found.height / scale,
+        )
     }
 
     /**
@@ -378,9 +441,15 @@ class ChapterTranslator(private val context: Context) {
      * the reader would, so this costs the source nothing the reader would not have.
      */
     private suspend fun getOnlinePages(translation: Translation): List<Pair<String, () -> InputStream>> {
-        val source = translation.source as? HttpSource ?: error("Chapter is not downloaded")
-        val pages = source.getPageList(translation.chapter)
-        return pages.mapIndexed { index, page ->
+        val primary = translation.source as? HttpSource ?: error("Chapter is not downloaded")
+        // A chapter borrowed from a merged source is served by that source, with its urls, headers
+        // and client — the same resolution the reader and the downloader do before fetching pages.
+        // Without it the translator asks the wrong source and translates nothing.
+        val served = translation.manga.id
+            ?.let { mergedSourceFallback.getPages(it, translation.chapter, primary) }
+            ?: SourcedPages(primary, primary.getPageList(translation.chapter))
+        val source = served.source
+        return served.pages.mapIndexed { index, page ->
             val url = page.imageUrl ?: source.getImageUrl(page).also { page.imageUrl = it }
             if (!chapterCache.isImageInCache(url)) {
                 chapterCache.putImageToCache(url, source.getImage(page))
@@ -407,6 +476,15 @@ class ChapterTranslator(private val context: Context) {
     }
 
     companion object {
+
+        /**
+         * Splits the notes the user wrote from the ones the translator learned. Anything after it
+         * is rewritten on every chapter, so nothing the user types below it survives.
+         */
+        internal const val LEARNED_HEADING = "--- learned while translating ---"
+
+        /** Resent with every batch of every chapter, so it cannot be allowed to grow forever. */
+        internal const val MAX_LEARNED_TERMS = 40
         /** The key a page translated without a download sits under: its position in the chapter. */
         fun onlinePageKey(index: Int) = "page-$index"
 
@@ -422,3 +500,42 @@ class ChapterTranslator(private val context: Context) {
     }
 
 }
+
+/**
+ * [existing] notes with [learned] folded into their own section, or null when nothing was new.
+ *
+ * The user's own notes are whatever sits above [ChapterTranslator.LEARNED_HEADING] and are
+ * returned untouched. Below it, a term already decided keeps the translation it was given — the
+ * point is that chapter forty calls a character what chapter one called them — and the total is
+ * capped, because the whole thing is resent with every batch of every chapter.
+ */
+internal fun mergeLearnedTerms(existing: String, learned: Map<String, String>): String? {
+    val parsed = parseSeriesNotes(existing)
+    val mine = parsed.notes
+    val known = LinkedHashMap(parsed.glossary)
+
+    val before = known.size
+    learned.forEach { (term, translated) ->
+        if (known.size >= ChapterTranslator.MAX_LEARNED_TERMS) return@forEach
+        known.putIfAbsent(term, translated)
+    }
+    if (known.size == before) return null
+
+    val terms = known.entries.joinToString("\n") { (term, translated) -> "$term = $translated" }
+    return listOf(mine, ChapterTranslator.LEARNED_HEADING, terms)
+        .filter { it.isNotBlank() }
+        .joinToString("\n\n")
+}
+
+/** Splits a stored notes blob back into what the reader wrote and what the translator learned. */
+internal fun parseSeriesNotes(raw: String): SeriesNotes = SeriesNotes(
+    notes = raw.substringBefore(ChapterTranslator.LEARNED_HEADING).trim(),
+    glossary = raw.substringAfter(ChapterTranslator.LEARNED_HEADING, "")
+        .lineSequence()
+        .mapNotNull { line ->
+            val term = line.substringBefore('=', "").trim()
+            val translated = line.substringAfter('=', "").trim()
+            if (term.isBlank() || translated.isBlank()) null else term to translated
+        }
+        .toMap(linkedMapOf()),
+)

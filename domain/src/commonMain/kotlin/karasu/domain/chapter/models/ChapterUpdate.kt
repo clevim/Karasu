@@ -14,4 +14,6 @@ data class ChapterUpdate(
     val sourceOrder: Long? = null,
     val dateFetch: Long? = null,
     val dateUpload: Long? = null,
+    /** Serialized `SChapter.memo`; null leaves the stored one alone. */
+    val memo: String? = null,
 )

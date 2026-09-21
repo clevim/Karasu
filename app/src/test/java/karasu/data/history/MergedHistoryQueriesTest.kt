@@ -21,7 +21,7 @@ class MergedHistoryQueriesTest {
             source = source, url = url, artist = null, author = null, description = null, genre = null,
             title = title, status = 1, thumbnailUrl = null, favorite = favorite, lastUpdate = 0,
             initialized = true, viewer = 0, hideTitle = false, chapterFlags = 0, dateAdded = 0,
-            filteredScanlators = null, updateStrategy = 0, coverLastModified = 0,
+            filteredScanlators = null, updateStrategy = 0, coverLastModified = 0, memo = "{}",
         )
         return db.mangasQueries.selectLastInsertedRowId().executeAsOne()
     }
@@ -30,7 +30,7 @@ class MergedHistoryQueriesTest {
         db.chaptersQueries.insert(
             mangaId = mangaId, url = "/c/$mangaId/$number", name = "Ch. $number", scanlator = null,
             read = read, bookmark = false, lastPageRead = 0, pagesLeft = 0, chapterNumber = number,
-            sourceOrder = 0, dateFetch = 1_000, dateUpload = 1_000,
+            sourceOrder = 0, dateFetch = 1_000, dateUpload = 1_000, memo = "{}",
         )
         return db.chaptersQueries.selectLastInsertedRowId().executeAsOne()
     }

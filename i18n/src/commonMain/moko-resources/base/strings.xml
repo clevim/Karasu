@@ -289,6 +289,8 @@
         download finishes. Only downloaded chapters can be translated.</string>
     <string name="translate_from">Page language</string>
     <string name="translate_to">Translate into</string>
+    <string name="translation_balloon_bounds">Fit text to the balloon (experimental)</string>
+    <string name="translation_balloon_bounds_summary">Measure the speech balloon off the page instead of guessing it from the text, so translations letter larger. Works best on flat balloons; text drawn straight onto the art falls back to the old fit.</string>
     <string name="translation_engine">Translation engine</string>
     <string name="translation_api_key">API key</string>
     <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>

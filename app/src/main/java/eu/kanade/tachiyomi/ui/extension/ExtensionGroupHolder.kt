@@ -6,6 +6,7 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
+import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.databinding.ExtensionCardHeaderBinding
 import eu.kanade.tachiyomi.extension.model.InstalledExtensionsOrder
 import eu.kanade.tachiyomi.ui.base.holder.BaseFlexibleViewHolder
@@ -17,6 +18,9 @@ class ExtensionGroupHolder(view: View, adapter: FlexibleAdapter<IFlexible<Recycl
     private val binding = ExtensionCardHeaderBinding.bind(view)
 
     init {
+        itemView.setOnClickListener {
+            (adapter as? ExtensionAdapter)?.listener?.onHeaderClicked(bindingAdapterPosition)
+        }
         binding.extButton.setOnClickListener {
             (adapter as? ExtensionAdapter)?.listener?.onUpdateAllClicked(bindingAdapterPosition)
         }
@@ -28,9 +32,14 @@ class ExtensionGroupHolder(view: View, adapter: FlexibleAdapter<IFlexible<Recycl
     @SuppressLint("SetTextI18n")
     fun bind(item: ExtensionGroupItem) {
         binding.title.text = item.name
-        binding.extButton.isVisible = item.canUpdate != null
+        binding.collapseIndicator.setImageResource(
+            if (item.collapsed) R.drawable.ic_expand_more_24dp else R.drawable.ic_expand_less_24dp,
+        )
+        // A rolled up group hides the buttons with its items: "update all" and the sort order both
+        // act on rows that are not on screen.
+        binding.extButton.isVisible = item.canUpdate != null && !item.collapsed
         binding.extButton.isEnabled = item.canUpdate == true
-        binding.extSort.isVisible = item.installedSorting != null
+        binding.extSort.isVisible = item.installedSorting != null && !item.collapsed
         binding.extSort.setText(InstalledExtensionsOrder.fromValue(item.installedSorting ?: 0).nameRes)
         binding.extSort.post {
         }

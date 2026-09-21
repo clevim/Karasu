@@ -23,4 +23,6 @@ data class MangaUpdate(
     var hideTitle: Boolean? = null,
     var filteredScanlators: String? = null,
     var coverLastModified: Long? = null,
+    /** Serialized `SManga.memo`; null leaves the stored one alone. */
+    var memo: String? = null,
 )

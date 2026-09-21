@@ -11,6 +11,8 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga.Companion.TYPE_MANHWA
 import eu.kanade.tachiyomi.domain.manga.models.Manga.Companion.TYPE_WEBTOON
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.safeMemo
+import eu.kanade.tachiyomi.source.model.toMemo
 import eu.kanade.tachiyomi.ui.reader.settings.OrientationType
 import eu.kanade.tachiyomi.ui.reader.settings.ReadingModeType
 import eu.kanade.tachiyomi.util.isLocal
@@ -143,6 +145,11 @@ fun Manga.copyFrom(other: SManga) {
     if (!initialized) {
         initialized = other.initialized
     }
+
+        // Only when the source actually sent one. Most extensions build a fresh SManga in
+    // `mangaDetailsParse` without touching the memo, and overwriting unconditionally would
+    // throw away on every library update the id the source needs to fetch pages.
+    other.safeMemo().takeIf { it.isNotEmpty() }?.let { memo = it }
 }
 
 suspend fun Manga.isOneShotOrCompleted(): Boolean = withIOContext {
@@ -211,6 +218,7 @@ fun Manga.Companion.mapper(
     filteredScanlators: String?,
     updateStrategy: Long,
     coverLastModified: Long,
+    memo: String,
 ) = create(url, title, source).apply {
     this.id = id
     this.artist = artist
@@ -229,6 +237,7 @@ fun Manga.Companion.mapper(
     this.filtered_scanlators = filteredScanlators
     this.update_strategy = updateStrategy.let(updateStrategyAdapter::decode)
     this.cover_last_modified = coverLastModified
+    this.memo = memo.toMemo()
 }
 
 fun Manga.hasCustomCover(coverCache: CoverCache = Injekt.get()): Boolean {

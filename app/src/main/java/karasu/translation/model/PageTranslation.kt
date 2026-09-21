@@ -39,7 +39,19 @@ data class TranslationBlock(
      * before this field existed still load — they just paint white, as they always did.
      */
     val background: Int = WHITE,
+    /**
+     * The speech balloon this text sits in, in the page's own pixels, when one was found.
+     *
+     * The overlay letters into this instead of guessing the balloon from the glyph box. Null for
+     * text with no balloon around it — a caption, lettering straight onto the art — and for every
+     * translation written before this field existed, both of which fall back to the guess.
+     */
+    val balloon: BalloonBox? = null,
 )
+
+/** A balloon's bounds in page pixels. */
+@Serializable
+data class BalloonBox(val x: Float, val y: Float, val width: Float, val height: Float)
 
 /** Opaque white, the fill for everything that was never sampled. */
 const val WHITE: Int = 0xFFFFFFFF.toInt()

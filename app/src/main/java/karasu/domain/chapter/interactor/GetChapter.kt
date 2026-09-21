@@ -49,6 +49,9 @@ class GetChapter(
 
     suspend fun awaitById(id: Long) = chapterRepository.getChapterById(id)
 
+    /** The library entry [chapterId] is shown under, which is not its own row when it was borrowed. */
+    suspend fun awaitOwnerMangaId(chapterId: Long) = chapterRepository.getOwnerMangaId(chapterId)
+
     suspend fun awaitAllByUrl(chapterUrl: String, filterScanlators: Boolean) =
         chapterRepository.getChaptersByUrl(chapterUrl, filterScanlators)
     suspend fun awaitByUrl(chapterUrl: String, filterScanlators: Boolean) =

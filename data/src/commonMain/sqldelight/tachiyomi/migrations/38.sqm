@@ -1,0 +1,5 @@
+-- Extensions on lib 1.6 can attach metadata to a chapter (`SChapter.memo`). It was dropped on
+-- insert, so any source that needs it back to fetch pages — Asura Scans keeps the series' rotating
+-- slug there — failed on every chapter with "Refresh chapter list", refresh included.
+ALTER TABLE chapters ADD COLUMN memo TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE mangas ADD COLUMN memo TEXT NOT NULL DEFAULT '{}';

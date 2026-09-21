@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.source.MergedSourceFallback
+import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
@@ -37,10 +38,18 @@ import uy.kohesive.injekt.api.get
 class HttpPageLoader(
     private val chapter: ReaderChapter,
     private val source: HttpSource,
+    /**
+     * The manga being read, which is not the row the chapter is stored on when it was borrowed
+     * from a merged source. Everything below asks [MergedSourceFallback] about it: the borrowed
+     * row has no merges of its own, so reading the id off the chapter left the fallback with
+     * nowhere to go on exactly the chapters it exists for.
+     */
+    private val mangaId: Long? = chapter.chapter.manga_id,
     private val chapterCache: ChapterCache = Injekt.get(),
     private val preferences: PreferencesHelper = Injekt.get(),
     private val mergedSourceFallback: MergedSourceFallback = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
     private val translationManager: TranslationManager = Injekt.get(),
 ) : PageLoader() {
 
@@ -133,20 +142,23 @@ class HttpPageLoader(
             if (e is CancellationException) {
                 throw e
             }
-            when (val mangaId = chapter.chapter.manga_id) {
+            when (val id = mangaId) {
                 // Never persisted, so it can't have merged sources to fall back to.
                 null -> source.getPageList(chapter.chapter)
-                else -> mergedSourceFallback.getPages(mangaId, chapter.chapter, source)
+                else -> mergedSourceFallback.getPages(id, chapter.chapter, source)
                     .also { activeSource = it.source }
                     .pages
             }
         }
         triedSources += activeSource.id
-        canSwitchSource = chapter.chapter.manga_id?.let { mergedSourceFallback.hasAlternates(it) } == true
+        canSwitchSource = mangaId?.let { mergedSourceFallback.hasAlternates(it) } == true
         // A chapter can be translated without being downloaded; those translations are keyed by
         // position, which is all an online page has.
-        val translations = chapter.chapter.manga_id?.let { getManga.awaitById(it) }
-            ?.let { translationManager.getChapterTranslation(it, chapter.chapter, source) }
+        // Keyed on the manga being read and its own source — the same key `DownloadPageLoader`,
+        // the translate buttons and the deletes use. Not `source`, which for a borrowed chapter is
+        // whichever merged source serves it, and not that chapter's own row.
+        val translations = mangaId?.let { getManga.awaitById(it) }
+            ?.let { translationManager.getChapterTranslation(it, chapter.chapter, sourceManager.get(it.source) ?: source) }
             .orEmpty()
         return pages.mapIndexed { index, page ->
             // Don't trust sources and use our own indexing
@@ -302,7 +314,7 @@ class HttpPageLoader(
 
     /** Moves this chapter onto the next source that can serve it, and says whether there was one. */
     private suspend fun switchSource(): Boolean {
-        val mangaId = chapter.chapter.manga_id ?: return false
+        val mangaId = mangaId ?: return false
         val pages = chapter.pages ?: return false
         val next = mergedSourceFallback
             .switchSource(mangaId, chapter.chapter, source, pages, triedSources)

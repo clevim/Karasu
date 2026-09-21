@@ -7,6 +7,8 @@ import eu.kanade.tachiyomi.data.database.models.readingModeType
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
+import eu.kanade.tachiyomi.source.model.memoToString
+import eu.kanade.tachiyomi.source.model.toMemo
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
@@ -56,6 +58,14 @@ data class BackupManga(
     @ProtoNumber(804) var customDescription: String? = null,
     @ProtoNumber(805) var customGenre: List<String>? = null,
     @ProtoNumber(806) var mergedSources: List<BackupMergedSource> = emptyList(),
+    /**
+     * The source's own metadata for this row (extensions-lib 1.6 `memo`).
+     *
+     * Carried through the backup because some sources cannot fetch anything without it: dropping
+     * it here meant a restore put back chapters that could not be opened until every series had
+     * been refreshed by hand — the very failure the memo column was added to stop.
+     */
+    @ProtoNumber(807) var memo: String = "{}",
 ) {
     fun getMangaImpl(): MangaImpl {
         return MangaImpl(
@@ -78,6 +88,7 @@ data class BackupManga(
                 ?: -1
             chapter_flags = this@BackupManga.chapterFlags
             update_strategy = this@BackupManga.updateStrategy
+            memo = this@BackupManga.memo.toMemo()
         }
     }
 
@@ -133,6 +144,7 @@ data class BackupManga(
                 chapterFlags = manga.chapter_flags,
                 updateStrategy = manga.update_strategy,
                 excludedScanlators = ChapterUtil.getScanlators(manga.filtered_scanlators),
+                memo = manga.memo.memoToString(),
             ).also { backupManga ->
                 customMangaManager?.getManga(manga)?.let {
                     backupManga.customTitle = it.title

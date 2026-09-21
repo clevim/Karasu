@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.database.models
 
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.safeMemo
+import eu.kanade.tachiyomi.source.model.NO_MEMO
 import kotlin.jvm.Transient
 import kotlinx.serialization.json.JsonObject
 
@@ -48,8 +49,9 @@ class ChapterImpl : Chapter {
     @Transient
     override var alternates: List<Chapter> = emptyList()
 
+    // Not java-serializable, and it is always re-read from the database anyway.
     @Transient
-    override var memo: JsonObject = JsonObject(emptyMap())
+    override var memo: JsonObject = NO_MEMO
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

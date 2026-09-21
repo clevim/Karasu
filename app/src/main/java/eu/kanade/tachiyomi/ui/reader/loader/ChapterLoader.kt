@@ -92,7 +92,7 @@ class ChapterLoader(
         val owner = manga.id?.let { mergedSourceFallback.ownerOf(it, dbChapter) }
         val source = owner?.let { sourceManager.get(it.source) } ?: source
         return when {
-            source is HttpSource -> HttpPageLoader(chapter, source)
+            source is HttpSource -> HttpPageLoader(chapter, source, manga.id)
             source is LocalSource -> source.getFormat(chapter.chapter).let { format ->
                 when (format) {
                     is LocalSource.Format.Directory -> DirectoryPageLoader(format.file)

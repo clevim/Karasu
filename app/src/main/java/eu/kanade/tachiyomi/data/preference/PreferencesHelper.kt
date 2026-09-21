@@ -182,6 +182,9 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
         setOfNotNull("all", "en", Locale.getDefault().language.takeIf { !it.startsWith("en") }),
     )
 
+    /** Extension list groups the user rolled up, by header name. */
+    fun collapsedExtensionGroups() = preferenceStore.getStringSet("collapsed_extension_groups", emptySet())
+
     // TODO: SourcePref
     fun sourceSorting() = preferenceStore.getInt(Keys.sourcesSort, 0)
 

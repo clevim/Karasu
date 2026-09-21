@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
 import karasu.translation.model.PageTranslation
+import karasu.translation.model.SeriesNotes
 import karasu.translation.model.TranslationBlock
 import karasu.translation.model.sourceText
 import karasu.translation.recognizer.OcrLanguage
@@ -44,20 +45,32 @@ import java.util.concurrent.TimeUnit
  * limit is how much text there is, and a truncated reply is unparseable JSON that loses the whole
  * batch.
  */
-class OpenRouterTranslator(
+class OpenAiChatTranslator(
     override val fromLang: OcrLanguage,
     override val toLang: String,
     private val apiKey: String,
     private val modelName: String,
-    /** The user's notes on this manga, appended to the system prompt when present. */
-    private val context: String = "",
+    /** What is known about this series; the parts of it each batch needs go in its prompt. */
+    private val context: SeriesNotes = SeriesNotes(),
+    /** Chat-completions endpoint. Every provider here speaks the same OpenAI-shaped protocol. */
+    private val endpoint: String = OPENROUTER_ENDPOINT,
+    /** The provider's name, for the messages the user reads when it fails. */
+    private val providerName: String = "OpenRouter",
+    /**
+     * OpenRouter attributes free-tier traffic to whoever sends these, and caps it per day — so it
+     * is also the only provider with an allowance to check before starting. A paid provider has
+     * neither, and passing null is what says so.
+     */
+    private val quota: OpenRouterQuota? = null,
 ) : TextTranslator {
 
     private val network: NetworkHelper by injectLazy()
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val quota: OpenRouterQuota by injectLazy()
+    private val _learned = linkedMapOf<String, String>()
+
+    override val learned: Map<String, String> get() = _learned
 
     /**
      * The shared client gives up after two minutes, which is right for fetching a page and wrong
@@ -72,7 +85,7 @@ class OpenRouterTranslator(
     }
 
     override suspend fun translate(pages: MutableMap<String, PageTranslation>) {
-        if (apiKey.isBlank()) error("OpenRouter API key is not set")
+        if (apiKey.isBlank()) error("$providerName API key is not set")
 
         // Page order is the reading order, and the map keeps insertion order, so the model sees
         // the bubbles in the order a reader would — which is the whole point of an LLM here.
@@ -88,17 +101,19 @@ class OpenRouterTranslator(
         val texts = byText.keys.toList()
         val work = batches(texts)
         Logger.d {
-            "OpenRouter: ${blocks.size} bubbles, ${texts.size} distinct lines, ${work.size} requests"
+            "$providerName: ${blocks.size} bubbles, ${texts.size} distinct lines, ${work.size} requests"
         }
 
         // Checked before the first request, not discovered on the twentieth. Free models are
         // capped by request count per day, and starting a chapter there is no allowance to finish
         // spends what is left on a chapter that comes out half translated anyway.
-        quota.refreshCap(apiKey)
-        val remaining = quota.remaining()
-        require(remaining >= work.size) {
-            "Not enough free OpenRouter requests left today: this chapter needs ${work.size}, " +
-                "$remaining of ${quota.cap()} remain. They reset at midnight UTC."
+        quota?.let {
+            it.refreshCap(apiKey)
+            val remaining = it.remaining()
+            require(remaining >= work.size) {
+                "Not enough free OpenRouter requests left today: this chapter needs ${work.size}, " +
+                    "$remaining of ${it.cap()} remain. They reset at midnight UTC."
+            }
         }
 
         var failure: Throwable? = null
@@ -110,7 +125,7 @@ class OpenRouterTranslator(
                 // bubble is dropped below. Say so instead: a whole batch that lined up with
                 // nothing is a failure, not a chapter that happened to have no dialogue there.
                 require(translations.any { !it.isNullOrBlank() }) {
-                    "OpenRouter replied with nothing that matched the ${batch.size} lines sent"
+                    "$providerName replied with nothing that matched the ${batch.size} lines sent"
                 }
                 translatedAny = true
                 batch.forEachIndexed { i, text ->
@@ -123,7 +138,7 @@ class OpenRouterTranslator(
                 throw e
             } catch (e: Throwable) {
                 failure = e
-                Logger.e(e) { "OpenRouter could not translate a batch of ${batch.size} lines" }
+                Logger.e(e) { "$providerName could not translate a batch of ${batch.size} lines" }
             }
         }
 
@@ -176,7 +191,11 @@ class OpenRouterTranslator(
             // A reasoning model spends `max_tokens` thinking before it writes anything, so it
             // reaches the cap having produced no JSON at all — which is exactly what the free
             // router handed back when it picked one. There is nothing here worth reasoning about.
-            putJsonObject("reasoning") { put("enabled", false) }
+            //
+            // OpenRouter's own extension to the protocol, so it is only sent there: a provider
+            // that validates its request body rejects the whole call over a field it never
+            // defined, and the ones that do not would ignore it anyway.
+            if (quota != null) putJsonObject("reasoning") { put("enabled", false) }
             // Keyed object rather than a bare array: an array is positional, so a model that
             // dropped or merged one entry shifted every translation after it onto the wrong
             // bubble — a whole page of plausible sentences in the wrong balloons, which is worse
@@ -185,7 +204,7 @@ class OpenRouterTranslator(
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "system")
-                    put("content", systemPrompt())
+                    put("content", systemPrompt(batch))
                 }
                 addJsonObject {
                     put("role", "user")
@@ -195,7 +214,7 @@ class OpenRouterTranslator(
         }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val request = Request.Builder()
-            .url(ENDPOINT)
+            .url(endpoint)
             .header("Authorization", "Bearer $apiKey")
             // Both are optional, and both are what OpenRouter attributes the traffic to; without
             // them the app is an anonymous key on a shared free pool.
@@ -207,7 +226,7 @@ class OpenRouterTranslator(
         val content = withRateLimitRetry {
             // Recorded before the call, and whatever it returns: a request that failed still
             // spent one of the day's allowance.
-            quota.record()
+            quota?.record()
             slowClient.newCall(request).awaitSuccess().use { response ->
                 val reply = json.parseToJsonElement(response.body.string()).jsonObject
                 // Which model actually served this. `openrouter/free` picks a different one on
@@ -220,7 +239,38 @@ class OpenRouterTranslator(
             }
         }
 
-        return alignToBatch(json.parseToJsonElement(content.extractJson()), batch.size)
+        val reply = json.parseToJsonElement(content.extractJson())
+        // Lifted out before alignment, so everything below sees exactly the shape it always saw.
+        // `alignToBatch` falls back on entry *count* when a model renames the keys, and an extra
+        // key would push that count off by one and fail a reply that used to line up.
+        val translations = if (reply is JsonObject && reply.containsKey(GLOSSARY_KEY)) {
+            remember(reply[GLOSSARY_KEY])
+            JsonObject(reply.filterKeys { it != GLOSSARY_KEY })
+        } else {
+            reply
+        }
+        return alignToBatch(translations, batch.size)
+    }
+
+    /**
+     * Keeps the terms the model says it settled on, for the manga's notes.
+     *
+     * First answer wins and the total is capped: the point is that chapter forty calls a
+     * character what chapter one called them, so a term that is already decided must not be
+     * redecided, and the notes must not grow without bound — they are resent with every batch.
+     * Anything that is not a plain string pair is dropped; this is a model's free-form output.
+     */
+    private fun remember(glossary: JsonElement?) {
+        val entries = (glossary as? JsonObject) ?: return
+        entries.forEach { (term, value) ->
+            if (_learned.size >= MAX_LEARNED_TERMS) return
+            // The notes store one `term = value` per line, so a value with a line break in it
+            // parses back as two entries and the term quietly loses half its translation.
+            val translated = value.asText()?.replace('\n', ' ')?.replace('\r', ' ')?.trim().orEmpty()
+            if (term.isBlank() || translated.isBlank() || term.length > MAX_TERM_CHARS) return@forEach
+            if (translated.length > MAX_TERM_CHARS) return@forEach
+            _learned.putIfAbsent(term.trim(), translated)
+        }
     }
 
     /**
@@ -237,8 +287,8 @@ class OpenRouterTranslator(
                 if (e.code != HTTP_TOO_MANY_REQUESTS) throw e
                 // The tally is per install, so a key used from somewhere else drifts. A 429 is
                 // OpenRouter's own word on it and outranks whatever was counted here.
-                quota.exhaustToday()
-                Logger.w { "OpenRouter rate limited, retrying in ${RETRY_DELAY_MS * (attempt + 1)}ms" }
+                quota?.exhaustToday()
+                Logger.w { "$providerName rate limited, retrying in ${RETRY_DELAY_MS * (attempt + 1)}ms" }
                 delay(RETRY_DELAY_MS * (attempt + 1))
             }
         }
@@ -255,7 +305,7 @@ class OpenRouterTranslator(
      * than the dialogue did. OpenRouter's prompt caching cannot pick this up either: its minimum
      * cacheable prefix is 1024 tokens, several times this.
      */
-    private fun systemPrompt() = """
+    private fun systemPrompt(batch: List<String>) = """
         Translate comic speech bubbles from ${TranslationLanguages.promptName(fromLang.code)}
         into ${TranslationLanguages.promptName(toLang)}.
 
@@ -269,7 +319,32 @@ class OpenRouterTranslator(
         - The text is OCR: translate the obvious meaning, not the typos. Pass through sound
           effects and gibberish as they are.
         - Replace any site link or watermark with "$WATERMARK".
-    """.trimIndent() + if (context.isBlank()) "" else "\n\nNotes from the reader about this series, follow them:\n$context"
+        - The bubble was drawn for the source text, so keep each translation about as long. A
+          translation much longer than its source has to be shrunk to fit and stops being legible.
+        - Add one more key, "$GLOSSARY_KEY": an object of the proper nouns and recurring terms
+          you translated here, source as key, your translation as value. At most
+          $GLOSSARY_PER_BATCH, only ones you are sure of. Leave it out if there are none.
+    """.trimIndent() + seriesPrompt(batch)
+
+    /**
+     * The series context this batch needs, and no more.
+     *
+     * The notes are the reader's instructions and always apply. The glossary is filtered down to
+     * the terms that actually occur in these lines: it is resent with every batch of every
+     * chapter, so carrying forty entries to translate a page that mentions two of them is paying
+     * for the other thirty over and over.
+     */
+    private fun seriesPrompt(batch: List<String>): String = buildString {
+        if (context.notes.isNotBlank()) {
+            append("\n\nNotes from the reader about this series, follow them:\n")
+            append(context.notes)
+        }
+        val glossary = context.glossaryFor(batch)
+        if (glossary.isNotEmpty()) {
+            append("\n\nTerms this series has already used, reuse them exactly:\n")
+            glossary.forEach { (term, translated) -> append("$term = $translated\n") }
+        }
+    }
 
 
     private fun String.extractJson(): String = extractJson(this)
@@ -277,11 +352,22 @@ class OpenRouterTranslator(
     override fun close() = Unit
 
     companion object {
-        private const val ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+        const val OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+
+        /** DeepSeek's API is OpenAI-shaped, so the only thing that differs is the address. */
+        const val DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions"
         private const val APP_URL = "https://github.com/clevim/Karasu"
         private const val APP_NAME = "Karasu"
         private const val WATERMARK = "KARASU_WATERMARK"
         private const val MAX_TOKENS = 4096
+
+        /** The reply key the glossary comes back under. Short: it is resent with every batch. */
+        private const val GLOSSARY_KEY = "g"
+        private const val GLOSSARY_PER_BATCH = 8
+
+        /** Over a whole series, and resent with every batch — so it has to stay small. */
+        private const val MAX_LEARNED_TERMS = 40
+        private const val MAX_TERM_CHARS = 60
 
         /**
          * Source characters per request. Sized so the reply fits [MAX_TOKENS] with room to spare

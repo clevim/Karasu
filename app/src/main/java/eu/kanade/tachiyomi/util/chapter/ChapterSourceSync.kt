@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.util.chapter
 
 import eu.kanade.tachiyomi.data.database.models.Chapter
+import eu.kanade.tachiyomi.source.model.memoToString
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.Source
@@ -68,6 +69,12 @@ suspend fun syncChaptersWithSource(
     // Chapters whose metadata have changed.
     val toChange = mutableListOf<ChapterUpdate>()
 
+    // Chapters where only the source's own memo moved. Kept apart from [toChange] because a memo
+    // is not news: a source that rotates the id it keeps there hands back a new one on every
+    // refresh, and counting that as a changed chapter list would rewrite every row's source
+    // order and float the manga to the top of Updates each time it was refreshed.
+    val memoOnly = mutableListOf<ChapterUpdate>()
+
     // Grouped once and reused: the duplicate rows below and the per-chapter lookup in the loop
     // are both "the stored rows for this url", and scanning the list for each of a few thousand
     // chapters is what made a sync of a long series quadratic.
@@ -102,6 +109,9 @@ suspend fun syncChaptersWithSource(
             toAdd.add(chapter)
             reorderedUrls.add(chapter.url)
         } else {
+            if (!shouldUpdateDbChapter(dbChapter, chapter) && dbChapter.memo != chapter.memo) {
+                memoOnly.add(ChapterUpdate(dbChapter.id!!, memo = chapter.memo.memoToString()))
+            }
             if (shouldUpdateDbChapter(dbChapter, chapter)) {
                 if ((dbChapter.name != chapter.name || dbChapter.scanlator != chapter.scanlator) &&
                     downloadManager.isChapterDownloaded(dbChapter, manga)
@@ -115,6 +125,7 @@ suspend fun syncChaptersWithSource(
                     dateUpload = chapter.date_upload,
                     chapterNumber = chapter.chapter_number.toDouble(),
                     sourceOrder = chapter.source_order.toLong(),
+                    memo = chapter.memo.memoToString(),
                 )
                 toChange.add(update)
                 reorderedUrls.add(chapter.url)
@@ -126,6 +137,10 @@ suspend fun syncChaptersWithSource(
 
     // Return if there's nothing to add, delete or change, avoid unnecessary db transactions.
     if (toAdd.isEmpty() && toDelete.isEmpty() && toChange.isEmpty()) {
+        // A rotated memo still has to reach the database, or the source can never fetch the
+        // chapter again — but on its own it is not a chapter list that changed, so it is written
+        // without touching `last_update` or any row's source order.
+        if (memoOnly.isNotEmpty()) updateChapter.awaitAll(memoOnly)
         // TODO: Predict when the next chapter gonna release
         return Pair(emptyList(), emptyList())
     }
@@ -196,8 +211,8 @@ suspend fun syncChaptersWithSource(
             updatedToAdd = insertChapter.awaitBulk(updatedToAdd)
         }
 
-        if (toChange.isNotEmpty()) {
-            updateChapter.awaitAll(toChange)
+        if (toChange.isNotEmpty() || memoOnly.isNotEmpty()) {
+            updateChapter.awaitAll(toChange + memoOnly)
         }
 
         // Fix order in source. Only the chapters that moved: the rest already hold the order
@@ -232,7 +247,7 @@ suspend fun syncChaptersWithSource(
 }
 
 // checks if the chapter in db needs updated
-private fun shouldUpdateDbChapter(dbChapter: Chapter, sourceChapter: Chapter): Boolean {
+internal fun shouldUpdateDbChapter(dbChapter: Chapter, sourceChapter: Chapter): Boolean {
     return dbChapter.scanlator != sourceChapter.scanlator ||
         dbChapter.name != sourceChapter.name ||
         dbChapter.date_upload != sourceChapter.date_upload ||

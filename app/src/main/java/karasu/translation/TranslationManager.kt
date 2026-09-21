@@ -7,6 +7,7 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.system.launchIO
+import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.manga.interactor.GetManga
 import karasu.translation.data.TranslationProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ class TranslationManager(context: Context) {
 
     private val provider: TranslationProvider by injectLazy()
     private val getManga: GetManga by injectLazy()
+    private val getChapter: GetChapter by injectLazy()
     private val sourceManager: SourceManager by injectLazy()
 
     private val translator = ChapterTranslator(context)
@@ -87,10 +89,20 @@ class TranslationManager(context: Context) {
     /** Stops a translation the user no longer wants, part way through if it is already running. */
     fun cancelTranslation(chapter: Chapter) = translator.cancel(chapter)
 
-    /** For callers that only hold the chapter, such as the chapter list's download menu. */
+    /**
+     * For callers that only hold the chapter, such as the chapter list's download menu.
+     *
+     * Resolves the library entry the chapter is *shown* under, not the row it is stored on: a
+     * chapter borrowed from a merged source lives on that source's row, and filing its
+     * translation there would put it somewhere neither reader looks. Everything else keys
+     * translations on the manga being read and that manga's own source; this matches.
+     */
     fun translateChapter(chapter: Chapter) {
         launchIO {
-            val manga = getManga.awaitById(chapter.manga_id ?: return@launchIO) ?: return@launchIO
+            val ownerId = chapter.id?.let { getChapter.awaitOwnerMangaId(it) }
+                ?: chapter.manga_id
+                ?: return@launchIO
+            val manga = getManga.awaitById(ownerId) ?: return@launchIO
             val source = sourceManager.get(manga.source) ?: return@launchIO
             translateChapter(manga, chapter, source)
         }

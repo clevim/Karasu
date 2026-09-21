@@ -37,5 +37,6 @@ class ExtensionAdapter(val listener: OnButtonClickListener) :
         fun onCancelClick(position: Int)
         fun onUpdateAllClicked(position: Int)
         fun onExtSortClicked(view: TextView, position: Int)
+        fun onHeaderClicked(position: Int)
     }
 }

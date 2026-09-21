@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.domain.manga.models
 
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.safeMemo
+import eu.kanade.tachiyomi.source.model.memoToString
 import java.util.Locale
 import karasu.domain.manga.models.MangaUpdate
 
@@ -78,7 +79,10 @@ interface Manga : SManga {
 
         update_strategy = other.update_strategy
 
-        memo = other.safeMemo()
+        // Only when the source actually sent one. Most extensions build a fresh SManga in
+        // `mangaDetailsParse` without touching the memo, and overwriting unconditionally would
+        // throw away on every library update the id the source needs to fetch pages.
+        other.safeMemo().takeIf { it.isNotEmpty() }?.let { memo = it }
 
         if (!initialized) {
             initialized = other.initialized
@@ -218,6 +222,7 @@ interface Manga : SManga {
             dateAdded = date_added,
             filteredScanlators = filtered_scanlators,
             updateStrategy = update_strategy,
+            memo = memo.memoToString(),
         )
     }
 

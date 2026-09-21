@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 
-class OpenRouterAlignTest {
+class OpenAiChatAlignTest {
 
     private fun align(reply: String, size: Int) =
         alignToBatch(Json.parseToJsonElement(reply), size)
@@ -70,9 +70,9 @@ class OpenRouterAlignTest {
     }
 }
 
-class OpenRouterBatchTest {
+class OpenAiChatBatchTest {
 
-    private val translator = OpenRouterTranslator(
+    private val translator = OpenAiChatTranslator(
         fromLang = karasu.translation.recognizer.OcrLanguage.ENGLISH,
         toLang = "pt-BR",
         apiKey = "k",

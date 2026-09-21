@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.extension.model.InstalledExtensionsOrder
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.ui.migration.BaseMigrationPresenter
+import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import eu.kanade.tachiyomi.util.system.withUIContext
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +31,16 @@ typealias ExtensionIntallInfo = Pair<InstallStep, PackageInstaller.SessionInfo?>
  */
 class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() {
 
-    private var extensions = emptyList<ExtensionItem>()
+    private var extensions = emptyList<IFlexible<*>>()
+
+    /**
+     * Every extension row, whatever is rolled up.
+     *
+     * Search runs over this rather than over what is on screen: a group the user collapsed is
+     * still a group their search should find things in, and [extensions] deliberately does not
+     * carry the rows of one.
+     */
+    private var searchable = emptyList<ExtensionItem>()
 
     val downloadManager: DownloadManager = Injekt.get()
 
@@ -74,7 +84,7 @@ class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() 
                         withUIContext { view?.setExtensions(extensions) }
                         return@collect
                     }
-                    val extension = extensions.find { item ->
+                    val extension = extensions.filterIsInstance<ExtensionItem>().find { item ->
                         it.first == item.extension.pkgName
                     } ?: return@collect
                     when (it.second.first) {
@@ -107,14 +117,25 @@ class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() 
     }
 
     @Synchronized
-    private fun toItems(tuple: ExtensionTuple): List<ExtensionItem> {
+    private fun toItems(tuple: ExtensionTuple): List<IFlexible<*>> {
         val context = view?.context ?: return emptyList()
+        val collapsed = preferences.collapsedExtensionGroups().get()
         val activeLangs = preferences.enabledLanguages().get()
         val showNsfwSources = preferences.showNsfwSources().get()
 
         val (installed, untrusted, available) = tuple
 
-        val items = mutableListOf<ExtensionItem>()
+        val items = mutableListOf<IFlexible<*>>()
+
+        // A rolled up group contributes its header and nothing else. The header has to be added
+        // by hand then: it is normally pulled in by the items that point at it, and a group with
+        // no items in the list would otherwise vanish, taking with it the only way to reopen it.
+        val searchableItems = mutableListOf<ExtensionItem>()
+        fun addGroup(header: ExtensionGroupItem, extensions: List<Extension>) {
+            val rows = extensions.map { ExtensionItem(it, header, currentDownloads[it.pkgName]) }
+            searchableItems += rows
+            if (header.collapsed) items += header else items += rows
+        }
 
         if (firstLoad) {
             val listOfExtensions = installed + untrusted + available
@@ -152,48 +173,74 @@ class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() 
                     (avail.lang in activeLangs) &&
                     (showNsfwSources || !avail.isNsfw)
             }
-            .sortedBy { it.name }
+            // Repo url decides the tie so the same copy wins every refresh, rather than the list
+            // reshuffling because two repos answered in a different order.
+            .sortedWith(compareBy({ it.name }, { it.repoUrl.orEmpty() }))
+            // One row per extension *version*. The same extension carried by several repos is one
+            // extension, and at the same version there is nothing to choose between the copies.
+            // Different versions stay apart, because choosing between those is a real choice.
+            .distinctBy { it.pkgName to it.versionCode }
 
         if (updatesSorted.isNotEmpty()) {
-            val header = ExtensionGroupItem(
-                context.getString(
-                    MR.plurals._updates_pending,
-                    updatesSorted.size,
-                    updatesSorted.size,
-                ),
+            val title = context.getString(
+                MR.plurals._updates_pending,
                 updatesSorted.size,
-                items.count { it.extension.pkgName in currentDownloads.keys } != updatesSorted.size,
+                updatesSorted.size,
             )
-            items += updatesSorted.map { extension ->
-                ExtensionItem(extension, header, currentDownloads[extension.pkgName])
-            }
+            val header = ExtensionGroupItem(
+                title,
+                key = UPDATES_GROUP,
+                size = updatesSorted.size,
+                canUpdate = items.filterIsInstance<ExtensionItem>()
+                    .count { it.extension.pkgName in currentDownloads.keys } != updatesSorted.size,
+                collapsed = UPDATES_GROUP in collapsed,
+            )
+            addGroup(header, updatesSorted)
         }
         if (installedSorted.isNotEmpty() || untrustedSorted.isNotEmpty()) {
-            val header = ExtensionGroupItem(context.getString(MR.strings.installed), installedSorted.size + untrustedSorted.size, installedSorting = preferences.installedExtensionsOrder().get())
-            items += installedSorted.map { extension ->
-                ExtensionItem(extension, header, currentDownloads[extension.pkgName])
-            }
-            items += untrustedSorted.map { extension ->
-                ExtensionItem(extension, header)
-            }
+            val title = context.getString(MR.strings.installed)
+            val header = ExtensionGroupItem(
+                title,
+                key = INSTALLED_GROUP,
+                size = installedSorted.size + untrustedSorted.size,
+                installedSorting = preferences.installedExtensionsOrder().get(),
+                collapsed = INSTALLED_GROUP in collapsed,
+            )
+            addGroup(header, installedSorted + untrustedSorted)
         }
         if (availableSorted.isNotEmpty()) {
-            val availableGroupedByLang = availableSorted
-                .groupBy { LocaleHelper.getSourceDisplayName(it.lang, context) }
-                .toSortedMap()
-
-            availableGroupedByLang
-                .forEach {
-                    val header = ExtensionGroupItem(it.key, it.value.size)
-                    items += it.value.map { extension ->
-                        ExtensionItem(extension, header, currentDownloads[extension.pkgName])
-                    }
+            // Grouped by language *code*, which is what the collapse state is keyed on, then
+            // ordered by the name the user actually reads.
+            availableSorted
+                .groupBy { it.lang }
+                .toList()
+                .sortedBy { (lang, _) -> LocaleHelper.getSourceDisplayName(lang, context) }
+                .forEach { (lang, group) ->
+                    val header = ExtensionGroupItem(
+                        LocaleHelper.getSourceDisplayName(lang, context),
+                        key = lang,
+                        size = group.size,
+                        collapsed = lang in collapsed,
+                    )
+                    addGroup(header, group)
                 }
         }
 
         this.extensions = items
+        this.searchable = searchableItems
         return items
     }
+
+    /** Rolls a group up or back down, and redraws the list from the new state. */
+    fun toggleGroup(name: String) {
+        val pref = preferences.collapsedExtensionGroups()
+        val collapsed = pref.get()
+        pref.set(if (name in collapsed) collapsed - name else collapsed + name)
+        refreshExtensions()
+    }
+
+    /** Every extension row, ignoring which groups are rolled up. Search uses it. */
+    fun searchableExtensions(): List<ExtensionItem> = searchable
 
     fun getExtensionUpdateCount(): Int = preferences.extensionUpdatesCount().get()
 
@@ -204,10 +251,13 @@ class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() 
         session: PackageInstaller.SessionInfo?,
     ): ExtensionItem? {
         val extensions = extensions.toMutableList()
-        val position = extensions.indexOfFirst { it.extension.pkgName == extension.pkgName }
+        // A rolled up group leaves bare headers in here, which are not rows of an extension.
+        val position = extensions.indexOfFirst {
+            it is ExtensionItem && it.extension.pkgName == extension.pkgName
+        }
 
         return if (position != -1) {
-            val item = extensions[position].copy(
+            val item = (extensions[position] as ExtensionItem).copy(
                 installStep = state,
                 session = session,
             )
@@ -287,3 +337,7 @@ class ExtensionBottomPresenter : BaseMigrationPresenter<ExtensionBottomSheet>() 
         }
     }
 }
+
+/** Stable collapse keys for the two groups whose titles are built rather than fixed. */
+private const val UPDATES_GROUP = "updates"
+private const val INSTALLED_GROUP = "installed"

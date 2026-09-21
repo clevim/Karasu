@@ -14,6 +14,9 @@ interface ChapterRepository {
 
     suspend fun getChapterById(id: Long): Chapter?
 
+    /** The library entry a chapter is shown under: its own manga, or the one it was merged into. */
+    suspend fun getOwnerMangaId(chapterId: Long): Long?
+
     suspend fun getChaptersByUrl(url: String, filterScanlators: Boolean): List<Chapter>
     suspend fun getChapterByUrl(url: String, filterScanlators: Boolean): Chapter?
 

@@ -443,6 +443,11 @@ class SettingsReaderController : SettingsLegacyController() {
                 summaryRes = MR.strings.show_translations_summary
             }
             switchPreference {
+                bindTo(translationPreferences.balloonBounds())
+                titleRes = MR.strings.translation_balloon_bounds
+                summaryRes = MR.strings.translation_balloon_bounds_summary
+            }
+            switchPreference {
                 bindTo(translationPreferences.autoTranslateAfterDownload())
                 titleRes = MR.strings.auto_translate_after_download
                 summaryRes = MR.strings.auto_translate_after_download_summary
@@ -465,12 +470,24 @@ class SettingsReaderController : SettingsLegacyController() {
                 entryValues = TranslationEngine.entries.map { it.name }
                 entries = TranslationEngine.entries.map { it.label }
             }
-            editTextPreference(activity) {
-                bindTo(translationPreferences.engineApiKey())
-                titleRes = MR.strings.translation_api_key
-                summaryRes = MR.strings.translation_api_key_summary
+            // One set of fields per engine, each shown only for the engine it belongs to: the
+            // preferences are bound when the screen is built, so a single field could not follow
+            // the engine picker anyway, and each engine keeps its own stored values.
+            TranslationEngine.entries.filter { it.needsApiKey }.forEach { engine ->
+                editTextPreference(activity) {
+                    bindTo(translationPreferences.engineApiKey(engine))
+                    titleRes = MR.strings.translation_api_key
+                    summaryRes = MR.strings.translation_api_key_summary
 
-                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
+                    translationPreferences.engine().changesIn(viewScope) { isVisible = it == engine }
+                }
+                editTextPreference(activity) {
+                    bindTo(translationPreferences.engineModel(engine))
+                    titleRes = MR.strings.translation_model
+                    summaryRes = MR.strings.translation_model_summary
+
+                    translationPreferences.engine().changesIn(viewScope) { isVisible = it == engine }
+                }
             }
             preference {
                 titleRes = MR.strings.translation_quota
@@ -483,7 +500,7 @@ class SettingsReaderController : SettingsLegacyController() {
                 )
                 onClick {
                     viewScope.launchIO {
-                        quota.refreshCap(translationPreferences.engineApiKey().get())
+                        quota.refreshCap(translationPreferences.engineApiKey(TranslationEngine.OPENROUTER).get())
                         withUIContext {
                             summary = context.getString(
                                 MR.strings.translation_quota_summary,
@@ -493,14 +510,10 @@ class SettingsReaderController : SettingsLegacyController() {
                         }
                     }
                 }
-                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
-            }
-            editTextPreference(activity) {
-                bindTo(translationPreferences.engineModel())
-                titleRes = MR.strings.translation_model
-                summaryRes = MR.strings.translation_model_summary
-
-                translationPreferences.engine().changesIn(viewScope) { isVisible = it.needsApiKey }
+                // The free daily allowance is OpenRouter's, not a thing every engine has.
+                translationPreferences.engine().changesIn(viewScope) {
+                    isVisible = it == TranslationEngine.OPENROUTER
+                }
             }
             preference {
                 titleRes = MR.strings.translation_clear_cache

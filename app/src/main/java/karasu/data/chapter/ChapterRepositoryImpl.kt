@@ -3,6 +3,7 @@ package karasu.data.chapter
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Chapter
 import eu.kanade.tachiyomi.data.database.models.MangaChapter
+import eu.kanade.tachiyomi.source.model.memoToString
 import eu.kanade.tachiyomi.util.system.toInt
 import kotlinx.coroutines.flow.Flow
 import karasu.data.DatabaseHandler
@@ -21,6 +22,12 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
 
     override suspend fun getChapterById(id: Long): Chapter? =
         handler.awaitOneOrNull { chaptersQueries.getChaptersById(id, Chapter::mapper) }
+
+    // First, not single: `merged_manga` is unique on (manga_id, source), so the same source
+    // entry can be merged into two library rows and the view then has a row for each. Either is a
+    // fine answer; throwing is not.
+    override suspend fun getOwnerMangaId(chapterId: Long): Long? =
+        handler.awaitFirstOrNull { chapter_owner_viewQueries.ownerMangaId(chapterId) }
 
     override suspend fun getChaptersByUrl(url: String, filterScanlators: Boolean): List<Chapter> =
         handler.awaitList { chaptersQueries.getChaptersByUrl(url, filterScanlators.toInt().toLong(), Chapter::mapper) }
@@ -120,7 +127,8 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
                     chapterNumber = update.chapterNumber,
                     sourceOrder = update.sourceOrder,
                     dateFetch = update.dateFetch,
-                    dateUpload = update.dateUpload
+                    dateUpload = update.dateUpload,
+                    memo = update.memo,
                 )
             }
         }
@@ -143,6 +151,7 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
                 sourceOrder = chapter.source_order.toLong(),
                 dateFetch = chapter.date_fetch,
                 dateUpload = chapter.date_upload,
+                memo = chapter.memo.memoToString(),
             )
             chaptersQueries.selectLastInsertedRowId()
         }
@@ -164,6 +173,7 @@ class ChapterRepositoryImpl(private val handler: DatabaseHandler) : ChapterRepos
                     sourceOrder = chapter.source_order.toLong(),
                     dateFetch = chapter.date_fetch,
                     dateUpload = chapter.date_upload,
+                    memo = chapter.memo.memoToString(),
                 )
                 val lastInsertId = chaptersQueries.selectLastInsertedRowId().executeAsOne()
                 chapter.copy().apply { id = lastInsertId }
