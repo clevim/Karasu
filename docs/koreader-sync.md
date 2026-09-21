@@ -7,6 +7,7 @@ downloadable from its own web UI.
 
 This document is the contract. The Karasu side is implemented; **the container and the KOReader
 plugin live in a separate repository** and only have to satisfy what is written here.
+The build plan for that repository is in [`koreader-shelf-server.md`](koreader-shelf-server.md).
 
 ## Shape of the system
 
@@ -24,9 +25,9 @@ only shared state, which is what lets the tablet be offline whenever Karasu happ
 
 All of this is Karasu-side and the container does not need to know about it:
 
-- **Which manga.** Everything in the categories chosen under *Settings → KOReader*. Categories were
-  reused instead of a per-manga flag so this needs no database column and matches how "download new
-  chapters" already scopes itself.
+- **Which manga.** The ones marked with *Send to Yatagarasu*, the button next to *In library* on a
+  manga's own page. What belongs on a device with room for ten things is a per-manga call, and the
+  mark is a set of ids in preferences, so it still needs no database column.
 - **Which chapters.** The next *N* unread chapters of each manga, lowest chapter number first.
 - **How much.** At most *M* manga, ordered by most recently updated, times *N* chapters each.
 - **Where the file comes from.** The already-downloaded `.cbz` in the download directory. Karasu
@@ -37,6 +38,44 @@ All of this is Karasu-side and the container does not need to know about it:
 A sync run is a reconcile, not a queue. Karasu asks the shelf what it holds, uploads what is
 missing, and deletes what is no longer wanted. Read state is pulled *before* the upload pass, so a
 chapter finished on the device frees its slot in the same run.
+
+Twelve hours between runs keeps a shelf current and is far too slow to react to something that just
+happened, so three events start a run of their own:
+
+| Event | Why |
+| --- | --- |
+| The download queue drains | A run can only upload a chapter that is already downloaded; one that is missing gets queued for download and left for later. Without this the chapter a run had just asked for would sit on disk until the next scheduled one. |
+| A library update finds chapters | The shelf is filled from the library, so it is out of date the moment the library is not. |
+| The settings screen is closed | Every setting there changes what belongs on the shelf, and the periodic job is registered with `UPDATE`, which keeps the existing schedule — so a screen width chosen at noon would otherwise not be acted on until the period came round. |
+
+All three go through the same unique work as the "Sync now" button, so a burst of them is one run,
+and all three stay silent when the interval is set to `Manual`.
+
+## Pages for the device
+
+The downloaded CBZ is shaped for the phone, and a webtoon chapter in it is one image tens of
+thousands of pixels tall. KOReader fits a page to the screen, so that single image arrives as an
+unreadable smear — the file is fine, the device is scaling it. `PrepareShelfCbz` rewrites the
+archive on the way out:
+
+- **Split long pages** (on by default). Anything taller than 2.5× its width is cut into pieces
+  roughly the shape of the chosen screen. Each cut starts at the even split and is then moved onto
+  the nearest gutter within 30% of it — a band of rows that is one flat colour all the way across,
+  which is the gap between two panels — so cuts don't land across a face. A gutter is allowed a
+  couple of percent of stray pixels, because a page number or a watermark in the gap does not make
+  it artwork. With no gutter in reach the emptiest row wins, and only if the whole window is drawing
+  does the cut stay where the arithmetic put it.
+- **Split double-page spreads**, on the fold rather than on the arithmetic middle: the same gutter
+  search, turned ninety degrees, within 8% of the centre. A scan is never folded dead centre, and
+  halving it blind is what cuts a balloon that straddles the fold in two.
+- **Screen width** (off by default). Pages wider than the device's screen are scaled down to it.
+  The device does this on every render anyway; doing it once here shrinks the transfer instead.
+- **Black and white** (off by default). Drops chroma a greyscale screen cannot show but JPEG still
+  pays to store.
+
+A page that needs none of these is copied into the new archive byte for byte, and a chapter where
+no page needed anything is uploaded as the original file — nothing is re-encoded to no purpose. The
+rewritten archive lives in the cache directory and is deleted as soon as the upload finishes.
 
 ## HTTP contract
 
@@ -127,17 +166,21 @@ anything richer is the shelf's own feature.
 
 ## Settings reference
 
-*Settings → KOReader*
+*Settings → Yatagarasu*. The preference keys are still `koreader_*` and stay that way — renaming
+them would silently reset every existing configuration.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Shelf address | *(blank)* | Blank disables the feature entirely; no job is scheduled. |
+| Yatagarasu address | *(blank)* | Blank disables the feature entirely; no job is scheduled. |
 | API key | *(blank)* | Sent as a bearer token when set. |
-| Categories | *(none)* | No categories selected means nothing is sent. |
+| Marked manga | *(none)* | Set per manga, not here. Nothing marked means nothing is sent. |
 | Chapters per manga | 3 | |
 | Manga on the shelf | 10 | Most recently updated first. |
+| Split long pages | on | Cuts tall strips into screen-sized pages on gutters. |
+| Screen width | full size | Scales pages down to the device's screen when set. |
+| Send in black and white | off | Drops chroma a greyscale screen cannot show. |
 | Mark chapters read from KOReader | on | Turning this off makes the sync push-only. |
-| Sync automatically | every 12 h | `Manual` cancels the periodic job; "Sync now" still works. |
+| Sync automatically | every 12 h | `Manual` cancels the periodic job *and* the download trigger; "Sync now" still works. |
 | Only sync over Wi-Fi | on | Becomes the WorkManager network constraint. |
 
 ## Karasu-side files
@@ -148,6 +191,7 @@ anything richer is the shelf's own feature.
 | `karasu/domain/koreader/models/KoreaderShelfEntry.kt` | Wire models. |
 | `karasu/data/koreader/KoreaderApi.kt` | The four HTTP calls above. |
 | `karasu/domain/koreader/interactor/SyncKoreaderShelf.kt` | The reconcile: pull, upload, prune. |
+| `karasu/domain/koreader/interactor/PrepareShelfCbz.kt` | Reshapes pages for the device before upload. |
 | `eu/kanade/tachiyomi/data/koreader/KoreaderSyncJob.kt` | Periodic and manual WorkManager job. |
 | `eu/kanade/tachiyomi/ui/setting/controllers/SettingsKoreaderController.kt` | Settings screen. |
 

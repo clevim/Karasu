@@ -10,6 +10,10 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+### Fixes
+- Tapping an extension group header did nothing: the row's ripple was on a child view, and a
+  clickable child swallows the touch before it reaches the row the click listener is on
+
 ## [1.10.3]
 
 ### Additions
