@@ -10,6 +10,40 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.11.1]
+
+### Changes
+- Settings › Reader › Translation says what leaves the device: pages are read here, a cloud engine
+  is sent the recognised text and never the images, and a chapter that is not downloaded is
+  fetched from the source before it can be translated
+- The translation cache forgets lines it has not used in a year instead of only ever growing
+
+### Fixes
+- A source that lists the same chapter twice — a repost under a new url, the same upload served by
+  two of its endpoints — now shows one row. Same name, same scanlator and same number is what
+  counts as a duplicate, so two scanlators' releases of chapter 5 both stay, and read state,
+  bookmark and page progress follow the row that is kept
+- Several screens could crash with a bare "NullPointerException" when a queued callback ran after
+  the screen had already been left; migrating a batch of entries was the quickest way to hit it.
+  Those callbacks now check the screen is still there before touching it
+- Updating extensions could fail the whole job with "Can't toast on a thread that has not called
+  Looper.prepare()". A message shown from background work now always reaches the main thread
+- "Translate downloaded chapters" froze the app on a long series while it looked every chapter up
+  on disk, and two chapters could end up translating at once — which on a metered engine spent
+  twice the day's allowance
+- A model id the provider does not have now says so and points at the settings field, instead of
+  failing with "HTTP error 400"
+- Merged sources: clearing the database deleted the hidden rows a merged source keeps its chapters
+  on, and nothing put them back — the merge stayed listed and quietly stopped bringing chapters.
+  Those rows are now left alone, and a merge whose row goes missing any other way rebuilds it on
+  the next update
+- Merged sources: chapters with no recognisable number — oneshots, extras, specials — were dropped
+  from the merged source's contribution and are now listed, one row per title
+
+### Other
+- Tests for the chapter deduplication, for the merged sources' extras, and for the database
+  cleanup sparing merged rows
+
 ## [1.11.0]
 
 ### Additions

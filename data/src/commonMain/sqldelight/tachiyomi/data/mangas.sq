@@ -92,20 +92,36 @@ WHERE _id = :mangaId;
 selectLastInsertedRowId:
 SELECT last_insert_rowid();
 
+-- A merged source's row is deliberately not a favourite, so it matches every "not in the library"
+-- sweep below — and deleting it takes the chapters, and the read state, of everything that entry
+-- contributes to the manga it is merged into. The merge itself lives on the parent and survives,
+-- which is what made this quiet: the entry stayed listed and simply stopped bringing chapters.
 deleteNotInLibraryBySourceIds:
 DELETE FROM mangas
-WHERE favorite = 0 AND source IN :sourceIds;
+WHERE favorite = 0 AND source IN :sourceIds
+AND NOT EXISTS (
+    SELECT 1 FROM merged_manga
+    WHERE merged_manga.source = mangas.source AND merged_manga.url = mangas.url
+);
 
 deleteNotInLibraryAndNotReadBySourceIds:
 DELETE FROM mangas
 WHERE favorite = 0 AND source IN :sourceIds AND _id NOT IN (
     SELECT chapters.manga_id FROM chapters WHERE read = 1 OR last_page_read != 0
+)
+AND NOT EXISTS (
+    SELECT 1 FROM merged_manga
+    WHERE merged_manga.source = mangas.source AND merged_manga.url = mangas.url
 );
 
 deleteNotInLibraryAndNotReadByIds:
 DELETE FROM mangas
 WHERE favorite = 0 AND _id IN :ids AND _id NOT IN (
     SELECT chapters.manga_id FROM chapters WHERE read = 1 OR last_page_read != 0
+)
+AND NOT EXISTS (
+    SELECT 1 FROM merged_manga
+    WHERE merged_manga.source = mangas.source AND merged_manga.url = mangas.url
 );
 
 getSourceIdsOfNotInLibrary:

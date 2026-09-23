@@ -2,12 +2,16 @@ package eu.kanade.tachiyomi.util.chapter
 
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Chapter
+import eu.kanade.tachiyomi.data.database.models.create
+import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.source.SourceManager
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.manga.failures.isEntryGone
 import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
 import karasu.domain.manga.merged.interactor.MergedSourceHealth
 import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.manga.models.MergedMangaSource
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -24,6 +28,7 @@ class MergedSourceSync(
     private val getManga: GetManga,
     private val getChapter: GetChapter,
     private val health: MergedSourceHealth,
+    private val insertManga: InsertManga,
 ) {
     /**
      * @return the chapters the merged sources gained that the merged list actually shows, so
@@ -34,8 +39,8 @@ class MergedSourceSync(
 
         val added = mutableListOf<Chapter>()
         mergedSources.await(mangaId).filter { it.updatesEnabled }.forEach { merge ->
-            val child = getManga.awaitByUrlAndSource(merge.url, merge.source) ?: return@forEach
             val source = sourceManager.get(merge.source) ?: return@forEach
+            val child = childRow(mangaId, merge) ?: return@forEach
             try {
                 // Syncs against the child's own row, so it only ever deletes its own
                 // chapters — the primary's list is untouched.
@@ -58,5 +63,20 @@ class MergedSourceSync(
         // can see, so only the rows that survive the merge count as new.
         val shown = getChapter.awaitAll(mangaId, false).mapNotNull { it.id }.toSet()
         return added.filter { it.id in shown }
+    }
+
+    /**
+     * The manga row this merge's chapters live on, created when it has gone missing.
+     *
+     * That row is not a favourite, so "clear database" and anything else that prunes entries
+     * outside the library can take it — and nothing used to put it back. The merge stayed in the
+     * table, silently contributed no chapters, and only removing and re-adding it helped. A bare
+     * row is enough to sync onto, which is what the backup restore already relies on.
+     */
+    private suspend fun childRow(mangaId: Long, merge: MergedMangaSource): Manga? {
+        getManga.awaitByUrlAndSource(merge.url, merge.source)?.let { return it }
+        val title = getManga.awaitById(mangaId)?.title ?: return null
+        insertManga.await(Manga.create(merge.url, title, merge.source))
+        return getManga.awaitByUrlAndSource(merge.url, merge.source)
     }
 }

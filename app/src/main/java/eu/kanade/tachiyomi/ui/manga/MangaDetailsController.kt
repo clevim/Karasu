@@ -1352,10 +1352,14 @@ class MangaDetailsController :
             R.id.action_release_interval -> showReleaseIntervalDialog()
             R.id.action_translation_notes -> showTranslationNotesDialog()
             R.id.translate_downloaded -> {
-                val queued = presenter.translateDownloadedChapters()
-                activity?.toast(
-                    if (queued == 0) MR.strings.translate_downloaded_none else MR.strings.translation_queued,
-                )
+                viewScope.launchIO {
+                    val queued = presenter.translateDownloadedChapters()
+                    withUIContext {
+                        activity?.toast(
+                            if (queued == 0) MR.strings.translate_downloaded_none else MR.strings.translation_queued,
+                        )
+                    }
+                }
             }
             R.id.action_mark_all_as_read -> {
                 activity!!.materialAlertDialog()

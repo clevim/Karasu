@@ -5,8 +5,9 @@
 -- (names, sound effects, catchphrases) come back identical, and for an API engine each of those
 -- is a request. The cache also keeps a recurring term translated the same way across chapters.
 --
--- ponytail: never pruned. A line is ~100 bytes; a library's worth is a few MB. Add an eviction
--- by last_used if it ever shows up in the database size.
+-- Pruned by age on every write. `find` does not touch last_used, so a line kept in use is
+-- evicted once a year and paid for again the next time it comes up: one line, once, against a
+-- table that would otherwise only ever grow.
 CREATE TABLE translation_cache(
     engine TEXT NOT NULL,
     from_lang TEXT NOT NULL,
@@ -28,6 +29,10 @@ VALUES (:engine, :from_lang, :to_lang, :source, :translation, :last_used)
 ON CONFLICT(engine, from_lang, to_lang, source) DO UPDATE SET
     translation = :translation,
     last_used = :last_used;
+
+deleteOlderThan:
+DELETE FROM translation_cache
+WHERE last_used < :before;
 
 deleteAll:
 DELETE FROM translation_cache;

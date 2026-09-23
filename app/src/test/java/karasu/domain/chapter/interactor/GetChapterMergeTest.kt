@@ -173,6 +173,58 @@ class GetChapterMergeTest {
         assertSame(merged, merged.withAlternate(0L), "a chapter already in the list costs nothing")
     }
 
+    @Test
+    fun `the same chapter listed twice by one source collapses into one row`() {
+        val list = listOf(
+            chapter("a/5", 5f),
+            chapter("a/5-repost", 5f).apply { read = true; last_page_read = 12 },
+            chapter("a/4", 4f),
+        )
+
+        val distinct = list.distinctChapters()
+
+        assertEquals(2, distinct.size)
+        val five = distinct.first { it.chapter_number == 5f }
+        assertEquals("a/5", five.url, "the source's own order decides which row stays")
+        assertTrue(five.read, "progress made on the copy that loses is kept")
+        assertEquals(12, five.last_page_read)
+        assertFalse(list[0].read, "the stored row must not be flipped")
+    }
+
+    @Test
+    fun `two scanlators of the same chapter are not duplicates`() {
+        val list = listOf(
+            chapter("a/5", 5f).apply { scanlator = "Group A" },
+            chapter("b/5", 5f).apply { scanlator = "Group B" },
+            chapter("c/5", 5f).apply { name = "Chapter 5 (side story)" },
+        )
+
+        assertSame(list, list.distinctChapters(), "nothing to drop, nothing to copy")
+    }
+
+    @Test
+    fun `a merged source's unnumbered chapters are listed, not dropped`() {
+        val own = chapters("a", 1..2)
+        val other = chapters("b", 1..2) + chapter("b/extra", -1f).apply { name = "Extra: the beach" }
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
+
+        assertEquals(3, merged.size)
+        assertEquals("b/extra", merged.first { !it.isRecognizedNumber }.url)
+    }
+
+    @Test
+    fun `the same extra from two sources is one row and keeps its read state`() {
+        val own = listOf(chapter("a/extra", -1f).apply { name = "Omake" })
+        val other = listOf(chapter("b/extra", -1f).apply { name = " omake "; read = true })
+
+        val merged = mergeChapters(own, "en", listOf(MergedChapters(0, "en", other)))
+
+        assertEquals(1, merged.size)
+        assertEquals("a/extra", merged.single().url, "the primary's row wins")
+        assertTrue(merged.single().read, "read on the copy that loses is not lost")
+    }
+
     private fun chapters(prefix: String, range: IntRange): List<Chapter> =
         range.map { chapter("$prefix/$it", it.toFloat()) }
 

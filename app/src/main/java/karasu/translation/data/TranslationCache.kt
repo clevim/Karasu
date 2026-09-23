@@ -22,12 +22,18 @@ class TranslationCache(private val handler: DatabaseHandler) {
                 translations.forEach { (source, translation) ->
                     translation_cacheQueries.upsert(engine, from, to, source, translation, now)
                 }
+                translation_cacheQueries.deleteOlderThan(now - MAX_AGE_MS)
             }
         }
     }
 
     suspend fun clear() {
         runCatching { handler.await { translation_cacheQueries.deleteAll() } }
+    }
+
+    companion object {
+        /** How long an unused line is kept. See the eviction note in `translation_cache.sq`. */
+        private const val MAX_AGE_MS = 365L * 24 * 60 * 60 * 1000
     }
 }
 

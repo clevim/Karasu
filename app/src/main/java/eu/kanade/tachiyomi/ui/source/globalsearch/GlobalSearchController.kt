@@ -315,6 +315,8 @@ open class GlobalSearchController(
      * @param searchResult result of search.
      */
     fun setItems(searchResult: List<GlobalSearchItem>) {
+        // The presenter outlives the view: its searches land whether or not this screen is still up.
+        if (!isBindingInitialized) return
         if (extensionFilter != null) {
             val results = searchResult.firstOrNull()?.results
             if (results != null && searchResult.size == 1 && results.size == 1) {

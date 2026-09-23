@@ -211,7 +211,7 @@ class MangaDetailsPresenter(
      * Queues every downloaded chapter that has no translation yet. @return how many were queued.
      * The queue itself skips the translated ones, so this only has to find the downloads.
      */
-    fun translateDownloadedChapters(): Int {
+    suspend fun translateDownloadedChapters(): Int {
         val source = sourceManager.get(manga.source) ?: return 0
         val translationManager: TranslationManager = Injekt.get()
         return allChapters

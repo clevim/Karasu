@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.reader.settings.ReadingModeType
 import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
 import eu.kanade.tachiyomi.util.system.ImageUtil
+import eu.kanade.tachiyomi.util.system.withIOContext
 import karasu.core.archive.util.archiveReader
 import karasu.domain.translation.TranslationPreferences
 import karasu.translation.data.CachedTranslator
@@ -50,6 +51,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToStream
@@ -85,16 +87,31 @@ class ChapterTranslator(private val context: Context) {
     val isRunning: Boolean
         get() = job?.isActive == true
 
-    /** The queue entry to watch, or null when the chapter is already translated. */
-    fun queueChapter(manga: Manga, chapter: Chapter, source: Source): Translation? {
-        if (provider.findTranslationFile(chapter, manga, source) != null) return null
-        _queueState.value.firstOrNull { it.chapter.id == chapter.id }?.let { return it }
-        val translation = Translation(source, manga, chapter).apply { status = Translation.State.QUEUE }
-        _queueState.update { it + translation }
+    /**
+     * The queue entry to watch, or null when the chapter is already translated.
+     *
+     * Suspending because the check is a SAF lookup: the chapter list's menu called this straight
+     * from the tap, once per chapter, and "translate every downloaded chapter" of a long series
+     * was hundreds of directory reads on the main thread.
+     */
+    suspend fun queueChapter(manga: Manga, chapter: Chapter, source: Source): Translation? {
+        if (withIOContext { provider.findTranslationFile(chapter, manga, source) } != null) return null
+        val fresh = Translation(source, manga, chapter).apply { status = Translation.State.QUEUE }
+        // Checked and added in one update: the reader and the downloader queue from different
+        // threads, and a check-then-add let the same chapter in twice.
+        val queue = _queueState.updateAndGet { queue ->
+            if (queue.any { it.chapter.id == chapter.id }) queue else queue + fresh
+        }
         start()
-        return translation
+        return queue.firstOrNull { it.chapter.id == chapter.id } ?: fresh
     }
 
+    /**
+     * Synchronized, here and in [pause] and [cancel]: [job] is read and replaced from whichever
+     * thread queued, and two callers passing the check at once started two loops — which is two
+     * chapters translated in parallel, and on a metered engine twice the requests.
+     */
+    @Synchronized
     fun start() {
         if (isRunning || _queueState.value.isEmpty()) return
         job = scope.launch {
@@ -119,6 +136,7 @@ class ChapterTranslator(private val context: Context) {
         }
     }
 
+    @Synchronized
     fun pause() {
         job?.cancel()
         job = null
@@ -137,6 +155,7 @@ class ChapterTranslator(private val context: Context) {
      * Unlike [pause], whatever else is queued carries on: cancelling the chapter you are waiting
      * on in the reader is not a statement about the rest of the queue.
      */
+    @Synchronized
     fun cancel(chapter: Chapter) {
         val wasRunning = _queueState.value.any {
             it.chapter.id == chapter.id && it.status == Translation.State.TRANSLATING

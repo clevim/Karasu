@@ -147,6 +147,8 @@ class MigrationController :
         }
         adapter?.updateDataSet(manga, true)
         activityBinding?.appBar?.doOnNextLayout {
+            // The app bar outlives this controller: it lays out again on the way to the next screen.
+            if (!isBindingInitialized) return@doOnNextLayout
             binding.migrationRecycler.requestApplyInsets()
         }
     }

@@ -284,7 +284,7 @@ class OpenAiChatTranslator(
             try {
                 return block()
             } catch (e: HttpException) {
-                if (e.code != HTTP_TOO_MANY_REQUESTS) throw e
+                if (e.code != HTTP_TOO_MANY_REQUESTS) throw e.orUnknownModel()
                 // The tally is per install, so a key used from somewhere else drifts. A 429 is
                 // OpenRouter's own word on it and outranks whatever was counted here.
                 quota?.exhaustToday()
@@ -294,6 +294,19 @@ class OpenAiChatTranslator(
         }
         return block()
     }
+
+    /**
+     * A model slug that was retired, or mistyped into the settings field, is the one failure here
+     * the reader can actually fix — and "HTTP error 400" does not tell them that.
+     */
+    private fun HttpException.orUnknownModel(): Throwable =
+        if (code in UNKNOWN_MODEL_CODES && body?.contains("model", ignoreCase = true) == true) {
+            IllegalStateException(
+                "$providerName does not have the model \"$modelName\". Pick another one in the settings.",
+            )
+        } else {
+            this
+        }
 
     private fun sourceObject(batch: List<String>) = buildJsonObject {
         batch.forEachIndexed { i, text -> put(keyOf(i), text) }
@@ -383,6 +396,9 @@ class OpenAiChatTranslator(
         private const val RATE_LIMIT_RETRIES = 2
         private const val RETRY_DELAY_MS = 20_000L
         private const val HTTP_TOO_MANY_REQUESTS = 429
+
+        /** What a provider answers when it does not have the model it was asked for. */
+        private val UNKNOWN_MODEL_CODES = setOf(400, 404)
 
     }
 }

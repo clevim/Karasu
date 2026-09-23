@@ -151,7 +151,9 @@ fun <T> Controller.liftAppbarWith(
             }
             )
         activityBinding!!.toolbar.post {
-            if (fullAppBarHeight!! > 0) {
+            // Queued from the activity's toolbar, so it can run after this controller lost its
+            // activity — then the height is null rather than a number.
+            if ((fullAppBarHeight ?: 0) > 0) {
                 appBarHeight = fullAppBarHeight!!
                 recycler.requestApplyInsets()
             }

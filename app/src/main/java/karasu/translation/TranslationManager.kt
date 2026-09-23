@@ -65,7 +65,7 @@ class TranslationManager(context: Context) {
         revision.value++
     }
 
-    fun translateChapter(manga: Manga, chapter: Chapter, source: Source) {
+    suspend fun translateChapter(manga: Manga, chapter: Chapter, source: Source) {
         translator.queueChapter(manga, chapter, source)
     }
 
@@ -75,7 +75,7 @@ class TranslationManager(context: Context) {
      * Handed back rather than only awaited so a caller can show what it is waiting on: the entry
      * carries the status and the page progress.
      */
-    fun queueChapter(manga: Manga, chapter: Chapter, source: Source): Translation? =
+    suspend fun queueChapter(manga: Manga, chapter: Chapter, source: Source): Translation? =
         translator.queueChapter(manga, chapter, source)
 
     /** Suspends until [translation] finishes. @return null when it worked, the reason when not. */

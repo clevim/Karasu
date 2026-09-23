@@ -178,6 +178,7 @@ class BrowseController :
             activityBinding?.appBar?.lockYPos = true
         }
         binding.sourceRecycler.post {
+            if (!isBindingInitialized) return@post
             setBottomSheetTabs(if (binding.bottomSheet.root.sheetBehavior.isCollapsed()) 0f else 1f)
             binding.sourceRecycler.updatePaddingRelative(
                 bottom = (activityBinding?.bottomNav?.height ?: 0) + 58.spToPx,
@@ -546,6 +547,8 @@ class BrowseController :
             presenter.updateSources()
             if (type.isEnter && isControllerVisible) {
                 activityBinding?.appBar?.doOnNextLayout {
+                    // The app bar outlives this controller's view.
+                    if (!isBindingInitialized) return@doOnNextLayout
                     activityBinding?.appBar?.y = 0f
                     activityBinding?.appBar?.updateAppBarAfterY(binding.sourceRecycler)
                 }

@@ -36,7 +36,7 @@ class GetChapter(
         .toSet()
 
     suspend fun awaitAll(mangaId: Long, filterScanlators: Boolean): List<Chapter> {
-        val own = chapterRepository.getChapters(mangaId, filterScanlators)
+        val own = chapterRepository.getChapters(mangaId, filterScanlators).distinctChapters()
         if (!mergedSources.hasMerges(mangaId)) return own
         return mergeChapters(own, langOf(mangaId), chaptersFromMergedSources(mangaId, filterScanlators))
     }
@@ -50,7 +50,9 @@ class GetChapter(
      * eligible to be the next unread one.
      */
     suspend fun awaitUnread(mangaId: Long, filterScanlators: Boolean): List<Chapter> {
-        if (!mergedSources.hasMerges(mangaId)) return chapterRepository.getUnread(mangaId, filterScanlators)
+        if (!mergedSources.hasMerges(mangaId)) {
+            return chapterRepository.getUnread(mangaId, filterScanlators).distinctChapters()
+        }
         return awaitAll(mangaId, filterScanlators).filterNot { it.read }
     }
 
@@ -70,7 +72,8 @@ class GetChapter(
         chapterRepository.getChapterByUrlAndMangaId(chapterUrl, mangaId, filterScanlators)
 
     fun subscribeAll(mangaId: Long, filterScanlators: Boolean) =
-        chapterRepository.getChaptersAsFlow(mangaId, filterScanlators).map { own ->
+        chapterRepository.getChaptersAsFlow(mangaId, filterScanlators).map { raw ->
+            val own = raw.distinctChapters()
             if (!mergedSources.hasMerges(mangaId)) {
                 own
             } else {
@@ -135,13 +138,7 @@ internal fun mergeChapters(
     if (extra.isEmpty()) return own
 
     val ranked = own.map { Ranked(OWN_PRIORITY, ownLang, it) } +
-        extra.flatMap { merged ->
-            // An unrecognised number has nothing to deduplicate against, so a merged
-            // source's unnumbered chapters would pile up as duplicates of everything.
-            // Drop them; the manga's own unnumbered chapters are still kept below.
-            merged.chapters.filter { it.isRecognizedNumber }
-                .map { Ranked(merged.priority, merged.lang, it) }
-        }
+        extra.flatMap { merged -> merged.chapters.map { Ranked(merged.priority, merged.lang, it) } }
 
     val (numbered, unnumbered) = ranked.partition { it.chapter.isRecognizedNumber }
 
@@ -162,12 +159,56 @@ internal fun mergeChapters(
             }
         }
 
-    return (merged + unnumbered.map { it.chapter.copy() })
+    // An unrecognised number has nothing to be grouped by, so these are matched on their name
+    // instead: one row per distinct title, from the highest-priority source that has it. They used
+    // to be dropped outright for merged sources, which hid every oneshot, extra and special the
+    // merged source carried — and a name is what tells two of those apart anyway.
+    val extras = unnumbered
+        .groupBy { it.chapter.name.trim().lowercase() }
+        .map { (_, group) ->
+            val ordered = group.sortedBy { it.priority }
+            ordered.first().chapter.copy().apply {
+                read = group.any { it.chapter.read }
+                bookmark = group.any { it.chapter.bookmark }
+            }
+        }
+
+    return (merged + extras)
         .sortedByDescending { it.chapter_number }
         // Source order is meaningless across sources, so rebuild it for the merged list.
         // These are copies, so nothing is written back to the database.
         .onEachIndexed { index, chapter -> chapter.source_order = index }
 }
+
+/**
+ * One row per chapter within a single source's own list.
+ *
+ * `syncChaptersWithSource` only ever dedupes on url, so a source that lists the same chapter twice
+ * — a repost under a new url, the same upload returned by two of its endpoints — stores both rows
+ * and the chapter shows up twice. Same name, same number and same scanlator is that duplicate:
+ * two scanlators releasing chapter 5, or two chapters a source numbered apart, are real choices
+ * and both stay.
+ *
+ * The first row wins, so the source's own ordering decides and the same row keeps being shown.
+ * Read state, bookmark and page progress are folded onto it, since the user may well have read the
+ * copy that loses.
+ */
+internal fun List<Chapter>.distinctChapters(): List<Chapter> {
+    val groups = groupBy { it.duplicateKey() }
+    if (groups.size == size) return this
+    return groups.values.map { group ->
+        if (group.size == 1) return@map group.first()
+        group.first().copy().apply {
+            read = group.any { it.read }
+            bookmark = group.any { it.bookmark }
+            last_page_read = group.maxOf { it.last_page_read }
+            pages_left = group.minOf { it.pages_left }
+        }
+    }
+}
+
+private fun Chapter.duplicateKey() =
+    Triple(name.trim().lowercase(), scanlator?.trim()?.lowercase().orEmpty(), chapterNumberKey(chapter_number))
 
 private data class Ranked(val priority: Int, val lang: String, val chapter: Chapter)
 

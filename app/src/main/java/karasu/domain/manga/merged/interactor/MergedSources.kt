@@ -5,6 +5,12 @@ import karasu.domain.manga.models.MergedMangaSource
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * Every write to `merged_manga` goes through here, and has to: [mergedMangaIds] is a
+ * process-wide cache of which manga are merged, and only these methods drop it. A write made
+ * straight against the table — a restore, a schema migration — leaves the cache answering "no
+ * merges" for the rest of the session, which reads as the merge silently doing nothing.
+ */
 // ponytail: one multi-method interactor instead of the usual Get/Insert/Delete trio,
 // same as GetChapter. Split it if the read and write paths ever diverge.
 class MergedSources(private val repository: MergedMangaRepository) {

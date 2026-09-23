@@ -29,6 +29,7 @@ import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.isTablet
 import eu.kanade.tachiyomi.util.view.activityBinding
 import uy.kohesive.injekt.injectLazy
+import eu.kanade.tachiyomi.ui.setting.infoPreference
 import karasu.domain.translation.TranslationPreferences
 import karasu.domain.ui.settings.ReaderPreferences
 import karasu.domain.ui.settings.ReaderPreferences.CutoutBehaviour
@@ -437,6 +438,7 @@ class SettingsReaderController : SettingsLegacyController() {
         preferenceCategory {
             titleRes = MR.strings.translation
 
+            infoPreference(MR.strings.translation_privacy_info)
             switchPreference {
                 bindTo(translationPreferences.showTranslations())
                 titleRes = MR.strings.show_translations

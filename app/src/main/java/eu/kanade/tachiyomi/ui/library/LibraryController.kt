@@ -1199,6 +1199,7 @@ open class LibraryController(
             val activeC = activeCategory
             scrollToHeader(activeCategory)
             binding.libraryGridRecycler.recycler.post {
+                if (!isBindingInitialized) return@post
                 if (isControllerVisible) {
                     activityBinding?.appBar?.y = 0f
                     activityBinding?.appBar?.updateAppBarAfterY(binding.libraryGridRecycler.recycler)
@@ -1211,7 +1212,7 @@ open class LibraryController(
             if (binding.libraryGridRecycler.recycler.manager is StaggeredGridLayoutManager && isControllerVisible) {
                 staggeredObserver = ViewTreeObserver.OnGlobalLayoutListener {
                     binding.libraryGridRecycler.recycler.postOnAnimation {
-                        if (!isControllerVisible) return@postOnAnimation
+                        if (!isBindingInitialized || !isControllerVisible) return@postOnAnimation
                         scrollToHeader(activeC, false)
                         activityBinding?.appBar?.y = 0f
                         activityBinding?.appBar?.updateAppBarAfterY(binding.libraryGridRecycler.recycler)
@@ -1235,6 +1236,7 @@ open class LibraryController(
             activityBinding?.appBar?.lockYPos = false
         }
         binding.libraryGridRecycler.recycler.post {
+            if (!isBindingInitialized) return@post
             elevateAppBar(binding.libraryGridRecycler.recycler.canScrollVertically(-1))
             setActiveCategory()
         }
@@ -1316,6 +1318,8 @@ open class LibraryController(
         animatorSet.playSequentially(animations)
         animatorSet.startDelay = 1250
         animatorSet.doOnEnd {
+            // The animator keeps running after the view is gone.
+            if (!isBindingInitialized) return@doOnEnd
             binding.categoryHopperFrame.translationX = 0f
             isAnimatingHopper = false
             this.animatorSet = null
@@ -1368,6 +1372,7 @@ open class LibraryController(
         binding.categoryRecycler.isInvisible = !show
         if (show) {
             binding.categoryRecycler.post {
+                if (!isBindingInitialized) return@post
                 binding.categoryRecycler.scrollToCategory(activeCategory)
             }
             binding.fastScroller.hideScrollbar()
@@ -1420,6 +1425,7 @@ open class LibraryController(
                 preferences.lastUsedCategory().set(pos)
             }
             binding.libraryGridRecycler.recycler.post {
+                if (!isBindingInitialized) return@post
                 if (isControllerVisible) {
                     activityBinding.appBar.y = 0f
                     activityBinding.appBar.updateAppBarAfterY(binding.libraryGridRecycler.recycler)

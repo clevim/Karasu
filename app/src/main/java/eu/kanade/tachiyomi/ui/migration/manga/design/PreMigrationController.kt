@@ -84,6 +84,9 @@ class PreMigrationController(bundle: Bundle? = null) :
                 bottomMargin = fabBaseMarginBottom + insets.getInsets(systemBars()).bottom
             }
             v.post {
+                // An inset pass while this screen is being replaced queues this after the view is
+                // gone, and `binding` is nulled in onDestroyView.
+                if (!isBindingInitialized) return@post
                 // offset the binding.recycler by the binding.fab's inset + some inset on top
                 v.updatePaddingRelative(
                     bottom = insets.getInsets(systemBars()).bottom + binding.fab.marginBottom +

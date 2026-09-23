@@ -144,7 +144,7 @@ fun domainModule() = module {
     single { MergedSourceFallback(get(), get(), get(), get()) }
     // Holds what the last sync learned about each merge, so it can't be per-injection either.
     single { MergedSourceHealth(get(), get(), get(), get()) }
-    factory { MergedSourceSync(get(), get(), get(), get(), get()) }
+    factory { MergedSourceSync(get(), get(), get(), get(), get(), get()) }
 
     factory { SetMangaCategories(get()) }
 

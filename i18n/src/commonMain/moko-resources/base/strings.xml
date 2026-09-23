@@ -298,6 +298,9 @@
     <string name="translate_to">Translate into</string>
     <string name="translation_balloon_bounds">Fit text to the balloon (experimental)</string>
     <string name="translation_balloon_bounds_summary">Measure the speech balloon off the page instead of guessing it from the text, so translations letter larger. Works best on flat balloons; text drawn straight onto the art falls back to the old fit.</string>
+    <string name="translation_privacy_info">Pages are read on this device. A cloud engine sends the
+        text it recognised — never the images — to that provider. A chapter that is not downloaded
+        is fetched from the source before it can be translated, which uses data.</string>
     <string name="translation_engine">Translation engine</string>
     <string name="translation_api_key">API key</string>
     <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>
