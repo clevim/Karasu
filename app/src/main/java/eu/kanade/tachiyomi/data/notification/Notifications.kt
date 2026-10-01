@@ -79,6 +79,9 @@ object Notifications {
     const val ID_RECOMMENDATIONS_PROGRESS = -108
     const val ID_AUTO_MIGRATE = -106
 
+    /** The weekly source check found something broken. On the library-errors channel. */
+    const val ID_SOURCE_CHECK = -109
+
     /**
      * Notification channel and ids used by the library updater.
      */

@@ -195,7 +195,14 @@ class OpenAiChatTranslator(
             }
         }
 
-        val reply = json.parseToJsonElement(content.extractJson())
+        val reply = try {
+            json.parseToJsonElement(content.extractJson())
+        } catch (e: IllegalArgumentException) {
+            // Gemini only: half the batch is a shorter reply and usually a clean one, the same
+            // split the page reader does. The other engines keep failing the batch as before.
+            if (gemini) throw RetryInHalvesException("$providerName replied with broken JSON: ${content.take(200)}")
+            throw e
+        }
         // Lifted out before alignment, so everything below sees exactly the shape it always saw.
         // `alignToBatch` falls back on entry *count* when a model renames the keys, and an extra
         // key would push that count off by one and fail a reply that used to line up.

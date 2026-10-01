@@ -31,8 +31,29 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
   and status. Migration and merged-source search use the names, the release calendar the status,
   the taste profile the tags. Bound tracks are looked up by id; anything else only on a
   near-identical title or a close one the author confirms
+- Global search also tries a series' other names (from MangaBaka) on a source where the name you
+  typed found nothing, the way merge search already did
+- The manga page says when your sources are about N chapters behind the count MangaBaka reports,
+  with a shortcut to look for it on other sources; once per count
+- "Remove chapters read long ago" (Settings › Downloads): downloaded chapters read more than 7 to
+  90 days ago are deleted, at most once a day, with the same category and bookmark exclusions as
+  "Remove after read"
+- "Check sources weekly" (Settings › Browse): once a week on Wi-Fi, each source the chosen
+  categories read from is asked for one chapter list; what fails shows in Broken sources and in a
+  notification — for categories library updates leave out
+- Translation after download can wait for Wi-Fi (on by default): Gemini reading the pages uploads
+  several megabytes per chapter. Chapters downloaded on mobile data are translated as soon as
+  there is Wi-Fi, instead of being skipped
+- Entries added to the library are identified on MangaBaka at the end of the next library update,
+  instead of waiting for the next recommendations build
 
 ### Changes
+- Settings: translation has a screen of its own (Settings › Translation), split into display,
+  engine, languages, automatic and cache, instead of a dozen rows at the bottom of the reader's
+  settings; the release calendar's options have their own category in Library, apart from the
+  update ones; "Check sources weekly" sits with the other source options; and the descriptions
+  there were shortened, with two that had gone wrong fixed (translating needs no download any more,
+  and chapters downloaded on mobile data are translated later rather than skipped)
 - Recommendations lean on what readers of your own series recommend: AniList is asked about up to
   40 of your favourites by id (ten per request) instead of 5 by title search, each suggestion is
   weighed by how many people backed it and how much you like the series it came from, and that
@@ -40,10 +61,27 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
   candidates, so broad ones like "Action" no longer decide everything, and AniList's
   best-of-genre catalogue is a milder lift. Anything already in the library — by id or by any of
   its names — is no longer suggested
-- A batch Gemini blocks, or whose reply runs out of room, is split in half and retried instead of
-  losing every line in it
+- A batch Gemini blocks, or whose reply runs out of room or comes back as broken JSON, is split in
+  half and retried instead of losing every line in it
 - Restoring a Mihon backup writes the entries' notes into the restore log, since this app has
   nowhere to keep them, instead of dropping them silently
+
+### Fixes
+- The weekly source check is scheduled again on start, so it survives a reinstall or a restored
+  backup; the translation privacy note and "Fit text to the balloon" were untranslated in pt-BR
+- Stats: the status chart and filter use what the trackers and MangaBaka say when they know it,
+  not only the source's own status (often "unknown", or "ongoing" years after the series ended);
+  the tags chart merges the same genre spelled differently ("Ação", "Action", "action") and leaves
+  out scanlation credits; and each entry's tracks and reading time are read once per visit
+  instead of once per bar, which made the tags chart crawl on big libraries
+- The recommendations' sort arrow did nothing: every order now follows it (↓ most first, ↑ least
+  first), entries with no date or chapter count stay at the end either way, and the options are
+  named for what they sort by ("Start date", "Chapters") instead of one direction
+
+### Other
+- What MangaBaka and the trackers found about each entry moved from one big preference into its
+  own table, and into the backup with the entry it belongs to — so it survives a restore onto a
+  fresh install, where every entry gets a new id
 
 ## [1.11.1]
 

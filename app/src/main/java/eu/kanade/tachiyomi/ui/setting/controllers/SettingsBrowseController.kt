@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.setting.controllers
 
+import eu.kanade.tachiyomi.data.library.SourceHealthJob
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
@@ -304,6 +305,20 @@ class SettingsBrowseController : SettingsLegacyController() {
             switchPreference {
                 bindTo(uiPreferences.enableSourceSwipeAction())
                 titleRes = MR.strings.enable_source_swipe_action
+            }
+            multiSelectListPreferenceMat(activity) {
+                bindTo(preferences.sourceCheckCategories())
+                titleRes = MR.strings.source_check
+                summaryRes = MR.strings.source_check_summary
+                // FIXME: Don't do blocking (same as the library settings)
+                val categories = listOf(Category.createDefault(context)) + runBlocking { getCategories.await() }
+                entries = categories.map { it.name }
+                entryValues = categories.map { it.id.toString() }
+                noSelectionRes = MR.strings.none
+                onChange {
+                    viewScope.launchUI { SourceHealthJob.setupTask(context) }
+                    true
+                }
             }
         }
 

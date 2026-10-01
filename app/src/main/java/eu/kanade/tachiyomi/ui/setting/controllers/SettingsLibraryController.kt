@@ -253,6 +253,20 @@ class SettingsLibraryController : SettingsLegacyController() {
                 }
             }
 
+            switchPreference {
+                key = Keys.refreshCoversToo
+                titleRes = MR.strings.auto_refresh_covers
+                summaryRes = MR.strings.auto_refresh_covers_summary
+                defaultValue = true
+            }
+        }
+
+        // What the release estimates are for, apart from the updates they steer: the calendar,
+        // its notification and its categories. Only there when the estimates are.
+        preferenceCategory {
+            titleRes = MR.strings.release_calendar
+            preferences.smartLibraryUpdates().changesIn(viewScope) { isVisible = it }
+
             intListPreference(activity) {
                 bindTo(preferences.releaseDigestHour())
                 titleRes = MR.strings.release_digest
@@ -334,12 +348,6 @@ class SettingsLibraryController : SettingsLegacyController() {
                 }
             }
 
-            switchPreference {
-                key = Keys.refreshCoversToo
-                titleRes = MR.strings.auto_refresh_covers
-                summaryRes = MR.strings.auto_refresh_covers_summary
-                defaultValue = true
-            }
         }
 
         preferenceCategory {

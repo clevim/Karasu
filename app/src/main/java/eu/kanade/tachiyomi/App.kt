@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi
 
+import eu.kanade.tachiyomi.data.library.SourceHealthJob
+import karasu.domain.download.CleanOldDownloads
 import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 import android.Manifest
@@ -160,6 +162,19 @@ open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.F
             scope.launchIO {
                 runCatching { Injekt.get<RecalculateReleaseEstimates>().await() }
                     .onSuccess { preferences.releaseEstimateVersion().set(ReleaseEstimate.ESTIMATOR_VERSION) }
+            }
+        }
+
+        // Periodic work survives reboots but not a reinstall, and a restored backup brings the
+        // categories back without the schedule. KEEP makes this a no-op when it is already there.
+        scope.launchIO { runCatching { SourceHealthJob.setupTask(this@App) } }
+
+        // Downloads read long ago, at most once a day: cheap when there is nothing to do, and the
+        // app being opened is the one moment it is guaranteed to have the storage at hand.
+        if (System.currentTimeMillis() - preferences.lastOldDownloadsCleanup().get() > CleanOldDownloads.DAY_MS) {
+            scope.launchIO {
+                runCatching { Injekt.get<CleanOldDownloads>().await() }
+                    .onSuccess { preferences.lastOldDownloadsCleanup().set(System.currentTimeMillis()) }
             }
         }
 

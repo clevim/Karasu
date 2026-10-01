@@ -284,6 +284,9 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
     fun recommendationTrackerExtras() = preferenceStore.getString("recommendation_tracker_extras", "{}")
 
     /** Tags the reader struck from the profile for good: things a source called a genre that are not one. */
+    /** `mangaId:count` pairs the reader already waved "the source is behind" away for. */
+    fun sourceBehindDismissed() = preferenceStore.getStringSet("source_behind_dismissed", emptySet())
+
     fun recommendationBannedTags() = preferenceStore.getStringSet("recommendation_banned_tags", emptySet())
 
     /** JSON object of tag to weight (-1..1): the reader's overrides on the learned taste profile. */
@@ -444,6 +447,14 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
     fun deleteRemovedChapters() = preferenceStore.getInt(Keys.deleteRemovedChapters, 0)
 
     fun removeBookmarkedChapters() = preferenceStore.getBoolean("pref_remove_bookmarked", false)
+
+    /** Downloaded chapters read more than this many days ago are deleted; 0 never. See CleanOldDownloads. */
+    fun removeReadOlderThanDays() = preferenceStore.getInt("remove_read_older_than_days", 0)
+
+    fun lastOldDownloadsCleanup() = preferenceStore.getLong(Preference.appStateKey("last_old_downloads_cleanup"), 0L)
+
+    /** Categories whose sources are checked once a week (SourceHealthJob); empty = off. */
+    fun sourceCheckCategories() = preferenceStore.getStringSet("source_check_categories", emptySet())
 
     fun removeExcludeCategories() = preferenceStore.getStringSet("remove_exclude_categories", emptySet())
 

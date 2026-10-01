@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.ui.manga
 
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import karasu.domain.recommendation.chaptersBehind
+import karasu.domain.recommendation.TrackerExtrasStore
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -508,7 +511,7 @@ class MangaDetailsController :
         val manga = manga ?: return
         if (!manga.favorite) return
         val store = Injekt.get<MergeSuggestionsStore>()
-        val suggestion = store.pending(manga.id).firstOrNull() ?: return
+        val suggestion = store.pending(manga.id).firstOrNull() ?: return offerBehind(view)
         val sourceName = presenter.sourceManager.get(suggestion.sourceId)?.name ?: return
         val mangaId = manga.id ?: return
         snack = view.snack(view.context.getString(MR.strings.merge_suggestion, sourceName), Snackbar.LENGTH_LONG) {
@@ -522,6 +525,36 @@ class MangaDetailsController :
                     }
                 },
             )
+        }
+    }
+
+    /**
+     * When the entry's sources are well behind the chapter count MangaBaka reports, say so and
+     * offer to look for it elsewhere: a source that stalled is invisible otherwise, since its
+     * chapter list just stops growing. Once per count — a new chapter count asks again.
+     */
+    private fun offerBehind(view: View) {
+        val manga = manga ?: return
+        val mangaId = manga.id ?: return
+        viewScope.launchIO {
+            val official = Injekt.get<TrackerExtrasStore>().get(mangaId)?.mbChapters
+            val have = presenter.allChapters.maxOfOrNull { it.chapter.chapter_number } ?: 0f
+            val behind = chaptersBehind(official, have) ?: return@launchIO
+            val prefs = Injekt.get<PreferencesHelper>().sourceBehindDismissed()
+            val key = "$mangaId:$official"
+            if (key in prefs.get()) return@launchIO
+            withUIContext {
+                snack = view.snack(view.context.getString(MR.strings.source_behind, behind), Snackbar.LENGTH_LONG) {
+                    setAction(MR.strings.source_behind_action) { openMergeSearch() }
+                    addCallback(
+                        object : Snackbar.Callback() {
+                            override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                                prefs.set(prefs.get().filterNot { it.startsWith("$mangaId:") }.toSet() + key)
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 
@@ -1936,20 +1969,23 @@ class MangaDetailsController :
                             .setNegativeButton(AR.string.cancel, null)
                             .show()
                     },
-                    onAdd = {
-                        val manga = presenter.manga
-                        viewScope.launchIO {
-                            val excluded = presenter.mergedSourceIds() + manga.source
-                            val aliases = MangaAliases(Injekt.get(), Injekt.get()).local(manga)
-                            withUIContext {
-                                router.pushController(
-                                    MergeSearchController(manga, excluded, aliases)
-                                        .apply { targetController = this@MangaDetailsController }
-                                        .withFadeTransaction(),
-                                )
-                            }
-                        }
-                    },
+                    onAdd = { openMergeSearch() },
+                )
+            }
+        }
+    }
+
+    /** Search the other sources for this entry, to merge one in. */
+    private fun openMergeSearch() {
+        val manga = presenter.manga
+        viewScope.launchIO {
+            val excluded = presenter.mergedSourceIds() + manga.source
+            val aliases = MangaAliases(Injekt.get(), Injekt.get()).local(manga)
+            withUIContext {
+                router.pushController(
+                    MergeSearchController(manga, excluded, aliases)
+                        .apply { targetController = this@MangaDetailsController }
+                        .withFadeTransaction(),
                 )
             }
         }

@@ -89,6 +89,15 @@ class SettingsDownloadController : SettingsLegacyController() {
                 noSelectionRes = MR.strings.none
                 preferences.removeAfterReadSlots().changesIn(viewScope) { isVisible = it != -1 }
             }
+            intListPreference(activity) {
+                bindTo(preferences.removeReadOlderThanDays())
+                titleRes = MR.strings.remove_read_older_than
+                entries = REMOVE_OLDER_THAN_DAYS.map { days ->
+                    if (days == 0) context.getString(MR.strings.never) else context.getString(MR.plurals.remove_read_days, days, days)
+                }
+                entryValues = REMOVE_OLDER_THAN_DAYS
+                defaultValue = 0
+            }
             switchPreference {
                 bindTo(preferences.removeBookmarkedChapters())
                 titleRes = MR.strings.allow_deleting_bookmarked_chapters
@@ -157,3 +166,5 @@ class SettingsDownloadController : SettingsLegacyController() {
         router.pushController(controller.withFadeTransaction())
     }
 }
+
+private val REMOVE_OLDER_THAN_DAYS = listOf(0, 7, 14, 30, 60, 90)

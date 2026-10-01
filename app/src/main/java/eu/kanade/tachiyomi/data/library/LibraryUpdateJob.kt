@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.library
 
+import karasu.domain.recommendation.IdentifyWithMangaBaka
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -256,6 +257,14 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 // library is not. Whether the new chapters are downloaded yet or the sync has to
                 // queue them itself, this is the point at which it can tell.
                 if (target == Target.CHAPTERS) KoreaderSyncJob.startIfAutomatic(context)
+                // What was added since the last look gets its ids, names and status now, not at the
+                // next recommendations build: the calendar, the stats and "your sources are behind"
+                // all read them. Best effort; a failure here is not a failed update.
+                if (target == Target.CHAPTERS) {
+                    runCatching {
+                        Injekt.get<IdentifyWithMangaBaka>().await(onlyNew = true, budgetMs = IdentifyWithMangaBaka.NEW_ENTRIES_BUDGET_MS)
+                    }
+                }
                 Result.success()
             } catch (e: Exception) {
                 if (e is CancellationException) {

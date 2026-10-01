@@ -292,19 +292,20 @@
     <string name="show_translations_summary">Draw the translated text over the page on chapters
         that have been translated.</string>
     <string name="auto_translate_after_download">Translate after downloading</string>
-    <string name="auto_translate_after_download_summary">Every chapter is translated once its
-        download finishes. Only downloaded chapters can be translated.</string>
+    <string name="auto_translate_after_download_summary">Each chapter is translated as soon as its download finishes.</string>
+    <string name="auto_translate_only_unmetered">Only on Wi-Fi</string>
+    <string name="auto_translate_only_unmetered_summary">Chapters downloaded on mobile data wait for Wi-Fi to be translated.</string>
     <string name="translate_from">Page language</string>
     <string name="translate_to">Translate into</string>
     <string name="translation_balloon_bounds">Fit text to the balloon (experimental)</string>
-    <string name="translation_balloon_bounds_summary">Measure the speech balloon off the page instead of guessing it from the text, so translations letter larger. Works best on flat balloons; text drawn straight onto the art falls back to the old fit.</string>
-    <string name="translation_privacy_info">Pages are read on this device. A cloud engine sends the
-        text it recognised — never the images — to that provider, except Gemini with "Gemini reads
-        the pages" on, which sends the page images to Google. A chapter that is not downloaded
-        is fetched from the source before it can be translated, which uses data.</string>
+    <string name="translation_balloon_bounds_summary">Measures the balloon on the page so translations letter larger. Works best on flat balloons.</string>
+    <string name="translation_privacy_info">Pages are read on the device and only the recognised text goes to a cloud engine. The exception: with "Gemini reads the pages", the images go to Google. A chapter that is not downloaded is fetched from the source first, which uses data.</string>
     <string name="translation_gemini_reads_pages">Gemini reads the pages</string>
-    <string name="translation_gemini_reads_pages_summary">Send the page images to Gemini, which finds the balloons, reads them and translates them in one go. Much better than on-device text recognition on stylised lettering and vertical Japanese, and about one request per 16 pages. Off: only the recognised text is sent.</string>
-    <string name="translation_model_summary_gemini">A model id from aistudio.google.com, e.g. gemini-3.5-flash-lite (500 free requests a day) or gemma-4-31b-it. The "Live", TTS and image models do not translate text.</string>
+    <string name="translation_gemini_reads_pages_summary">Gemini looks at the page: it finds the balloons, reads and translates them in one go. Far better on stylised lettering and vertical Japanese. About one request per 16 pages.</string>
+    <string name="translation_model_summary_gemini">Model id from aistudio.google.com, e.g. gemini-3.5-flash-lite (500 free a day). "Live", TTS and image models do not work.</string>
+    <string name="translation_languages">Languages</string>
+    <string name="translation_engine_category">Engine</string>
+    <string name="translation_cache">Cache</string>
     <string name="translation_engine">Translation engine</string>
     <string name="translation_api_key">API key</string>
     <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>
@@ -312,7 +313,7 @@
     <string name="translation_clear_cache">Clear translation cache</string>
     <string name="translation_clear_cache_done">Translation cache cleared</string>
     <string name="translation_clear_cache_summary">Lines already translated are reused across chapters. Clear it to have a wrong translation redone.</string>
-    <string name="translation_model_summary">Any model id from openrouter.ai. Avoid reasoning models: they spend their whole reply thinking and return nothing usable.</string>
+    <string name="translation_model_summary">Model id at the chosen provider. Avoid reasoning models: they spend the reply thinking and return no translation.</string>
     <string name="translate_chapter">Translate</string>
     <string name="translation_queued">Queued for translation</string>
     <string name="translate_pages">Translate pages</string>
@@ -420,8 +421,8 @@
     <string name="recommendation_badge_untrusted_dates">source gives no real dates</string>
     <string name="recommendation_filter_tags">Only with these tags</string>
     <string name="recommendation_sort_affinity">Best match</string>
-    <string name="recommendation_sort_newest">Newest</string>
-    <string name="recommendation_sort_shortest">Fewest chapters</string>
+    <string name="recommendation_sort_newest">Start date</string>
+    <string name="recommendation_sort_shortest">Chapters</string>
     <string name="recommendation_refresh">Fetch 50 more</string>
     <string name="recommendation_rebuild">Rebuild from scratch</string>
     <string name="recommendation_target">Recommendations to build</string>
@@ -443,7 +444,7 @@
     <string name="recommendation_last_built">Last built %1$s</string>
     <string name="recommendation_never_built">Not built yet</string>
     <string name="recommendation_stage_enriching">Asking trackers about your library %1$d/%2$d…</string>
-    <string name="recommendation_mangabaka_credit">Recommendations look your library up by title on MangaBaka (mangabaka.org), which maps AniList, MyAnimeList, MangaUpdates, Kitsu, Anime-Planet and Shikimori, to learn each series\' ids, other names, tags and status. Data from MangaBaka, CC BY-NC-SA 4.0.</string>
+    <string name="recommendation_mangabaka_credit">Your library is identified on MangaBaka (mangabaka.org), which joins AniList, MyAnimeList, MangaUpdates, Kitsu and others, to learn ids, other names, tags and status. Data from MangaBaka, CC BY-NC-SA 4.0.</string>
     <string name="recommendation_stage_identifying">Identifying your library on MangaBaka %1$d/%2$d…</string>
     <string name="recommendation_stage_profile">Reading your library…</string>
     <string name="recommendation_stage_searching">Searching sources %1$d/%2$d…</string>
@@ -537,6 +538,10 @@
     <string name="merge_source_missing">extension not installed</string>
     <string name="merge_suggestion">Also on %1$s</string>
     <string name="merge_suggestion_action">Merge</string>
+    <string name="source_check">Check sources weekly</string>
+    <string name="source_check_summary">Once a week on Wi-Fi, tests each source these categories read from. What fails shows in Broken sources.</string>
+    <string name="source_behind">Your sources are about %1$d chapters behind</string>
+    <string name="source_behind_action">Look elsewhere</string>
     <string name="recommendation_stage_merges">Looking for your library on other sources %1$d/%2$d…</string>
     <string name="merge_entry_gone">entry no longer on this source</string>
     <string name="merge_never_synced">no chapters pulled in yet</string>
@@ -1314,6 +1319,7 @@
     <string name="remove_when_marked_as_read">Remove when marked as read</string>
     <string name="allow_deleting_bookmarked_chapters">Allow deleting bookmarked chapters</string>
     <string name="remove_after_read">Remove after read</string>
+    <string name="remove_read_older_than">Remove chapters read long ago</string>
     <string name="pref_remove_exclude_categories">Excluded categories</string>
     <string name="custom_location">Custom location</string>
     <string name="last_read_chapter">Last read chapter</string>

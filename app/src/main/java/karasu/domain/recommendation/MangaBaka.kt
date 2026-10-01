@@ -60,12 +60,22 @@ class IdentifyWithMangaBaka(
     private val store: TrackerExtrasStore,
     private val customMangaManager: CustomMangaManager,
 ) {
-    suspend fun await(now: Long = System.currentTimeMillis(), onProgress: suspend (done: Int, total: Int) -> Unit = { _, _ -> }) {
-        val deadline = now + BUDGET_MS
+    /**
+     * @param onlyNew only entries never looked up — what a library update does after its run, so
+     *   something added today is known by tomorrow rather than at the next recommendations build.
+     */
+    suspend fun await(
+        now: Long = System.currentTimeMillis(),
+        onlyNew: Boolean = false,
+        budgetMs: Long = BUDGET_MS,
+        onProgress: suspend (done: Int, total: Int) -> Unit = { _, _ -> },
+    ) {
+        val deadline = now + budgetMs
         val library = getLibraryManga.await().distinctBy { it.manga.id }.sortedByDescending { it.lastRead }
         val tracks = getTrack.awaitAll().groupBy { it.manga_id }
         val pending = library.map { it.manga }.filter { manga ->
             val have = store.get(manga.id) ?: return@filter true
+            if (onlyNew) return@filter have.mangaBakaAt == 0L
             val found = ExternalIds.MANGABAKA in have.ids
             have.mangaBakaAt < now - if (found) REFRESH_FOUND_MS else REFRESH_MISSED_MS
         }
@@ -90,6 +100,7 @@ class IdentifyWithMangaBaka(
                     mbTags = record.tags,
                     mbTitles = record.titles,
                     mbStatus = record.status,
+                    mbChapters = record.chapters,
                     mangaBakaAt = now,
                 )
             }
@@ -143,6 +154,9 @@ class IdentifyWithMangaBaka(
         /** One run's share; the rest is picked up next time. */
         private const val BUDGET_MS = 10L * 60 * 1000
 
+        /** What a library update spends on what was added since: about fifty entries. */
+        const val NEW_ENTRIES_BUDGET_MS = 2L * 60 * 1000
+
         /** Status moves, so a found entry is asked again after a while. */
         private const val REFRESH_FOUND_MS = 60L * 24 * 60 * 60 * 1000
 
@@ -163,6 +177,8 @@ data class MangaBakaRecord(
     val tags: List<String>,
     val status: Int?,
     val type: String?,
+    /** MangaBaka's chapter count, as a number; it sends a string, sometimes "12.5" or blank. */
+    val chapters: Int? = null,
 )
 
 internal fun parseMangaBakaRecord(obj: JsonObject): MangaBakaRecord? {
@@ -209,6 +225,7 @@ internal fun parseMangaBakaRecord(obj: JsonObject): MangaBakaRecord? {
         tags = (genres + tags).mapNotNull(::normalizeTag).distinctBy { it.lowercase() },
         status = status,
         type = obj["type"].text(),
+        chapters = obj["total_chapters"].text()?.toFloatOrNull()?.toInt(),
     )
 }
 
@@ -264,3 +281,35 @@ private const val MAX_TITLES = 25
 private const val SURE_MATCH = 0.92
 private const val AUTHOR_MATCH = 0.8
 private const val AUTHOR_BONUS = 0.05
+
+/**
+ * Other names of the series a search for [query] is after, from MangaBaka, for a global search
+ * whose query found nothing on a source: the reader types the name they know, the source lists
+ * it under another. Only when one result's name is close to the query — otherwise the search
+ * just found something else, and its names would send every source after the wrong series.
+ * Empty on any failure: this only ever adds tries.
+ */
+suspend fun mangaBakaNames(network: NetworkHelper, query: String): List<String> {
+    val q = query.trim()
+    if (q.length < MIN_NAME_QUERY) return emptyList()
+    namesCache[q.lowercase()]?.let { return it }
+    val names = runCatching {
+        val url = "https://api.mangabaka.org/v1/series/search?limit=3&q=" + URLEncoder.encode(q.take(120), "UTF-8")
+        val records = network.client.newCall(GET(url)).awaitSuccess().parseAs<JsonObject>()["data"]
+            ?.jsonArray.orEmpty().mapNotNull { (it as? JsonObject)?.let(::parseMangaBakaRecord) }
+        val key = q.matchKey()
+        val best = records.maxByOrNull { r -> r.titles.maxOfOrNull { normalizedLevenshteinSimilarity(it.matchKey(), key) } ?: 0.0 }
+            ?.takeIf { r -> (r.titles.maxOfOrNull { normalizedLevenshteinSimilarity(it.matchKey(), key) } ?: 0.0) >= NAME_QUERY_MATCH }
+        best?.titles.orEmpty()
+            .filter { it.isMostlyLatin() && !it.equals(q, ignoreCase = true) }
+            .take(MAX_NAME_FALLBACKS)
+    }.getOrDefault(emptyList())
+    // ponytail: unbounded per process; a session's searches are a few dozen strings.
+    namesCache[q.lowercase()] = names
+    return names
+}
+
+private val namesCache = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+private const val MIN_NAME_QUERY = 3
+private const val NAME_QUERY_MATCH = 0.75
+private const val MAX_NAME_FALLBACKS = 4

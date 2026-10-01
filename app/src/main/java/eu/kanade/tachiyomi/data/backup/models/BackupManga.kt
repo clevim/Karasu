@@ -71,6 +71,12 @@ data class BackupManga(
      * been refreshed by hand — the very failure the memo column was added to stop.
      */
     @ProtoNumber(807) var memo: String = "{}",
+    /**
+     * What MangaBaka and the trackers found about the entry, as the JSON `manga_extras` holds.
+     * Carried with the entry rather than as a preference keyed by its id, which a restore onto a
+     * fresh install gives a new value.
+     */
+    @ProtoNumber(808) var extras: String? = null,
 ) {
     fun getMangaImpl(): MangaImpl {
         return MangaImpl(

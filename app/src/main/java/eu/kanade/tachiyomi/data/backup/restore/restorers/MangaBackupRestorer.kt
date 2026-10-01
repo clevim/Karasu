@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.backup.restore.restorers
 
+import karasu.domain.recommendation.TrackerExtrasStore
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
@@ -51,6 +52,7 @@ class MangaBackupRestorer(
     private val getTrack: GetTrack = Injekt.get(),
     private val insertTrack: InsertTrack = Injekt.get(),
     private val mergedSources: MergedSources = Injekt.get(),
+    private val extrasStore: TrackerExtrasStore = Injekt.get(),
 ) {
     suspend fun restoreManga(
         backupManga: BackupManga,
@@ -83,6 +85,10 @@ class MangaBackupRestorer(
                 restoreExistingManga(manga, chapters, categories, history, tracks, backupCategories, filteredScanlators, customManga)
             }
             manga.id?.let { restoreMergedSources(it, manga.title, backupManga.mergedSources) }
+            // Only where this install knows nothing yet: a fresher lookup here beats an old one.
+            val extra = backupManga.extras?.let(extrasStore::decode)
+            val id = manga.id
+            if (extra != null && id != null && extrasStore.get(id) == null) extrasStore.putAll(mapOf(id to extra))
         } catch (e: Exception) {
             onError(manga, e)
         }

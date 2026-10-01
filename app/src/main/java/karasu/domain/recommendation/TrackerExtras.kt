@@ -1,6 +1,7 @@
 package karasu.domain.recommendation
 
 import co.touchlab.kermit.Logger
+import karasu.data.DatabaseHandler
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.library.CustomMangaManager
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
@@ -60,6 +61,8 @@ data class TrackerExtra(
     val mbTags: List<String> = emptyList(),
     val mbTitles: List<String> = emptyList(),
     val mbStatus: Int? = null,
+    /** How many chapters MangaBaka says the series has, when it says. See [chaptersBehind]. */
+    val mbChapters: Int? = null,
     /** When MangaBaka was last asked, found or not; 0 = never. */
     val mangaBakaAt: Long = 0,
 ) {
@@ -73,23 +76,61 @@ data class TrackerExtra(
     val anyStatus: Int? get() = status ?: mbStatus
 }
 
-/** In a preference, keyed by manga id, so a backup carries it and a restore keeps the names. */
-class TrackerExtrasStore(private val preferences: PreferencesHelper) {
-
+/**
+ * In the `manga_extras` table (migration 39), one row per entry, and in the backup with the entry
+ * it belongs to ([eu.kanade.tachiyomi.data.backup.models.BackupManga.extras]).
+ *
+ * Held in memory once read: the profile, the calendar and the aliases all ask per entry, in loops
+ * over the whole library.
+ */
+class TrackerExtrasStore(
+    private val handler: DatabaseHandler,
+    private val preferences: PreferencesHelper,
+) {
     @Volatile
     private var cached: Map<Long, TrackerExtra>? = null
 
-    fun all(): Map<Long, TrackerExtra> = cached ?: runCatching {
-        Json.decodeFromString<Map<Long, TrackerExtra>>(preferences.recommendationTrackerExtras().get())
-    }.getOrDefault(emptyMap()).also { cached = it }
+    private val json = Json { ignoreUnknownKeys = true }
 
-    fun get(mangaId: Long?): TrackerExtra? = mangaId?.let { all()[it] }
+    suspend fun all(): Map<Long, TrackerExtra> = cached ?: load().also { cached = it }
 
-    fun putAll(extras: Map<Long, TrackerExtra>) {
+    suspend fun get(mangaId: Long?): TrackerExtra? = mangaId?.let { all()[it] }
+
+    suspend fun putAll(extras: Map<Long, TrackerExtra>) {
         if (extras.isEmpty()) return
-        val next = all() + extras
-        preferences.recommendationTrackerExtras().set(Json.encodeToString(next))
-        cached = next
+        runCatching {
+            handler.await(inTransaction = true) {
+                extras.forEach { (id, extra) -> manga_extrasQueries.upsert(id, json.encodeToString(extra)) }
+            }
+        }.onFailure { Logger.e(it) { "Could not store library extras" } }
+        cached = all() + extras
+    }
+
+    fun encode(extra: TrackerExtra): String = json.encodeToString(extra)
+
+    fun decode(raw: String): TrackerExtra? = runCatching { json.decodeFromString<TrackerExtra>(raw) }.getOrNull()
+
+    private suspend fun load(): Map<Long, TrackerExtra> {
+        val rows = runCatching {
+            handler.awaitList { manga_extrasQueries.findAll { id, data -> id to data } }
+        }.getOrDefault(emptyList())
+        val stored = rows.mapNotNull { (id, data) -> decode(data)?.let { id to it } }.toMap()
+        // Once, on the first start after the move: what the old preference held comes across,
+        // and the preference is emptied so it is not resent with every backup.
+        val legacy = preferences.recommendationTrackerExtras().get()
+        if (legacy.length <= 2) return stored
+        val old = runCatching { json.decodeFromString<Map<Long, TrackerExtra>>(legacy) }.getOrDefault(emptyMap())
+            .filterKeys { it !in stored }
+        if (old.isNotEmpty()) {
+            runCatching {
+                handler.await(inTransaction = true) {
+                    // Entries deleted since have no row to point at; the foreign key turns them away.
+                    old.forEach { (id, extra) -> runCatching { manga_extrasQueries.upsert(id, json.encodeToString(extra)) } }
+                }
+            }
+        }
+        preferences.recommendationTrackerExtras().set("{}")
+        return stored + old
     }
 }
 
@@ -308,3 +349,18 @@ internal suspend fun addToGenres(customMangaManager: CustomMangaManager, manga: 
         ),
     )
 }
+
+/**
+ * How many chapters the reader's sources are behind the series, or null when it is not enough to
+ * mention: [official] is the count MangaBaka reports, [have] the highest chapter number the entry
+ * has from all its sources. Only a real gap counts — a source ahead of the catalogue (it often
+ * is, catalogues lag) is not a problem.
+ */
+fun chaptersBehind(official: Int?, have: Float): Int? {
+    if (official == null || official <= 0) return null
+    val gap = official - have.toInt()
+    return gap.takeIf { it >= BEHIND_MIN }
+}
+
+/** Fewer missing than this is a catalogue counting extras or a source a week late. */
+private const val BEHIND_MIN = 5

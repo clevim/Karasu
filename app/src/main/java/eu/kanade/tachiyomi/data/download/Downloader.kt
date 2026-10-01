@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.data.download
 
+import karasu.translation.PendingTranslationJob
+import eu.kanade.tachiyomi.util.system.connectivityManager
 import android.content.Context
 import co.touchlab.kermit.Logger
 import com.hippo.unifile.UniFile
@@ -440,10 +442,16 @@ class Downloader(
             download.status = Download.State.DOWNLOADED
 
             if (translationPreferences.autoTranslateAfterDownload().get()) {
-                // `source` may have moved to whichever merged source served the pages; the
-                // translation is filed under the manga being read and its own source, which
-                // is also where `findChapterDir` will look for what was just downloaded.
-                translationManager.translateChapter(download.manga, download.chapter, download.source)
+                val metered = context.connectivityManager.isActiveNetworkMetered
+                if (metered && translationPreferences.autoTranslateOnlyUnmetered().get()) {
+                    // Not dropped: translated as soon as there is Wi-Fi.
+                    download.chapter.id?.let { PendingTranslationJob.add(context, it) }
+                } else {
+                    // `source` may have moved to whichever merged source served the pages; the
+                    // translation is filed under the manga being read and its own source, which
+                    // is also where `findChapterDir` will look for what was just downloaded.
+                    translationManager.translateChapter(download.manga, download.chapter, download.source)
+                }
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error

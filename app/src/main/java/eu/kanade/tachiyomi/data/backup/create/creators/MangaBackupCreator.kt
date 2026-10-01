@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.backup.create.creators
 
+import karasu.domain.recommendation.TrackerExtrasStore
 import eu.kanade.tachiyomi.data.backup.create.BackupOptions
 import eu.kanade.tachiyomi.data.backup.models.BackupChapter
 import eu.kanade.tachiyomi.data.backup.models.BackupHistory
@@ -25,6 +26,7 @@ class MangaBackupCreator(
     private val getHistory: GetHistory = Injekt.get(),
     private val getTrack: GetTrack = Injekt.get(),
     private val mergedSources: MergedSources = Injekt.get(),
+    private val extrasStore: TrackerExtrasStore = Injekt.get(),
 ) {
     suspend operator fun invoke(mangas: List<Manga>, options: BackupOptions): List<BackupManga> {
         return mangas.map {
@@ -95,6 +97,8 @@ class MangaBackupCreator(
                 }
             }
         }
+
+        mangaObject.extras = extrasStore.get(manga.id)?.let(extrasStore::encode)
 
         // Merged sources ride along with the chapters they contribute; without them the
         // restored manga would silently lose every chapter its own source doesn't have.

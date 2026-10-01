@@ -106,7 +106,7 @@ class GetTasteProfile(
     fun setOverrides(overrides: Map<String, Float>) =
         preferences.recommendationTagWeights().set(Json.encodeToString(overrides))
 
-    private fun LibraryManga.toEntry(ratings: List<Rating>) = LibraryEntry(
+    private suspend fun LibraryManga.toEntry(ratings: List<Rating>) = LibraryEntry(
         mangaId = manga.id!!,
         title = manga.title,
         tags = manga.getOriginalGenres().orEmpty() + extras.get(manga.id)?.allTags.orEmpty(),

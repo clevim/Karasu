@@ -1,0 +1,15 @@
+-- See migration 39. One JSON `TrackerExtra` per library entry.
+CREATE TABLE manga_extras(
+    manga_id INTEGER NOT NULL PRIMARY KEY,
+    data TEXT NOT NULL,
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+    ON DELETE CASCADE
+);
+
+findAll:
+SELECT manga_id, data FROM manga_extras;
+
+upsert:
+INSERT INTO manga_extras(manga_id, data)
+VALUES (:manga_id, :data)
+ON CONFLICT(manga_id) DO UPDATE SET data = :data;

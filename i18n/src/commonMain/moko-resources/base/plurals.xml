@@ -196,4 +196,12 @@
         <item quantity="one">%d entry selected right now</item>
         <item quantity="other">%d entries selected right now</item>
     </plurals>
+    <plurals name="remove_read_days">
+        <item quantity="one">Read %d day ago</item>
+        <item quantity="other">Read more than %d days ago</item>
+    </plurals>
+    <plurals name="source_check_failed">
+        <item quantity="one">%d source is not answering</item>
+        <item quantity="other">%d sources are not answering</item>
+    </plurals>
 </resources>

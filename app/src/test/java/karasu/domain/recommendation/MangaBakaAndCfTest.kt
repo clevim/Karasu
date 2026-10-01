@@ -87,4 +87,18 @@ class MangaBakaAndCfTest {
         val lifted = ranked.map { it.withBonuses(0L) }.sortedByDescending { it.score }
         assertEquals("tagged", lifted.first().title, "a full tag match still beats a thin co-recommendation")
     }
+
+    @Test
+    fun `a source counts as behind only by a real gap`() {
+        assertEquals(12, chaptersBehind(official = 112, have = 100f))
+        assertNull(chaptersBehind(official = 103, have = 100f), "a few is a catalogue counting extras")
+        assertNull(chaptersBehind(official = 90, have = 100f), "a source ahead of the catalogue is fine")
+        assertNull(chaptersBehind(official = null, have = 0f))
+    }
+
+    @Test
+    fun `the chapter count is read even when sent as text`() {
+        val r = record(berserk.replace("\"status\":\"releasing\",", "\"status\":\"releasing\",\"total_chapters\":\"401\","))
+        assertEquals(401, r.chapters)
+    }
 }

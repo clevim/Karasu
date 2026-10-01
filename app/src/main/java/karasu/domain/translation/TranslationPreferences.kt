@@ -10,6 +10,16 @@ class TranslationPreferences(private val preferenceStore: PreferenceStore) {
 
     fun autoTranslateAfterDownload() = preferenceStore.getBoolean("auto_translate_after_download", false)
 
+    /**
+     * Automatic translation waits for an unmetered network. On by default: with Gemini reading
+     * the pages, a chapter is several megabytes of images uploaded, which nobody expects to
+     * spend from a data plan because a download finished. Translating by hand is never held back.
+     */
+    fun autoTranslateOnlyUnmetered() = preferenceStore.getBoolean("auto_translate_only_unmetered", true)
+
+    /** Chapter ids downloaded on mobile data, waiting for Wi-Fi. See [karasu.translation.PendingTranslationJob]. */
+    fun pendingUnmeteredChapters() = preferenceStore.getStringSet(Preference.appStateKey("pending_unmetered_translations"), emptySet())
+
     fun showTranslations() = preferenceStore.getBoolean("show_translations", true)
 
     /**

@@ -30,20 +30,14 @@ import eu.kanade.tachiyomi.util.system.isTablet
 import eu.kanade.tachiyomi.util.view.activityBinding
 import uy.kohesive.injekt.injectLazy
 import eu.kanade.tachiyomi.ui.setting.infoPreference
-import karasu.domain.translation.TranslationPreferences
 import karasu.domain.ui.settings.ReaderPreferences
 import karasu.domain.ui.settings.ReaderPreferences.CutoutBehaviour
 import karasu.domain.ui.settings.ReaderPreferences.LandscapeCutoutBehaviour
 import karasu.i18n.MR
-import karasu.translation.recognizer.OcrLanguage
-import karasu.translation.translator.TranslationEngine
-import karasu.translation.translator.TranslationLanguages
 import karasu.util.lang.getString
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
-import karasu.translation.data.TranslationCache
-import karasu.translation.translator.OpenRouterQuota
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.util.system.launchIO
@@ -54,7 +48,6 @@ class SettingsReaderController : SettingsLegacyController() {
 
     private val readerPreferences: ReaderPreferences by injectLazy()
 
-    private val translationPreferences: TranslationPreferences by injectLazy()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.reader
@@ -432,112 +425,6 @@ class SettingsReaderController : SettingsLegacyController() {
                 bindTo(preferences.folderPerManga())
                 titleRes = MR.strings.save_pages_separately
                 summaryRes = MR.strings.create_folders_by_manga_title
-            }
-        }
-
-        preferenceCategory {
-            titleRes = MR.strings.translation
-
-            infoPreference(MR.strings.translation_privacy_info)
-            switchPreference {
-                bindTo(translationPreferences.showTranslations())
-                titleRes = MR.strings.show_translations
-                summaryRes = MR.strings.show_translations_summary
-            }
-            switchPreference {
-                bindTo(translationPreferences.balloonBounds())
-                titleRes = MR.strings.translation_balloon_bounds
-                summaryRes = MR.strings.translation_balloon_bounds_summary
-            }
-            switchPreference {
-                bindTo(translationPreferences.autoTranslateAfterDownload())
-                titleRes = MR.strings.auto_translate_after_download
-                summaryRes = MR.strings.auto_translate_after_download_summary
-            }
-            listPreference(activity) {
-                bindTo(translationPreferences.translateFrom())
-                titleRes = MR.strings.translate_from
-                entryValues = OcrLanguage.entries.map { it.name }
-                entries = OcrLanguage.entries.map { TranslationLanguages.displayName(it.code) }
-            }
-            listPreference(activity) {
-                bindTo(translationPreferences.translateTo())
-                titleRes = MR.strings.translate_to
-                entryValues = TranslationLanguages.targets
-                entries = TranslationLanguages.targets.map { TranslationLanguages.displayName(it) }
-            }
-            listPreference(activity) {
-                bindTo(translationPreferences.engine())
-                titleRes = MR.strings.translation_engine
-                entryValues = TranslationEngine.entries.map { it.name }
-                entries = TranslationEngine.entries.map { it.label }
-            }
-            // One set of fields per engine, each shown only for the engine it belongs to: the
-            // preferences are bound when the screen is built, so a single field could not follow
-            // the engine picker anyway, and each engine keeps its own stored values.
-            TranslationEngine.entries.filter { it.needsApiKey }.forEach { engine ->
-                editTextPreference(activity) {
-                    bindTo(translationPreferences.engineApiKey(engine))
-                    titleRes = MR.strings.translation_api_key
-                    summaryRes = MR.strings.translation_api_key_summary
-
-                    translationPreferences.engine().changesIn(viewScope) { isVisible = it == engine }
-                }
-                editTextPreference(activity) {
-                    bindTo(translationPreferences.engineModel(engine))
-                    titleRes = MR.strings.translation_model
-                    summaryRes = if (engine == TranslationEngine.GEMINI) {
-                        MR.strings.translation_model_summary_gemini
-                    } else {
-                        MR.strings.translation_model_summary
-                    }
-
-                    translationPreferences.engine().changesIn(viewScope) { isVisible = it == engine }
-                }
-            }
-            switchPreference {
-                bindTo(translationPreferences.geminiReadsPages())
-                titleRes = MR.strings.translation_gemini_reads_pages
-                summaryRes = MR.strings.translation_gemini_reads_pages_summary
-
-                translationPreferences.engine().changesIn(viewScope) { isVisible = it == TranslationEngine.GEMINI }
-            }
-            preference {
-                titleRes = MR.strings.translation_quota
-                isPersistent = false
-                val quota: OpenRouterQuota = Injekt.get()
-                summary = context.getString(
-                    MR.strings.translation_quota_summary,
-                    quota.remaining(),
-                    quota.cap(),
-                )
-                onClick {
-                    viewScope.launchIO {
-                        quota.refreshCap(translationPreferences.engineApiKey(TranslationEngine.OPENROUTER).get())
-                        withUIContext {
-                            summary = context.getString(
-                                MR.strings.translation_quota_summary,
-                                quota.remaining(),
-                                quota.cap(),
-                            )
-                        }
-                    }
-                }
-                // The free daily allowance is OpenRouter's, not a thing every engine has.
-                translationPreferences.engine().changesIn(viewScope) {
-                    isVisible = it == TranslationEngine.OPENROUTER
-                }
-            }
-            preference {
-                titleRes = MR.strings.translation_clear_cache
-                summaryRes = MR.strings.translation_clear_cache_summary
-                isPersistent = false
-                onClick {
-                    viewScope.launchIO {
-                        Injekt.get<TranslationCache>().clear()
-                        withUIContext { activity?.toast(MR.strings.translation_clear_cache_done) }
-                    }
-                }
             }
         }
     }

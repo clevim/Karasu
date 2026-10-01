@@ -88,7 +88,11 @@ class RecommendationSource(private val context: Context) : CatalogueSource {
         val includeLibrary = filters.filterIsInstance<IncludeLibrary>().firstOrNull()?.state ?: false
         // On by default, so the popular and latest tabs (no filters) hide them too.
         val hideUntrusted = filters.filterIsInstance<HideUntrustedDates>().firstOrNull()?.state ?: true
-        val order = filters.filterIsInstance<OrderBy>().firstOrNull()?.state?.index ?: 0
+        val sort = filters.filterIsInstance<OrderBy>().firstOrNull()?.state
+        val order = sort?.index ?: 0
+        // The sheet starts every option descending (↓) and the arrow flips it; reading only the
+        // index is what made the arrow do nothing.
+        val ascending = sort?.ascending ?: false
         // Every checked tag must be on the entry: checking two narrows, it does not widen.
         val wanted = filters.filterIsInstance<TagGroup>().firstOrNull()?.state
             ?.filter { it.state }?.map { it.name.lowercase() }.orEmpty()
@@ -103,13 +107,8 @@ class RecommendationSource(private val context: Context) : CatalogueSource {
             .filter { item ->
                 wanted.isEmpty() || item.tags.mapNotNull { normalizeTag(it)?.lowercase() }.let { its -> wanted.all { it in its } }
             }
-        items = when (order) {
-            // A source that reports no upload dates leaves firstUpload null; the chapter count is
-            // the next best clue to how new a series is, and keeps the order from being a no-op.
-            1 -> items.sortedWith(compareByDescending<Recommended> { it.firstUpload ?: 0L }.thenBy { it.chapters ?: Int.MAX_VALUE })
-            2 -> items.sortedWith(compareBy<Recommended> { it.chapters ?: Int.MAX_VALUE }.thenByDescending { it.score })
-            else -> items // Already by score, unfetched last.
-        }
+        items = recommendationOrder(order, ascending)?.let(items::sortedWith)
+            ?: items // Best match, descending: already in that order, explore slots included.
 
         val all = items.toList()
         val from = (page - 1) * PAGE_SIZE
@@ -240,3 +239,30 @@ class RecommendationSource(private val context: Context) : CatalogueSource {
         private const val REBUILD_AFTER_ADDS = 10
     }
 }
+
+/**
+ * How the window sorts for the sheet's [index] and arrow, or null for the order it already has
+ * (best match first). Every option means what its arrow says — ↓ is most first, ↑ least first —
+ * and whatever has no value for the key (no dates, no chapter count) goes last both ways rather
+ * than flipping to the top.
+ */
+internal fun recommendationOrder(index: Int, ascending: Boolean): Comparator<Recommended>? = when (index) {
+    // A source that reports no upload dates leaves firstUpload empty; among equal dates the
+    // shorter series is the newer-looking one.
+    1 -> by(ascending) { it.firstUpload?.takeIf { at -> at > 0 } }.then(by(!ascending) { it.chapters })
+    2 -> by(ascending) { it.chapters }.then(by(false) { it.score })
+    else -> if (ascending) by(true) { it.score } else null
+}
+
+private fun <K : Comparable<K>> by(ascending: Boolean, key: (Recommended) -> K?): Comparator<Recommended> =
+    Comparator { a, b ->
+        val x = key(a)
+        val y = key(b)
+        when {
+            x == null && y == null -> 0
+            x == null -> 1
+            y == null -> -1
+            ascending -> x.compareTo(y)
+            else -> y.compareTo(x)
+        }
+    }

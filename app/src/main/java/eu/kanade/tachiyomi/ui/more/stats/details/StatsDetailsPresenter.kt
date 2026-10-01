@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.more.stats.details
 
+import karasu.domain.recommendation.TrackerExtrasStore
+import karasu.domain.recommendation.normalizeTag
 import android.graphics.drawable.Drawable
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
@@ -57,6 +59,7 @@ class StatsDetailsPresenter(
     private val getLibraryManga: GetLibraryManga by injectLazy()
     private val getTrack: GetTrack by injectLazy()
     private val getHistory: GetHistory by injectLazy()
+    private val extras: TrackerExtrasStore by injectLazy()
 
     private val context
         get() = view?.view?.context ?: prefs.context
@@ -133,6 +136,10 @@ class StatsDetailsPresenter(
         }
 
         presenterScope.launchIO {
+            // What the trackers and MangaBaka say about each entry's status, read once per chart:
+            // the source's own word is often "unknown", or "ongoing" years after it ended.
+            statusById = runCatching { extras.all().mapValues { it.value.anyStatus } }.getOrDefault(emptyMap())
+                .mapNotNull { (id, status) -> status?.let { id to it } }.toMap()
             when (selectedStat) {
                 Stats.SERIES_TYPE -> setupSeriesType()
                 Stats.STATUS -> setupStatus()
@@ -173,7 +180,7 @@ class StatsDetailsPresenter(
 
     private suspend fun setupStatus() {
         currentStats = ArrayList()
-        val libraryFormat = mangasDistinct.filterByChip().groupBy { it.manga.status }
+        val libraryFormat = mangasDistinct.filterByChip().groupBy { it.effectiveStatus() }
 
         libraryFormat.forEach { (status, mangaList) ->
             currentStats?.add(
@@ -339,12 +346,13 @@ class StatsDetailsPresenter(
     private suspend fun setupTags() {
         currentStats = ArrayList()
         val mangaFiltered = mangasDistinct.filterByChip()
-        val tags = mangaFiltered.flatMap { it.manga.getTags() }.distinctBy { it.uppercase() }
-        val libraryFormat = tags.map { tag ->
-            tag to mangaFiltered.filter {
-                it.manga.getTags().any { mangaTag -> mangaTag.equals(tag, true) }
-            }
-        }
+        // One bar per tag however each source spells it: "Ação", "Action" and "action" are the
+        // same genre, and the recommender's table already knows it. Grouped in one pass rather
+        // than each tag scanning the whole library.
+        val libraryFormat = mangaFiltered
+            .flatMap { manga -> manga.manga.getTags().mapNotNull(::normalizeTag).distinctBy { it.lowercase() }.map { it to manga } }
+            .groupBy({ it.first.lowercase() }, { it })
+            .map { (_, pairs) -> pairs.first().first to pairs.map { it.second } }
 
         libraryFormat.forEach { (tag, mangaList) ->
             currentStats?.add(
@@ -443,7 +451,7 @@ class StatsDetailsPresenter(
             this
         } else {
             filter { manga ->
-                context.mapStatus(manga.manga.status) in selectedStatus
+                context.mapStatus(manga.effectiveStatus()) in selectedStatus
             }
         }
     }
@@ -572,11 +580,25 @@ class StatsDetailsPresenter(
         return StatsSort.entries.sorted().map { context.getString(it.resourceId) }.toTypedArray()
     }
 
+    /**
+     * Every chart asks for each entry's tracks once per bar, so the tags chart alone was thousands
+     * of queries on a big library. Read once and kept for the screen's life; tracks do not change
+     * while the reader is looking at a chart.
+     */
+    private val tracksById = java.util.concurrent.ConcurrentHashMap<Long, List<Track>>()
+
     suspend fun getTracks(manga: Manga): MutableList<Track> {
-        return getTrack.awaitAllByMangaId(manga.id).toMutableList()
+        val id = manga.id ?: return mutableListOf()
+        tracksById[id]?.let { return it.toMutableList() }
+        return getTrack.awaitAllByMangaId(id).also { tracksById[id] = it }.toMutableList()
     }
 
+    /** Same reason as [tracksById]: reading time per entry, summed once. */
+    private val readTimeById = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
     fun updateLibrary() {
+        tracksById.clear()
+        readTimeById.clear()
         presenterScope.launch { libraryMangas = getLibrary() }
     }
 
@@ -589,8 +611,17 @@ class StatsDetailsPresenter(
     }
 
     private suspend fun List<LibraryManga>.getReadDuration(): Long {
-        return sumOf { manga -> getHistory.awaitAllByMangaId(manga.manga.id!!).sumOf { it.time_read } }
+        return sumOf { manga ->
+            val id = manga.manga.id!!
+            readTimeById[id] ?: getHistory.awaitAllByMangaId(id).sumOf { it.time_read }.also { readTimeById[id] = it }
+        }
     }
+
+    /** See [statusById]. */
+    private fun LibraryManga.effectiveStatus(): Int = manga.id?.let(statusById::get) ?: manga.status
+
+    @Volatile
+    private var statusById: Map<Long, Int> = emptyMap()
 
     /**
      * Get the manga and history grouped by day during the selected period

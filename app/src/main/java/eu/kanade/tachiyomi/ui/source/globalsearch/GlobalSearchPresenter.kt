@@ -1,5 +1,10 @@
 package eu.kanade.tachiyomi.ui.source.globalsearch
 
+import karasu.domain.recommendation.mangaBakaNames
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.database.models.adoptCoverFrom
 import eu.kanade.tachiyomi.data.database.models.create
@@ -189,14 +194,29 @@ open class GlobalSearchPresenter(
      * series under the group's own title; a tracker's romaji or English name is what finds it.
      */
     private suspend fun searchWithFallbacks(source: CatalogueSource, query: String): MangasPage {
+        var last = source.getSearchManga(1, query, source.getFilterList())
+        if (last.mangas.isNotEmpty()) return last
+        // Only now, and once per query however many sources came back empty: a plain search
+        // has no series behind it, so the other names are asked of MangaBaka.
+        val others = fallbackQueries.ifEmpty { namesFor(query).await() }
         // Every extra name is another request on every source that came back empty.
-        val names = listOf(query) + fallbackQueries.filter { !it.equals(query, ignoreCase = true) }.take(MAX_FALLBACKS)
-        var last = MangasPage(emptyList(), false)
-        for (name in names) {
+        for (name in others.filter { !it.equals(query, ignoreCase = true) }.take(MAX_FALLBACKS)) {
             last = source.getSearchManga(1, name, source.getFilterList())
             if (last.mangas.isNotEmpty()) return last
         }
         return last
+    }
+
+    private var names: Pair<String, Deferred<List<String>>>? = null
+
+    @Synchronized
+    private fun namesFor(query: String): Deferred<List<String>> {
+        names?.takeIf { it.first == query }?.let { return it.second }
+        val lookup = presenterScope.async(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            mangaBakaNames(Injekt.get(), query)
+        }
+        names = query to lookup
+        return lookup
     }
 
     fun search(query: String) {

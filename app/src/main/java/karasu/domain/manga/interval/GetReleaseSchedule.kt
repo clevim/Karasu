@@ -201,7 +201,7 @@ class GetReleaseSchedule(
     }
 
     /** What the trackers say when they say something; otherwise what the source says. */
-    private fun effectiveStatus(manga: Manga): Int = extras.get(manga.id)?.anyStatus ?: manga.status
+    private suspend fun effectiveStatus(manga: Manga): Int = extras.get(manga.id)?.anyStatus ?: manga.status
 
     companion object {
         /** "Caught up" for the calendar's purposes. A couple unread is a backlog of an evening. */

@@ -306,8 +306,8 @@
     <string name="recommendation_badge_untrusted_dates">fonte não dá data de verdade</string>
     <string name="recommendation_filter_tags">Só com estas tags</string>
     <string name="recommendation_sort_affinity">Melhor combinação</string>
-    <string name="recommendation_sort_newest">Mais recentes</string>
-    <string name="recommendation_sort_shortest">Menos capítulos</string>
+    <string name="recommendation_sort_newest">Data de início</string>
+    <string name="recommendation_sort_shortest">Capítulos</string>
     <string name="recommendation_refresh">Buscar mais 50</string>
     <string name="recommendation_rebuild">Refazer do zero</string>
     <string name="recommendation_target">Quantidade de recomendações</string>
@@ -329,7 +329,7 @@
     <string name="recommendation_last_built">Última vez %1$s</string>
     <string name="recommendation_never_built">Ainda não feitas</string>
     <string name="recommendation_stage_enriching">Consultando trackers sobre sua biblioteca %1$d/%2$d…</string>
-    <string name="recommendation_mangabaka_credit">As recomendações procuram sua biblioteca pelo título no MangaBaka (mangabaka.org), que liga AniList, MyAnimeList, MangaUpdates, Kitsu, Anime-Planet e Shikimori, para saber os ids, outros nomes, tags e status de cada obra. Dados do MangaBaka, CC BY-NC-SA 4.0.</string>
+    <string name="recommendation_mangabaka_credit">Sua biblioteca é identificada no MangaBaka (mangabaka.org), que junta AniList, MyAnimeList, MangaUpdates, Kitsu e outros, para saber ids, outros nomes, tags e status. Dados do MangaBaka, CC BY-NC-SA 4.0.</string>
     <string name="recommendation_stage_identifying">Identificando sua biblioteca no MangaBaka %1$d/%2$d…</string>
     <string name="recommendation_stage_profile">Lendo sua biblioteca…</string>
     <string name="recommendation_stage_searching">Buscando nas fontes %1$d/%2$d…</string>
@@ -669,6 +669,7 @@
     <string name="only_download_over_wifi">Fazer download apenas via Wi-Fi</string>
     <string name="remove_when_marked_as_read">Excluir ao marcar como lido</string>
     <string name="remove_after_read">Excluir depois de ler</string>
+    <string name="remove_read_older_than">Excluir capítulos lidos há muito tempo</string>
     <string name="custom_location">Pasta personalizado</string>
     <string name="last_read_chapter">Último capítulo lido</string>
     <string name="second_to_last">Penúltimo capítulo</string>
@@ -1034,21 +1035,28 @@
     <string name="show_translations_summary">Desenha o texto traduzido por cima da página nos
         capítulos que já foram traduzidos.</string>
     <string name="auto_translate_after_download">Traduzir depois de baixar</string>
-    <string name="auto_translate_after_download_summary">Cada capítulo é traduzido assim que o
-        download termina. Só dá para traduzir capítulo baixado.</string>
+    <string name="auto_translate_after_download_summary">Cada capítulo é traduzido assim que o download termina.</string>
     <string name="translate_from">Idioma da página</string>
     <string name="translate_to">Traduzir para</string>
     <string name="translation_engine">Motor de tradução</string>
     <string name="translation_api_key">Chave da API</string>
+    <string name="translation_languages">Idiomas</string>
+    <string name="translation_engine_category">Motor</string>
+    <string name="translation_cache">Cache</string>
     <string name="translation_api_key_summary">Necessária para os motores que traduzem na nuvem.</string>
     <string name="translation_model">Modelo</string>
     <string name="translation_clear_cache">Limpar cache de tradução</string>
     <string name="translation_clear_cache_done">Cache de tradução limpo</string>
     <string name="translation_clear_cache_summary">Frases já traduzidas são reaproveitadas entre capítulos. Limpe para refazer uma tradução errada.</string>
+    <string name="auto_translate_only_unmetered">Só no Wi-Fi</string>
+    <string name="auto_translate_only_unmetered_summary">Capítulos baixados nos dados móveis esperam o Wi-Fi para serem traduzidos.</string>
+    <string name="translation_balloon_bounds">Encaixar o texto no balão (experimental)</string>
+    <string name="translation_balloon_bounds_summary">Mede o balão na página para a tradução sair com letra maior. Funciona melhor em balões lisos.</string>
+    <string name="translation_privacy_info">As páginas são lidas no aparelho e só o texto reconhecido vai para um motor na nuvem. Exceção: com "Gemini lê as páginas", as imagens vão para o Google. Capítulo não baixado é buscado na fonte antes, o que gasta dados.</string>
     <string name="translation_gemini_reads_pages">Gemini lê as páginas</string>
-    <string name="translation_gemini_reads_pages_summary">Envia as imagens das páginas ao Gemini, que acha os balões, lê e traduz de uma vez. Bem melhor que o reconhecimento no aparelho em letreiros estilizados e japonês vertical, e gasta cerca de uma requisição a cada 16 páginas. Desligado: só o texto reconhecido é enviado.</string>
-    <string name="translation_model_summary_gemini">Um id de modelo do aistudio.google.com, ex.: gemini-3.5-flash-lite (500 requisições grátis por dia) ou gemma-4-31b-it. Os modelos "Live", TTS e de imagem não traduzem texto.</string>
-    <string name="translation_model_summary">Qualquer id de modelo do openrouter.ai. Evite modelos de raciocínio: eles gastam a resposta inteira pensando e não devolvem nada aproveitável.</string>
+    <string name="translation_gemini_reads_pages_summary">O Gemini vê a página: acha os balões, lê e traduz de uma vez. Bem melhor em letreiro estilizado e japonês vertical. Cerca de uma requisição a cada 16 páginas.</string>
+    <string name="translation_model_summary_gemini">Id do modelo no aistudio.google.com, ex.: gemini-3.5-flash-lite (500 grátis por dia). Modelos "Live", TTS e de imagem não servem.</string>
+    <string name="translation_model_summary">Id do modelo no provedor escolhido. Evite modelos de raciocínio: gastam a resposta pensando e não devolvem tradução.</string>
     <string name="translate_chapter">Traduzir</string>
     <string name="translation_queued">Na fila de tradução</string>
     <string name="translate_pages">Traduzir as páginas</string>
@@ -1403,6 +1411,10 @@
     <string name="merge_source_missing">extensão não instalada</string>
     <string name="merge_suggestion">Também em %1$s</string>
     <string name="merge_suggestion_action">Mesclar</string>
+    <string name="source_check">Testar fontes toda semana</string>
+    <string name="source_check_summary">Uma vez por semana, no Wi-Fi, testa cada fonte usada nestas categorias. O que falhar aparece em Fontes quebradas.</string>
+    <string name="source_behind">Suas fontes estão cerca de %1$d capítulos atrás</string>
+    <string name="source_behind_action">Procurar em outras</string>
     <string name="recommendation_stage_merges">Procurando sua biblioteca em outras fontes %1$d/%2$d…</string>
     <string name="merge_entry_gone">obra não está mais nessa fonte</string>
     <string name="merge_never_synced">nenhum capítulo trazido ainda</string>

@@ -128,9 +128,10 @@ fun domainModule() = module {
     factory { BuildRecommendations(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { RecommendationStore(get<Application>()) }
     factory { DiscardRecommendations(get(), get(), get()) }
-    single { TrackerExtrasStore(get()) }
+    single { TrackerExtrasStore(get(), get()) }
     factory { EnrichFromTrackers(get(), get(), get(), get(), get()) }
     factory { IdentifyWithMangaBaka(get(), get(), get(), get(), get()) }
+    factory { karasu.domain.download.CleanOldDownloads(get(), get(), get(), get(), get(), get()) }
     single { MergeSuggestionsStore(get<Application>()) }
     factory { MangaAliases(get(), get(), get()) }
     factory { FindMergeCandidates(get(), get(), get(), get(), get(), get(), get()) }

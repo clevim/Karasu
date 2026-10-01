@@ -210,4 +210,12 @@
         <item quantity="one">%1$d obra aguardando revisão</item>
         <item quantity="other">%1$d obras aguardando revisão</item>
     </plurals>
+    <plurals name="remove_read_days">
+        <item quantity="one">Lidos há %d dia</item>
+        <item quantity="other">Lidos há mais de %d dias</item>
+    </plurals>
+    <plurals name="source_check_failed">
+        <item quantity="one">%d fonte não está respondendo</item>
+        <item quantity="other">%d fontes não estão respondendo</item>
+    </plurals>
 </resources>
