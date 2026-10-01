@@ -10,6 +10,41 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.12.0]
+
+### Additions
+- Translation engine "Google AI Studio (Gemini)", for the free API keys from aistudio.google.com.
+  It sends a whole chapter in one request where the other engines send four or five, because
+  Gemini's free tier is counted in requests a day; safety filters are turned down so fights and
+  blood do not come back blocked, and running out of the day's requests says so instead of
+  retrying
+- "Gemini reads the pages" (on by default with Gemini): the page images go to Gemini, which finds
+  the balloons, reads and translates them in one go — far better than on-device recognition on
+  stylised lettering, balloons split line by line and vertical Japanese. About one request per 16
+  pages; long strips are sent in overlapping bands. The colour behind the text and the balloon
+  outline are still measured on the device
+- Backups carry the extension repos, numbered as Mihon numbers them, so a Mihon backup brings its
+  repos along too
+- The library is identified on MangaBaka (which maps AniList, MyAnimeList, MangaUpdates, Kitsu,
+  Anime-Planet and Shikimori) during the recommendations build: every entry, tracked or not, gets
+  its ids elsewhere, its other names (Portuguese release names included), genres, defining tags
+  and status. Migration and merged-source search use the names, the release calendar the status,
+  the taste profile the tags. Bound tracks are looked up by id; anything else only on a
+  near-identical title or a close one the author confirms
+
+### Changes
+- Recommendations lean on what readers of your own series recommend: AniList is asked about up to
+  40 of your favourites by id (ten per request) instead of 5 by title search, each suggestion is
+  weighed by how many people backed it and how much you like the series it came from, and that
+  is now the largest term in the score. Tags are weighed by how rare they are among the
+  candidates, so broad ones like "Action" no longer decide everything, and AniList's
+  best-of-genre catalogue is a milder lift. Anything already in the library — by id or by any of
+  its names — is no longer suggested
+- A batch Gemini blocks, or whose reply runs out of room, is split in half and retried instead of
+  losing every line in it
+- Restoring a Mihon backup writes the entries' notes into the restore log, since this app has
+  nowhere to keep them, instead of dropping them silently
+
 ## [1.11.1]
 
 ### Changes
@@ -1027,7 +1062,6 @@ First Karasu release. Based on [yokai 1.10.2](https://github.com/null2264/yokai/
 
 ### Changes
 - Rename project to Yōkai (Z)
-- Replace Tachiyomi's purged extensions with Keiyoushi extensions (Temporary solution until I ported custom extension repo feature) (Z)
 - Unread count now respect scanlator filter (J2K)
 
 ### Fixes

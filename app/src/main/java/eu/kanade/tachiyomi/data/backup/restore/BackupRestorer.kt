@@ -3,6 +3,10 @@ package eu.kanade.tachiyomi.data.backup.restore
 import android.content.Context
 import android.net.Uri
 import eu.kanade.tachiyomi.data.backup.BackupNotifier
+import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepo
+import karasu.domain.extension.repo.ExtensionRepoRepository
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import eu.kanade.tachiyomi.data.backup.restore.restorers.CategoriesBackupRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaBackupRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.PreferenceBackupRestorer
@@ -22,6 +26,7 @@ class BackupRestorer(
     private val categoriesBackupRestorer: CategoriesBackupRestorer = CategoriesBackupRestorer(),
     private val mangaBackupRestorer: MangaBackupRestorer = MangaBackupRestorer(),
     private val preferenceBackupRestorer: PreferenceBackupRestorer = PreferenceBackupRestorer(context),
+    private val extensionRepos: ExtensionRepoRepository = Injekt.get(),
 ) {
     private var restoreAmount = 0
     private var restoreProgress = 0
@@ -66,6 +71,9 @@ class BackupRestorer(
             }
 
             ensureActive()
+            restoreExtensionRepos(backup.backupExtensionRepos)
+
+            ensureActive()
             preferenceBackupRestorer.restoreAppPreferences(backup.backupPreferences) {
                 restoreProgress += 1
                 showRestoreProgress(restoreProgress, restoreAmount, context.getString(MR.strings.app_settings))
@@ -91,9 +99,29 @@ class BackupRestorer(
                         errors.add(Date() to "${manga.title} [$sourceName]: ${e.message}")
                     },
                 )
+                if (it.notes.isNotBlank()) {
+                    errors.add(Date() to "${it.title}: notes not imported, this app has no notes. They were: ${it.notes}")
+                }
             }
         }
         // TODO: optionally trigger online library + tracker update
+    }
+
+    /**
+     * Adds the repos this install does not have yet. One already here — by url, or by signing key
+     * under another url — is left as it is: the user may have moved it on purpose.
+     */
+    private suspend fun restoreExtensionRepos(repos: List<BackupExtensionRepo>) {
+        repos.forEach { repo ->
+            val baseUrl = repo.normalizedBaseUrl
+            try {
+                if (extensionRepos.getRepository(baseUrl) != null) return@forEach
+                if (extensionRepos.getRepositoryBySigningKeyFingerprint(repo.signingKeyFingerprint) != null) return@forEach
+                extensionRepos.insertRepository(baseUrl, repo.name, repo.shortName, repo.website, repo.signingKeyFingerprint)
+            } catch (e: Exception) {
+                errors.add(Date() to "Extension repo $baseUrl: ${e.message}")
+            }
+        }
     }
 
     /**

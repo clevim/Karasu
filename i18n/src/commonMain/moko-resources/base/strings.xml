@@ -299,8 +299,12 @@
     <string name="translation_balloon_bounds">Fit text to the balloon (experimental)</string>
     <string name="translation_balloon_bounds_summary">Measure the speech balloon off the page instead of guessing it from the text, so translations letter larger. Works best on flat balloons; text drawn straight onto the art falls back to the old fit.</string>
     <string name="translation_privacy_info">Pages are read on this device. A cloud engine sends the
-        text it recognised — never the images — to that provider. A chapter that is not downloaded
+        text it recognised — never the images — to that provider, except Gemini with "Gemini reads
+        the pages" on, which sends the page images to Google. A chapter that is not downloaded
         is fetched from the source before it can be translated, which uses data.</string>
+    <string name="translation_gemini_reads_pages">Gemini reads the pages</string>
+    <string name="translation_gemini_reads_pages_summary">Send the page images to Gemini, which finds the balloons, reads them and translates them in one go. Much better than on-device text recognition on stylised lettering and vertical Japanese, and about one request per 16 pages. Off: only the recognised text is sent.</string>
+    <string name="translation_model_summary_gemini">A model id from aistudio.google.com, e.g. gemini-3.5-flash-lite (500 free requests a day) or gemma-4-31b-it. The "Live", TTS and image models do not translate text.</string>
     <string name="translation_engine">Translation engine</string>
     <string name="translation_api_key">API key</string>
     <string name="translation_api_key_summary">Needed by the engines that translate in the cloud.</string>
@@ -439,6 +443,8 @@
     <string name="recommendation_last_built">Last built %1$s</string>
     <string name="recommendation_never_built">Not built yet</string>
     <string name="recommendation_stage_enriching">Asking trackers about your library %1$d/%2$d…</string>
+    <string name="recommendation_mangabaka_credit">Recommendations look your library up by title on MangaBaka (mangabaka.org), which maps AniList, MyAnimeList, MangaUpdates, Kitsu, Anime-Planet and Shikimori, to learn each series\' ids, other names, tags and status. Data from MangaBaka, CC BY-NC-SA 4.0.</string>
+    <string name="recommendation_stage_identifying">Identifying your library on MangaBaka %1$d/%2$d…</string>
     <string name="recommendation_stage_profile">Reading your library…</string>
     <string name="recommendation_stage_searching">Searching sources %1$d/%2$d…</string>
     <string name="recommendation_stage_trackers">Asking trackers %1$d/%2$d…</string>

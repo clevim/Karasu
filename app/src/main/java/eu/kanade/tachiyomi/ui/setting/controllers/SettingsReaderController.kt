@@ -486,10 +486,21 @@ class SettingsReaderController : SettingsLegacyController() {
                 editTextPreference(activity) {
                     bindTo(translationPreferences.engineModel(engine))
                     titleRes = MR.strings.translation_model
-                    summaryRes = MR.strings.translation_model_summary
+                    summaryRes = if (engine == TranslationEngine.GEMINI) {
+                        MR.strings.translation_model_summary_gemini
+                    } else {
+                        MR.strings.translation_model_summary
+                    }
 
                     translationPreferences.engine().changesIn(viewScope) { isVisible = it == engine }
                 }
+            }
+            switchPreference {
+                bindTo(translationPreferences.geminiReadsPages())
+                titleRes = MR.strings.translation_gemini_reads_pages
+                summaryRes = MR.strings.translation_gemini_reads_pages_summary
+
+                translationPreferences.engine().changesIn(viewScope) { isVisible = it == TranslationEngine.GEMINI }
             }
             preference {
                 titleRes = MR.strings.translation_quota

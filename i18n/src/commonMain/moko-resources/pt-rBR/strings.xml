@@ -329,6 +329,8 @@
     <string name="recommendation_last_built">Última vez %1$s</string>
     <string name="recommendation_never_built">Ainda não feitas</string>
     <string name="recommendation_stage_enriching">Consultando trackers sobre sua biblioteca %1$d/%2$d…</string>
+    <string name="recommendation_mangabaka_credit">As recomendações procuram sua biblioteca pelo título no MangaBaka (mangabaka.org), que liga AniList, MyAnimeList, MangaUpdates, Kitsu, Anime-Planet e Shikimori, para saber os ids, outros nomes, tags e status de cada obra. Dados do MangaBaka, CC BY-NC-SA 4.0.</string>
+    <string name="recommendation_stage_identifying">Identificando sua biblioteca no MangaBaka %1$d/%2$d…</string>
     <string name="recommendation_stage_profile">Lendo sua biblioteca…</string>
     <string name="recommendation_stage_searching">Buscando nas fontes %1$d/%2$d…</string>
     <string name="recommendation_stage_trackers">Consultando trackers %1$d/%2$d…</string>
@@ -1043,6 +1045,9 @@
     <string name="translation_clear_cache">Limpar cache de tradução</string>
     <string name="translation_clear_cache_done">Cache de tradução limpo</string>
     <string name="translation_clear_cache_summary">Frases já traduzidas são reaproveitadas entre capítulos. Limpe para refazer uma tradução errada.</string>
+    <string name="translation_gemini_reads_pages">Gemini lê as páginas</string>
+    <string name="translation_gemini_reads_pages_summary">Envia as imagens das páginas ao Gemini, que acha os balões, lê e traduz de uma vez. Bem melhor que o reconhecimento no aparelho em letreiros estilizados e japonês vertical, e gasta cerca de uma requisição a cada 16 páginas. Desligado: só o texto reconhecido é enviado.</string>
+    <string name="translation_model_summary_gemini">Um id de modelo do aistudio.google.com, ex.: gemini-3.5-flash-lite (500 requisições grátis por dia) ou gemma-4-31b-it. Os modelos "Live", TTS e de imagem não traduzem texto.</string>
     <string name="translation_model_summary">Qualquer id de modelo do openrouter.ai. Evite modelos de raciocínio: eles gastam a resposta inteira pensando e não devolvem nada aproveitável.</string>
     <string name="translate_chapter">Traduzir</string>
     <string name="translation_queued">Na fila de tradução</string>

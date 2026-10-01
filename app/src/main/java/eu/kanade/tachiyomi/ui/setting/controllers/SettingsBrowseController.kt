@@ -322,6 +322,9 @@ class SettingsBrowseController : SettingsLegacyController() {
         preferenceCategory {
             titleRes = MR.strings.recommendations
 
+            // Required by MangaBaka's licence (CC BY-NC-SA 4.0), and honest about where data goes.
+            infoPreference(MR.strings.recommendation_mangabaka_credit)
+
             // What gets built.
             intListPreference(activity) {
                 bindTo(preferences.recommendationTarget())

@@ -47,7 +47,7 @@ class MangaAliases(
             .map { it.title }
         // Then every other name the bound trackers listed, fetched overnight: the scanlation
         // group's own Portuguese title is exactly the kind of name only they know.
-        val known = extras.get(manga.id)?.titles.orEmpty()
+        val known = extras.get(manga.id)?.allTitles.orEmpty()
         return (listOf(manga.title) + tracked + known).clean()
     }
 

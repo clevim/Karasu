@@ -19,7 +19,7 @@ fun runCommand(command: String): String {
 }
 
 @Suppress("PropertyName")
-val _versionName = "1.11.1"
+val _versionName = "1.12.0"
 val betaCount by lazy {
     val betaTags = runCommand("git tag -l --sort=refname v${_versionName}-b*")
 
@@ -47,7 +47,7 @@ base {
 android {
     defaultConfig {
         applicationId = "eu.kanade.tachiyomi"
-        versionCode = 164
+        versionCode = 165
         versionName = _versionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true

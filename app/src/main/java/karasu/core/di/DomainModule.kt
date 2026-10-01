@@ -60,6 +60,7 @@ import karasu.domain.recommendation.RecommendationFeedbackStore
 import karasu.domain.recommendation.RecommendationStore
 import karasu.domain.recommendation.TrackerExtrasStore
 import karasu.domain.recommendation.EnrichFromTrackers
+import karasu.domain.recommendation.IdentifyWithMangaBaka
 import karasu.domain.recommendation.FindMergeCandidates
 import karasu.domain.recommendation.MergeSuggestionsStore
 import karasu.domain.migration.MangaAliases
@@ -124,11 +125,12 @@ fun domainModule() = module {
     factory { GetReleaseSchedule(get(), get(), get()) }
     factory { GetTasteProfile(get<Application>(), get(), get(), get(), get(), get(), get(), get()) }
     single { RecommendationFeedbackStore(get()) }
-    factory { BuildRecommendations(get(), get(), get(), get(), get(), get()) }
+    factory { BuildRecommendations(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { RecommendationStore(get<Application>()) }
     factory { DiscardRecommendations(get(), get(), get()) }
     single { TrackerExtrasStore(get()) }
     factory { EnrichFromTrackers(get(), get(), get(), get(), get()) }
+    factory { IdentifyWithMangaBaka(get(), get(), get(), get(), get()) }
     single { MergeSuggestionsStore(get<Application>()) }
     factory { MangaAliases(get(), get(), get()) }
     factory { FindMergeCandidates(get(), get(), get(), get(), get(), get(), get()) }

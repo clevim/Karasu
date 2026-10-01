@@ -13,6 +13,8 @@ import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SManga
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.track.interactor.GetTrack
+import eu.kanade.tachiyomi.data.track.TrackManager
 import karasu.util.normalizedLevenshteinSimilarity
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.async
@@ -53,6 +55,8 @@ class BuildRecommendations(
     private val sourceManager: SourceManager,
     private val preferences: PreferencesHelper,
     private val network: NetworkHelper,
+    private val extras: TrackerExtrasStore,
+    private val getTrack: GetTrack,
 ) {
     /**
      * Gathers every candidate — the tag searches across every enabled source, plus the trackers'
@@ -66,23 +70,33 @@ class BuildRecommendations(
         onProgress(BuildProgress(BuildProgress.Stage.PROFILE))
         val profile = getTasteProfile.await()
         val library = getLibraryManga.await().distinctBy { it.manga.id }
-        val known = library.map { it.manga.title.key() }.toSet()
+        val ids = libraryIds(library)
+        // Every name every entry goes by, not just the one its source uses: a Portuguese source's
+        // title for a series is rarely the name a catalogue suggests it under.
+        val known = library.flatMap { listOf(it.manga.title) + extras.get(it.manga.id)?.allTitles.orEmpty() }
+            .map { it.key() }.filter { it.isNotEmpty() }.toSet()
+        val knownSeries = ExternalSuggestions.Known(
+            anilist = ids.values.mapNotNull { it[ExternalIds.ANILIST]?.toLongOrNull() }.toSet(),
+            mal = ids.values.mapNotNull { it[ExternalIds.MAL]?.toLongOrNull() }.toSet(),
+            titles = known,
+        )
 
         val fromLibrary = library.filter { it.read == 0 }.map { it.toRecommended() }
         val hits = searchSources(profile, onProgress)
             // Whatever the library already has, however another source spells it, is not a discovery.
             .filter { it.title.key() !in known }
-        val suggested = suggestions(profile, library, onProgress).filter { it.title.key() !in known }
+        val suggested = suggestions(profile, library, ids, knownSeries, onProgress).filter { it.title.key() !in known }
         val suggestedKeys = suggested.map { it.title.key() }.toSet()
 
-        // AniList's catalogue first — the only candidates that arrive already rated by people —
-        // then the trackers' "like this", then the hits by preliminary rank. Copies of one series
-        // on several sources stay together, so a batch reads all of them and the one with the
-        // most chapters can be kept.
-        val preliminary = profile.rank(hits.filter { it.title.key() !in suggestedKeys }) { it.tags }
+        // What readers of the reader's own series recommend first, strongest first — the one
+        // source of candidates that knows about *this* reader — then AniList's catalogue, then
+        // the tag hits by preliminary rank. Copies of one series on several sources stay
+        // together, so a batch reads all of them and the one with the most chapters can be kept.
+        val preliminary = profile.rank(hits.filter { it.title.key() !in suggestedKeys }, tagRarity(hits.map { it.tags })) { it.tags }
             .map { it.item.copy(score = it.score, because = it.because) }
         val (fromCatalog, fromTrackers) = suggested.partition { it.fromCatalog }
-        val queue = fromCatalog + fromTrackers + preliminary.groupBy { it.title.key() }.values.flatMap { it.take(COPIES) }
+        val queue = fromTrackers.sortedByDescending { it.cf } + fromCatalog +
+            preliminary.groupBy { it.title.key() }.values.flatMap { it.take(COPIES) }
 
         return RecommendationSnapshot(
             builtAt = now,
@@ -124,6 +138,8 @@ class BuildRecommendations(
                 same.maxBy { it.chapters ?: -1 }.copy(
                     via = same.firstNotNullOfOrNull { it.via },
                     votes = same.maxOf { it.votes },
+                    cf = same.maxOf { it.cf },
+                    anilistId = same.firstNotNullOfOrNull { it.anilistId },
                     foundByTag = same.any { it.foundByTag },
                     tags = same.flatMap { it.tags }.distinctBy { it.lowercase() },
                 )
@@ -143,8 +159,7 @@ class BuildRecommendations(
 
     /** The window's order: everything that is shown, scored fresh against [profile]. */
     private fun rank(items: List<Recommended>, profile: TasteProfile, fame: Map<String, Pair<Int, Int?>>, now: Long): List<Recommended> =
-        profile.rank(items) { it.tags }
-            .map { it.item.copy(score = it.score, because = it.because) }
+        rankItems(items, profile)
             // Nothing to read yet is nothing to recommend, whatever it is tagged with; nor is
             // something its source stopped updating long ago for its size.
             .filter { it.fromLibrary || (it.chapters != 0 && !it.isOneShot && !it.isStale(now)) }
@@ -195,6 +210,8 @@ class BuildRecommendations(
     private suspend fun suggestions(
         profile: TasteProfile,
         library: List<LibraryManga>,
+        ids: Map<Long, Map<String, String>>,
+        known: ExternalSuggestions.Known,
         onProgress: suspend (BuildProgress) -> Unit,
     ): List<Recommended> {
         // Every enabled source the library actually uses, most used first: the lookup stops at
@@ -206,12 +223,27 @@ class BuildRecommendations(
             .mapNotNull { enabled[it.key] }
         val languages = preferences.enabledLanguages().get().toList()
         val external = ExternalSuggestions(network, languages)
-        val similar = external.await(profile.seeds.map { it.title }, mostRead) { done, total ->
+        // Strongest first, weighted by rank: a recommendation from the reader's favourite counts
+        // for more than one from the fortieth thing they finished.
+        val seeds = profile.seeds.mapIndexed { i, entry ->
+            val its = ids[entry.mangaId].orEmpty()
+            ExternalSuggestions.Seed(
+                title = entry.title,
+                weight = 1f - SEED_WEIGHT_SPAN * i / profile.seeds.size.coerceAtLeast(1),
+                anilistId = its[ExternalIds.ANILIST]?.toLongOrNull(),
+                malId = its[ExternalIds.MAL]?.toLongOrNull(),
+                muId = its[ExternalIds.MANGA_UPDATES]?.let { mu -> mu.toLongOrNull() ?: mu.toLongOrNull(36) },
+            )
+        }
+        val similar = external.await(seeds, mostRead, known) { done, total ->
             onProgress(BuildProgress(BuildProgress.Stage.TRACKERS, done, total))
         }
         val catalog = runCatching { external.catalog(profile, countryFor(profile), preferences.recommendationRecentYears().get()) }
             .onFailure { Logger.w(it) { "AniList catalogue pass failed" } }
             .getOrDefault(emptyList())
+            // Already in the library under another name, or by id: not a discovery, and every one
+            // skipped is a search across the sources saved.
+            .filterNot { it in known }
         val located = external.locate(catalog, mostRead) { done, total ->
             onProgress(BuildProgress(BuildProgress.Stage.TRACKERS, done, total))
         }
@@ -230,9 +262,30 @@ class BuildRecommendations(
                     popularity = it.suggestion.popularity,
                     averageScore = it.suggestion.averageScore,
                     fromCatalog = it.suggestion.fromCatalog,
+                    cf = it.suggestion.cf,
+                    anilistId = it.suggestion.anilistId,
                 )
             }
             .distinctBy { it.title.key() }
+    }
+
+    /**
+     * Each entry's ids elsewhere: what MangaBaka and the trackers' enrichment found, with the
+     * tracks the reader bound on top — those are the reader's own word on which series it is.
+     */
+    private suspend fun libraryIds(library: List<LibraryManga>): Map<Long, Map<String, String>> {
+        val tracks = runCatching { getTrack.awaitAll() }.getOrDefault(emptyList()).groupBy { it.manga_id }
+        return library.mapNotNull { it.manga.id }.associateWith { id ->
+            val bound = tracks[id].orEmpty().mapNotNull { track ->
+                when (track.sync_id) {
+                    TrackManager.ANILIST -> ExternalIds.ANILIST
+                    TrackManager.MYANIMELIST -> ExternalIds.MAL
+                    TrackManager.KITSU -> ExternalIds.KITSU
+                    else -> null
+                }?.let { it to track.media_id.toString() }
+            }
+            extras.get(id)?.ids.orEmpty() + bound
+        }
     }
 
     /**
@@ -437,6 +490,9 @@ class BuildRecommendations(
         private const val REQUEST_TIMEOUT_MS = 30_000L
 
         private const val ANILIST = "https://graphql.anilist.co/"
+
+        /** The weakest seed's recommendations count this much less than the strongest's. */
+        private const val SEED_WEIGHT_SPAN = 0.6f
 
         /** Aliased searches per GraphQL request. AniList's complexity limit allows a few dozen. */
         private const val POPULARITY_BATCH = 25

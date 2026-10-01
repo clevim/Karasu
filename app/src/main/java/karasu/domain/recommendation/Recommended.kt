@@ -26,8 +26,12 @@ import kotlinx.serialization.Serializable
  * @param explore recommended on tags the library barely backs: the slice kept for surprises.
  * @param foundByTag it came up in a genre search of a source, not only from a tracker.
  * @param fromCatalog found in AniList's own catalogue under the reader's tags, with a score the
- *   community gave it. The one signal here that says "good", not only "matches", so it weighs
- *   most: see [withBonuses].
+ *   community gave it. It says "good", but not "good *for this reader*": the best-rated series of
+ *   a genre are the ones everyone has already read, so it is a mild lift, not the main one.
+ * @param cf how strongly readers of the reader's own series recommend this one, 0..1: the sum,
+ *   over every seed that recommends it, of how much the reader likes that seed times how many
+ *   people backed the recommendation, scaled to the strongest. The signal that knows what tags
+ *   cannot — that people who loved X loved Y — and so the largest single term in the score.
  * @param oneShotChapters most of its chapters call themselves a one-shot. The tags and the
  *   title do not always say; the chapter list usually does.
  * @param datesUntrusted the source reports no real dates (none, or the fetch time on every
@@ -60,6 +64,9 @@ data class Recommended(
     val datesUntrusted: Boolean = false,
     val oneShotChapters: Boolean = false,
     val fromCatalog: Boolean = false,
+    val cf: Float = 0f,
+    /** The series' AniList id when known: dedupes against the library by id, not by spelling. */
+    val anilistId: Long? = null,
 ) {
     /**
      * Everything that moves a freshly ranked score, in one place so a build and a re-rank agree:
@@ -68,7 +75,9 @@ data class Recommended(
      * orders candidates the tags could not tell apart and never moves one past a better match.
      */
     fun withBonuses(now: Long): Recommended {
-        var s = score
+        // Added, not multiplied: a series readers of the reader's favourites keep recommending
+        // belongs in the window even when its source tags it thinly.
+        var s = score + CF_WEIGHT * cf
         if (datesUntrusted) s *= UNTRUSTED_DATES_PENALTY
         if (isQuiet(now)) s *= QUIET_PENALTY
         if (via != null && foundByTag) s *= BOTH_WAYS
@@ -78,8 +87,6 @@ data class Recommended(
             val avg = averageScore?.let { it / 100f } ?: pop
             s *= 1f + QUALITY_LIFT * (pop + avg) / 2f
         }
-        // The community's verdict is the strongest thing known about a series: a catalogue find
-        // rated 85 is lifted by nearly half, on top of what its tags earned.
         if (fromCatalog) averageScore?.let { s *= 1f + CATALOG_LIFT * (it / 100f) }
         return copy(score = s)
     }
@@ -165,7 +172,10 @@ data class Recommended(
         private const val QUALITY_LIFT = 0.15f
 
         /** The most AniList's score can add to a catalogue find. */
-        private const val CATALOG_LIFT = 0.5f
+        private const val CATALOG_LIFT = 0.2f
+
+        /** What the strongest co-recommendation adds: about a strong tag match's worth. */
+        private const val CF_WEIGHT = 1f
 
         /** One explore slot in every this many. */
         const val EXPLORE_EVERY = 5
@@ -230,8 +240,8 @@ fun RecommendationSnapshot.rerank(profile: TasteProfile): RecommendationSnapshot
     if (profile.tags == profileTags) return this
     val (fetched, rest) = items.partition { it.fetched || it.fromLibrary }
     val now = System.currentTimeMillis()
-    val ranked = profile.rank(fetched) { it.tags }
-        .map { it.item.copy(score = it.score, because = it.because).withBonuses(now) }
+    val ranked = rankItems(fetched, profile)
+        .map { it.withBonuses(now) }
         .map { item -> item.copy(explore = item.because.isNotEmpty() && item.because.all { (profile.support[it] ?: 0) <= Recommended.EXPLORE_SUPPORT }) }
         .sortedByDescending { it.score }
         .withExploreSlots() +
@@ -246,7 +256,7 @@ fun RecommendationSnapshot.rerank(profile: TasteProfile): RecommendationSnapshot
  *   seeds asked about. Zero total means the stage has no countable unit.
  */
 data class BuildProgress(val stage: Stage, val done: Int = 0, val total: Int = 0) {
-    enum class Stage { ENRICHING, MERGES, PROFILE, SEARCHING, TRACKERS, DETAILS, RANKING }
+    enum class Stage { ENRICHING, IDENTIFYING, MERGES, PROFILE, SEARCHING, TRACKERS, DETAILS, RANKING }
 }
 
 /**
@@ -277,3 +287,23 @@ fun uploadDatesUntrusted(dates: List<Long>): Boolean {
 }
 
 private const val SAME_MOMENT_MS = 24L * 60 * 60 * 1000
+
+/**
+ * [items] scored against [profile]: tags weighed by how rare they are in this pool, plus whatever
+ * readers of the reader's own series said. Bonuses are the caller's.
+ *
+ * The tag ranker drops what shares no liked tag. A series people who read the reader's
+ * favourites recommend is kept anyway, at a tag score of zero — its source may simply tag it
+ * thinly — unless it carries a tag the reader is against.
+ */
+fun rankItems(items: List<Recommended>, profile: TasteProfile): List<Recommended> {
+    val rarity = tagRarity(items.map { it.tags })
+    val ranked = profile.rank(items, rarity) { it.tags }.map { it.item.copy(score = it.score, because = it.because) }
+    val kept = ranked.map { it.sourceId to it.url }.toSet()
+    val disliked = profile.tags.filterValues { it < 0f }.keys.map { it.lowercase() }.toSet()
+    val carried = items.filter { item ->
+        item.cf > 0f && (item.sourceId to item.url) !in kept &&
+            item.tags.mapNotNull(::normalizeTag).none { it.lowercase() in disliked }
+    }.map { it.copy(score = 0f, because = emptyList()) }
+    return ranked + carried
+}

@@ -109,7 +109,7 @@ class GetTasteProfile(
     private fun LibraryManga.toEntry(ratings: List<Rating>) = LibraryEntry(
         mangaId = manga.id!!,
         title = manga.title,
-        tags = manga.getOriginalGenres().orEmpty() + extras.get(manga.id)?.tags.orEmpty(),
+        tags = manga.getOriginalGenres().orEmpty() + extras.get(manga.id)?.allTags.orEmpty(),
         readFraction = if (totalChapters > 0) read.toFloat() / totalChapters else 0f,
         favorite = manga.favorite,
         ratings = ratings,

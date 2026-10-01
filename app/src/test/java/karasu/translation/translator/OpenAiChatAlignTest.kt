@@ -1,6 +1,7 @@
 package karasu.translation.translator
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
@@ -96,5 +97,41 @@ class OpenAiChatBatchTest {
 
         assertEquals(2, batches.size)
         assertEquals(5000, batches.first().single().length)
+    }
+}
+
+class GeminiTest {
+
+    private val translator = OpenAiChatTranslator(
+        fromLang = karasu.translation.recognizer.OcrLanguage.ENGLISH,
+        toLang = "pt-BR",
+        apiKey = "k",
+        modelName = "gemini-3.5-flash-lite",
+        gemini = true,
+        batchChars = OpenAiChatTranslator.GEMINI_BATCH_CHARS,
+        batchBubbles = OpenAiChatTranslator.GEMINI_BATCH_BUBBLES,
+    )
+
+    @Test
+    fun `an ordinary chapter goes out as one request`() {
+        // The free tier is counted in requests a day, so this is the number that matters.
+        assertEquals(1, translator.batches(List(90) { "a line of dialogue number $it" }).size)
+    }
+
+    @Test
+    fun `the reply text is read past thought parts`() {
+        val reply = Json.parseToJsonElement(
+            """{"candidates":[{"content":{"parts":[{"text":"hmm","thought":true},{"text":"{\"t0\":\"um\"}"}]},"finishReason":"STOP"}]}""",
+        ).jsonObject
+        assertEquals("{\"t0\":\"um\"}", geminiText(reply, "Gemini"))
+    }
+
+    @Test
+    fun `a blocked batch says so instead of failing on a missing field`() {
+        val reply = Json.parseToJsonElement(
+            """{"promptFeedback":{"blockReason":"PROHIBITED_CONTENT"}}""",
+        ).jsonObject
+        val e = assertThrows<RetryInHalvesException> { geminiText(reply, "Gemini") }
+        assertTrue("PROHIBITED_CONTENT" in e.message.orEmpty())
     }
 }

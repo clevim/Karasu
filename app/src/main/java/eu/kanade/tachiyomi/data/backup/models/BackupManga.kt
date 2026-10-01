@@ -46,6 +46,11 @@ data class BackupManga(
     @ProtoNumber(104) var history: List<BackupHistory> = emptyList(),
     @ProtoNumber(105) var updateStrategy: UpdateStrategy = UpdateStrategy.ALWAYS_UPDATE,
     @ProtoNumber(108) var excludedScanlators: List<String> = emptyList(),
+    /**
+     * Mihon's notes on an entry. Read only: this app has nowhere to keep them, so the restore
+     * writes them into its log rather than dropping them without a word. Never written here.
+     */
+    @ProtoNumber(110) var notes: String = "",
 
     // SY specific values
     @ProtoNumber(602) var customStatus: Int = 0,

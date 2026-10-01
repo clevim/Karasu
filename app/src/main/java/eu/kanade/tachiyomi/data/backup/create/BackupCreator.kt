@@ -26,6 +26,8 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import karasu.domain.backup.BackupPreferences
 import karasu.domain.manga.interactor.GetManga
+import karasu.domain.extension.repo.interactor.GetExtensionRepo
+import eu.kanade.tachiyomi.data.backup.models.toBackup
 import karasu.i18n.MR
 import karasu.util.lang.getString
 
@@ -36,6 +38,7 @@ class BackupCreator(
     private val preferenceBackupCreator: PreferenceBackupCreator = PreferenceBackupCreator(),
     private val sourcesBackupCreator: SourcesBackupCreator = SourcesBackupCreator(),
     private val getManga: GetManga = Injekt.get(),
+    private val getExtensionRepo: GetExtensionRepo = Injekt.get(),
 ) {
 
     val parser = ProtoBuf
@@ -80,6 +83,8 @@ class BackupCreator(
                 backupSources = backupSources(backupManga),
                 backupPreferences = backupAppPreferences(options),
                 backupSourcePreferences = backupSourcePreferences(options),
+                // With the app settings: they are what decides which extensions show up at all.
+                backupExtensionRepos = if (options.appPrefs) getExtensionRepo.getAll().map { it.toBackup() } else emptyList(),
             )
 
             val byteArray = parser.encodeToByteArray(Backup.serializer(), backup)

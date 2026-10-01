@@ -4,7 +4,13 @@ import karasu.domain.translation.TranslationPreferences
 import karasu.translation.model.PageTranslation
 import karasu.translation.model.SeriesNotes
 import karasu.translation.recognizer.OcrLanguage
+import karasu.translation.translator.OpenAiChatTranslator.Companion.BATCH_BUBBLES
+import karasu.translation.translator.OpenAiChatTranslator.Companion.BATCH_CHARS
 import karasu.translation.translator.OpenAiChatTranslator.Companion.DEEPSEEK_ENDPOINT
+import karasu.translation.translator.OpenAiChatTranslator.Companion.GEMINI_BATCH_BUBBLES
+import karasu.translation.translator.OpenAiChatTranslator.Companion.GEMINI_BATCH_CHARS
+import karasu.translation.translator.OpenAiChatTranslator.Companion.GEMINI_MAX_TOKENS
+import karasu.translation.translator.OpenAiChatTranslator.Companion.MAX_TOKENS
 import karasu.translation.translator.OpenAiChatTranslator.Companion.OPENROUTER_ENDPOINT
 import java.io.Closeable
 import uy.kohesive.injekt.Injekt
@@ -41,6 +47,7 @@ enum class TranslationEngine(
     MLKIT("ML Kit (on device)", false),
     OPENROUTER("OpenRouter", true, defaultModel = "google/gemma-4-31b-it:free"),
     DEEPSEEK("DeepSeek", true, defaultModel = "deepseek-chat"),
+    GEMINI("Google AI Studio (Gemini)", true, defaultModel = "gemini-3.5-flash-lite"),
     ;
 
     /** @param context what is known about this series (notes, glossary); only an LLM uses it. */
@@ -51,9 +58,10 @@ enum class TranslationEngine(
         context: SeriesNotes = SeriesNotes(),
     ): TextTranslator = when (this) {
         MLKIT -> MLKitTranslator(fromLang, toLang)
-        // One client for both: they speak the same OpenAI-shaped protocol, and what differs is
-        // the address, the attribution headers and whether there is a free allowance to check.
-        OPENROUTER, DEEPSEEK -> OpenAiChatTranslator(
+        // One client for all three: the request, batching, glossary and alignment are the same,
+        // and what differs is the address, the wire format (Gemini speaks its own, see
+        // [OpenAiChatTranslator.gemini]) and whether there is a free allowance to check.
+        OPENROUTER, DEEPSEEK, GEMINI -> OpenAiChatTranslator(
             fromLang = fromLang,
             toLang = toLang,
             apiKey = preferences.engineApiKey(this).get(),
@@ -62,6 +70,10 @@ enum class TranslationEngine(
             endpoint = if (this == DEEPSEEK) DEEPSEEK_ENDPOINT else OPENROUTER_ENDPOINT,
             providerName = label,
             quota = if (this == OPENROUTER) Injekt.get() else null,
+            gemini = this == GEMINI,
+            batchChars = if (this == GEMINI) GEMINI_BATCH_CHARS else BATCH_CHARS,
+            batchBubbles = if (this == GEMINI) GEMINI_BATCH_BUBBLES else BATCH_BUBBLES,
+            maxTokens = if (this == GEMINI) GEMINI_MAX_TOKENS else MAX_TOKENS,
         )
     }
 }

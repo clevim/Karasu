@@ -1,7 +1,6 @@
 package karasu.translation.translator
 
 import co.touchlab.kermit.Logger
-import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
 import karasu.translation.model.PageTranslation
@@ -9,7 +8,6 @@ import karasu.translation.model.SeriesNotes
 import karasu.translation.model.TranslationBlock
 import karasu.translation.model.sourceText
 import karasu.translation.recognizer.OcrLanguage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -25,15 +23,13 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.putJsonArray
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import uy.kohesive.injekt.injectLazy
-import java.util.concurrent.TimeUnit
 
 /**
  * Translates through an LLM, so it can use the surrounding bubbles as context.
- * Needs an API key from openrouter.ai.
+ * Needs an API key from OpenRouter, DeepSeek or Google AI Studio.
  *
  * Bubbles are sent in batches of consecutive pages rather than one request per page. OpenRouter's
  * free tier allows 20 requests a minute and 50 a day on an account that has never bought credits,
@@ -62,6 +58,13 @@ class OpenAiChatTranslator(
      * neither, and passing null is what says so.
      */
     private val quota: OpenRouterQuota? = null,
+    /** Speak Google's own `generateContent` instead of the OpenAI-shaped endpoint. See Gemini.kt. */
+    private val gemini: Boolean = false,
+    /** Source characters per request. See [BATCH_CHARS]. */
+    private val batchChars: Int = BATCH_CHARS,
+    /** Lines per request. See [BATCH_BUBBLES]. */
+    private val batchBubbles: Int = BATCH_BUBBLES,
+    private val maxTokens: Int = MAX_TOKENS,
 ) : TextTranslator {
 
     private val network: NetworkHelper by injectLazy()
@@ -72,17 +75,7 @@ class OpenAiChatTranslator(
 
     override val learned: Map<String, String> get() = _learned
 
-    /**
-     * The shared client gives up after two minutes, which is right for fetching a page and wrong
-     * for this: a free model generating a batch of translations at six tokens a second was being
-     * cut off mid-answer, and OpenRouter logged the generation as cancelled.
-     */
-    private val slowClient by lazy {
-        network.client.newBuilder()
-            .readTimeout(TRANSLATE_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-            .callTimeout(TRANSLATE_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-            .build()
-    }
+    private val slowClient by lazy { slowClient(network) }
 
     override suspend fun translate(pages: MutableMap<String, PageTranslation>) {
         if (apiKey.isBlank()) error("$providerName API key is not set")
@@ -120,18 +113,22 @@ class OpenAiChatTranslator(
         var translatedAny = false
         work.forEach { batch ->
             try {
-                val translations = requestBatch(batch)
-                // A reply nothing could be lined up with leaves every bubble blank, and a blank
-                // bubble is dropped below. Say so instead: a whole batch that lined up with
-                // nothing is a failure, not a chapter that happened to have no dialogue there.
-                require(translations.any { !it.isNullOrBlank() }) {
-                    "$providerName replied with nothing that matched the ${batch.size} lines sent"
-                }
-                translatedAny = true
-                batch.forEachIndexed { i, text ->
-                    val translated = translations.getOrNull(i).orEmpty()
-                    byText[text]?.forEach { it.translation = translated }
-                }
+                // A batch Gemini blocks or cannot fit is split and retried, so one bad line costs
+                // that line and not the twenty around it. Other engines never ask for that.
+                inHalves(batch) { part ->
+                    val translations = requestBatch(part)
+                    // A reply nothing could be lined up with leaves every bubble blank, and a
+                    // blank bubble is dropped below. Say so instead: a whole batch that lined up
+                    // with nothing is a failure, not a chapter that had no dialogue there.
+                    require(translations.any { !it.isNullOrBlank() }) {
+                        "$providerName replied with nothing that matched the ${part.size} lines sent"
+                    }
+                    translatedAny = true
+                    part.forEachIndexed { i, text ->
+                        val translated = translations.getOrNull(i).orEmpty()
+                        byText[text]?.forEach { it.translation = translated }
+                    }
+                }?.let { failure = it }
             } catch (e: CancellationException) {
                 // runCatching used to be here, which swallows this one too — a translation the
                 // user cancelled would have carried on to the next batch.
@@ -171,7 +168,7 @@ class OpenAiChatTranslator(
         var budget = 0
         for (text in texts) {
             val last = batches.lastOrNull()
-            if (last == null || last.size >= BATCH_BUBBLES || budget + text.length > BATCH_CHARS) {
+            if (last == null || last.size >= batchBubbles || budget + text.length > batchChars) {
                 batches += mutableListOf(text)
                 budget = text.length
             } else {
@@ -184,10 +181,38 @@ class OpenAiChatTranslator(
 
     /** @return one entry per line in [batch], null where the reply had nothing for it. */
     private suspend fun requestBatch(batch: List<String>): List<String?> {
+        val request = if (gemini) geminiRequest(batch) else chatRequest(batch)
+
+        // The tally is per install, so a key used from somewhere else drifts. A 429 is
+        // OpenRouter's own word on it and outranks whatever was counted here.
+        val content = withRateLimitRetry(providerName, modelName, onRateLimited = { quota?.exhaustToday() }) {
+            // Recorded before the call, and whatever it returns: a request that failed still
+            // spent one of the day's allowance.
+            quota?.record()
+            slowClient.newCall(request).awaitSuccess().use { response ->
+                val reply = json.parseToJsonElement(response.body.string()).jsonObject
+                if (gemini) geminiText(reply, providerName) else chatContent(reply)
+            }
+        }
+
+        val reply = json.parseToJsonElement(content.extractJson())
+        // Lifted out before alignment, so everything below sees exactly the shape it always saw.
+        // `alignToBatch` falls back on entry *count* when a model renames the keys, and an extra
+        // key would push that count off by one and fail a reply that used to line up.
+        val translations = if (reply is JsonObject && reply.containsKey(GLOSSARY_KEY)) {
+            remember(reply[GLOSSARY_KEY])
+            JsonObject(reply.filterKeys { it != GLOSSARY_KEY })
+        } else {
+            reply
+        }
+        return alignToBatch(translations, batch.size)
+    }
+
+    private fun chatRequest(batch: List<String>): Request {
         val body = buildJsonObject {
             put("model", modelName)
             put("temperature", 0.3)
-            put("max_tokens", MAX_TOKENS)
+            put("max_tokens", maxTokens)
             // A reasoning model spends `max_tokens` thinking before it writes anything, so it
             // reaches the cap having produced no JSON at all — which is exactly what the free
             // router handed back when it picked one. There is nothing here worth reasoning about.
@@ -211,9 +236,9 @@ class OpenAiChatTranslator(
                     put("content", sourceObject(batch))
                 }
             }
-        }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        }.toString().toRequestBody(JSON_MEDIA_TYPE)
 
-        val request = Request.Builder()
+        return Request.Builder()
             .url(endpoint)
             .header("Authorization", "Bearer $apiKey")
             // Both are optional, and both are what OpenRouter attributes the traffic to; without
@@ -222,35 +247,34 @@ class OpenAiChatTranslator(
             .header("X-Title", APP_NAME)
             .post(body)
             .build()
-
-        val content = withRateLimitRetry {
-            // Recorded before the call, and whatever it returns: a request that failed still
-            // spent one of the day's allowance.
-            quota?.record()
-            slowClient.newCall(request).awaitSuccess().use { response ->
-                val reply = json.parseToJsonElement(response.body.string()).jsonObject
-                // Which model actually served this. `openrouter/free` picks a different one on
-                // every request, so when a chapter comes back badly translated this is the only
-                // way to tell whether it was the prompt or the model of the day.
-                Logger.d { "OpenRouter used ${reply["model"]?.jsonPrimitive?.contentOrNull}" }
-                reply["choices"]!!.jsonArray[0]
-                    .jsonObject["message"]!!
-                    .jsonObject["content"]!!.jsonPrimitive.content
-            }
-        }
-
-        val reply = json.parseToJsonElement(content.extractJson())
-        // Lifted out before alignment, so everything below sees exactly the shape it always saw.
-        // `alignToBatch` falls back on entry *count* when a model renames the keys, and an extra
-        // key would push that count off by one and fail a reply that used to line up.
-        val translations = if (reply is JsonObject && reply.containsKey(GLOSSARY_KEY)) {
-            remember(reply[GLOSSARY_KEY])
-            JsonObject(reply.filterKeys { it != GLOSSARY_KEY })
-        } else {
-            reply
-        }
-        return alignToBatch(translations, batch.size)
     }
+
+    private fun chatContent(reply: JsonObject): String {
+        // Which model actually served this. `openrouter/free` picks a different one on every
+        // request, so when a chapter comes back badly translated this is the only way to tell
+        // whether it was the prompt or the model of the day.
+        Logger.d { "$providerName used ${reply["model"]?.jsonPrimitive?.contentOrNull}" }
+        return reply["choices"]!!.jsonArray[0]
+            .jsonObject["message"]!!
+            .jsonObject["content"]!!.jsonPrimitive.content
+    }
+
+    private fun geminiRequest(batch: List<String>): Request = geminiRequest(
+        apiKey,
+        modelName,
+        buildJsonObject {
+            putJsonObject("systemInstruction") {
+                putJsonArray("parts") { addJsonObject { put("text", systemPrompt(batch)) } }
+            }
+            putJsonArray("contents") {
+                addJsonObject {
+                    put("role", "user")
+                    putJsonArray("parts") { addJsonObject { put("text", sourceObject(batch)) } }
+                }
+            }
+            putGeminiConfig(modelName, maxTokens)
+        },
+    )
 
     /**
      * Keeps the terms the model says it settled on, for the manga's notes.
@@ -272,41 +296,6 @@ class OpenAiChatTranslator(
             _learned.putIfAbsent(term.trim(), translated)
         }
     }
-
-    /**
-     * Retries a rate limited request, waiting as long as OpenRouter asks.
-     *
-     * Only 429 is retried: a bad key or a retired model slug fails the same way every time, and
-     * retrying it just delays the error the user needs to see.
-     */
-    private suspend fun <T> withRateLimitRetry(block: suspend () -> T): T {
-        repeat(RATE_LIMIT_RETRIES) { attempt ->
-            try {
-                return block()
-            } catch (e: HttpException) {
-                if (e.code != HTTP_TOO_MANY_REQUESTS) throw e.orUnknownModel()
-                // The tally is per install, so a key used from somewhere else drifts. A 429 is
-                // OpenRouter's own word on it and outranks whatever was counted here.
-                quota?.exhaustToday()
-                Logger.w { "$providerName rate limited, retrying in ${RETRY_DELAY_MS * (attempt + 1)}ms" }
-                delay(RETRY_DELAY_MS * (attempt + 1))
-            }
-        }
-        return block()
-    }
-
-    /**
-     * A model slug that was retired, or mistyped into the settings field, is the one failure here
-     * the reader can actually fix — and "HTTP error 400" does not tell them that.
-     */
-    private fun HttpException.orUnknownModel(): Throwable =
-        if (code in UNKNOWN_MODEL_CODES && body?.contains("model", ignoreCase = true) == true) {
-            IllegalStateException(
-                "$providerName does not have the model \"$modelName\". Pick another one in the settings.",
-            )
-        } else {
-            this
-        }
 
     private fun sourceObject(batch: List<String>) = buildJsonObject {
         batch.forEachIndexed { i, text -> put(keyOf(i), text) }
@@ -372,7 +361,17 @@ class OpenAiChatTranslator(
         private const val APP_URL = "https://github.com/clevim/Karasu"
         private const val APP_NAME = "Karasu"
         private const val WATERMARK = "KARASU_WATERMARK"
-        private const val MAX_TOKENS = 4096
+        const val MAX_TOKENS = 4096
+
+        /**
+         * Gemini's free tier is capped by requests a day (Flash Lite: 500), not by tokens
+         * (250K a minute), and Flash Lite writes hundreds of tokens a second. So the opposite of
+         * the free OpenRouter models: send as much as fits, which for an ordinary chapter is a
+         * single request instead of four or five.
+         */
+        const val GEMINI_BATCH_CHARS = 8000
+        const val GEMINI_BATCH_BUBBLES = 250
+        const val GEMINI_MAX_TOKENS = 32768
 
         /** The reply key the glossary comes back under. Short: it is resent with every batch. */
         private const val GLOSSARY_KEY = "g"
@@ -387,18 +386,10 @@ class OpenAiChatTranslator(
          * even for a target language that expands, which for an ordinary chapter means one or two
          * requests instead of one per page.
          */
-        private const val BATCH_CHARS = 1200
+        const val BATCH_CHARS = 1200
 
         /** Bubbles per request. Small enough that a slow free model finishes inside the timeout. */
-        private const val BATCH_BUBBLES = 20
-
-        private const val TRANSLATE_TIMEOUT_MINUTES = 3L
-        private const val RATE_LIMIT_RETRIES = 2
-        private const val RETRY_DELAY_MS = 20_000L
-        private const val HTTP_TOO_MANY_REQUESTS = 429
-
-        /** What a provider answers when it does not have the model it was asked for. */
-        private val UNKNOWN_MODEL_CODES = setOf(400, 404)
+        const val BATCH_BUBBLES = 20
 
     }
 }

@@ -49,7 +49,29 @@ data class TrackerExtra(
     val titles: List<String>,
     val status: Int? = null,
     val fetchedAt: Long = 0,
-)
+    /**
+     * The series' ids elsewhere, by [ExternalIds] name: what lets a recommendation ask AniList
+     * about *this* series rather than whatever a title search lands on, and tell a suggestion the
+     * reader already has from a new one however differently it is spelled. From MangaBaka, which
+     * maps every service to every other; the tracks the reader bound are folded in too.
+     */
+    val ids: Map<String, String> = emptyMap(),
+    /** What MangaBaka said, kept apart so a tracker refresh does not erase it. See [IdentifyWithMangaBaka]. */
+    val mbTags: List<String> = emptyList(),
+    val mbTitles: List<String> = emptyList(),
+    val mbStatus: Int? = null,
+    /** When MangaBaka was last asked, found or not; 0 = never. */
+    val mangaBakaAt: Long = 0,
+) {
+    /** Every tag known about the series, trackers first. */
+    val allTags: List<String> get() = (tags + mbTags).distinctBy { it.lowercase() }
+
+    /** Every other name it goes by. */
+    val allTitles: List<String> get() = (titles + mbTitles).distinctBy { it.lowercase() }
+
+    /** The trackers' word on its status, else MangaBaka's. */
+    val anyStatus: Int? get() = status ?: mbStatus
+}
 
 /** In a preference, keyed by manga id, so a backup carries it and a restore keeps the names. */
 class TrackerExtrasStore(private val preferences: PreferencesHelper) {
@@ -122,7 +144,8 @@ class EnrichFromTrackers(
             onProgress(index + 1, pending.size)
             // Nothing answered — the network, most likely. Not stored, so it is asked again.
             if (found.isEmpty()) return@forEachIndexed
-            val extra = TrackerExtra(
+            // Copied over what is there, so MangaBaka's half of the record survives a tracker refresh.
+            val extra = (store.get(manga.id) ?: TrackerExtra(key = "", tags = emptyList(), titles = emptyList())).copy(
                 key = key,
                 tags = found.flatMap { it.tags }.mapNotNull(::normalizeTag).distinctBy { it.lowercase() },
                 titles = found.flatMap { it.titles }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() },
@@ -137,29 +160,7 @@ class EnrichFromTrackers(
         store.putAll(collected)
     }
 
-    /**
-     * The tags become part of the entry's genre list, as a custom edit so a refresh from the
-     * source does not wipe them. An edit the reader already made is extended, never replaced.
-     */
-    private suspend fun addToGenres(manga: Manga, tags: List<String>) {
-        val current = customMangaManager.getManga(manga)
-        val genres = (current?.genre ?: manga.originalGenre)
-            ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-        val known = genres.mapNotNull(::normalizeTag).map { it.lowercase() }.toSet()
-        val missing = tags.filter { it.lowercase() !in known }
-        if (missing.isEmpty()) return
-        customMangaManager.saveMangaInfo(
-            CustomMangaInfo(
-                mangaId = manga.id!!,
-                title = current?.title?.takeIf { it.isNotBlank() },
-                author = current?.author,
-                artist = current?.artist,
-                description = current?.description,
-                genre = (genres + missing).joinToString(", "),
-                status = current?.status?.takeIf { it != -1 },
-            ),
-        )
-    }
+    private suspend fun addToGenres(manga: Manga, tags: List<String>) = addToGenres(customMangaManager, manga, tags)
 
     private data class Found(val tags: List<String>, val titles: List<String>, val status: Int? = null)
 
@@ -282,4 +283,28 @@ class EnrichFromTrackers(
         /** How long a read stays fresh before status is asked about again. */
         private const val REFRESH_MS = 30L * 24 * 60 * 60 * 1000
     }
+}
+
+/**
+ * The tags become part of the entry's genre list, as a custom edit so a refresh from the source
+ * does not wipe them. An edit the reader already made is extended, never replaced.
+ */
+internal suspend fun addToGenres(customMangaManager: CustomMangaManager, manga: Manga, tags: List<String>) {
+    val current = customMangaManager.getManga(manga)
+    val genres = (current?.genre ?: manga.originalGenre)
+        ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+    val known = genres.mapNotNull(::normalizeTag).map { it.lowercase() }.toSet()
+    val missing = tags.filter { it.lowercase() !in known }
+    if (missing.isEmpty()) return
+    customMangaManager.saveMangaInfo(
+        CustomMangaInfo(
+            mangaId = manga.id!!,
+            title = current?.title?.takeIf { it.isNotBlank() },
+            author = current?.author,
+            artist = current?.artist,
+            description = current?.description,
+            genre = (genres + missing).joinToString(", "),
+            status = current?.status?.takeIf { it != -1 },
+        ),
+    )
 }

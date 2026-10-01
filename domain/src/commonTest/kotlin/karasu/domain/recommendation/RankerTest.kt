@@ -41,3 +41,27 @@ class RankerTest {
         TasteProfile().rank(listOf(listOf("Romance"))) { it } shouldBe emptyList()
     }
 }
+
+class RarityTest {
+
+    @Test
+    fun `a tag on every candidate stops deciding, a rare one keeps its weight`() {
+        val pool = List(20) { listOf("Action") } + List(2) { listOf("Action", "Time Travel") }
+        val rarity = tagRarity(pool)
+        (rarity.getValue("action") < 0.4f) shouldBe true
+        (rarity.getValue("time travel") > 0.6f) shouldBe true
+
+        // The broad tag weighs more in the profile, and without rarity it would win; with it,
+        // the candidate carrying the specific taste comes first.
+        val profile = TasteProfile(tags = mapOf("Action" to 1f, "Mecha" to 0.6f))
+        val candidates = listOf("broad" to listOf("Action", "Comedy"), "specific" to listOf("Mecha", "Drama"))
+        profile.rank(candidates) { it.second }.first().item.first shouldBe "broad"
+        val skewed = tagRarity(List(30) { listOf("Action", "Comedy") } + listOf(listOf("Mecha", "Drama")))
+        profile.rank(candidates, skewed) { it.second }.first().item.first shouldBe "specific"
+    }
+
+    @Test
+    fun `too small a pool says nothing`() {
+        tagRarity(listOf(listOf("Action"), listOf("Action"))) shouldBe emptyMap()
+    }
+}

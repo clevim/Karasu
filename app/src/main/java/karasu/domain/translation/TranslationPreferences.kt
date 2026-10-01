@@ -23,6 +23,14 @@ class TranslationPreferences(private val preferenceStore: PreferenceStore) {
      */
     fun balloonBounds() = preferenceStore.getBoolean("translation_balloon_bounds", false)
 
+    /**
+     * Gemini reads the pages itself — boxes, text and translation in one go — instead of
+     * translating what ML Kit recognised. On by default: it is the reason to pick Gemini, and it
+     * fixes what OCR gets wrong (stylised lettering, vertical Japanese, balloons read line by line).
+     * It does mean the page images leave the device.
+     */
+    fun geminiReadsPages() = preferenceStore.getBoolean("translation_gemini_reads_pages", true)
+
     fun translateFrom() = preferenceStore.getEnum("translate_from", OcrLanguage.ENGLISH)
 
     /** BCP-47 tag, see [karasu.translation.translator.TranslationLanguages]. */

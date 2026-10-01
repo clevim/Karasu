@@ -34,6 +34,7 @@ import karasu.domain.recommendation.BuildProgress
 import karasu.domain.recommendation.BuildRecommendations
 import karasu.domain.recommendation.DiscardRecommendations
 import karasu.domain.recommendation.EnrichFromTrackers
+import karasu.domain.recommendation.IdentifyWithMangaBaka
 import karasu.domain.recommendation.FindMergeCandidates
 import karasu.domain.recommendation.RecommendationStore
 import karasu.i18n.MR
@@ -84,6 +85,11 @@ class RecommendationJob(private val context: Context, workerParams: WorkerParame
                 runCatching {
                     Injekt.get<EnrichFromTrackers>().await { done, total -> report(BuildProgress(BuildProgress.Stage.ENRICHING, done, total)) }
                 }.onFailure { Logger.w(it) { "Tracker enrichment failed; building on what the sources said" } }
+                // Then MangaBaka, for what no tracker knows: ids, names, tags and status for the
+                // whole library, and the ids the recommendations below ask AniList by.
+                runCatching {
+                    Injekt.get<IdentifyWithMangaBaka>().await { done, total -> report(BuildProgress(BuildProgress.Stage.IDENTIFYING, done, total)) }
+                }.onFailure { Logger.w(it) { "MangaBaka identification failed" } }
                 // Same names, other sources: where else the library could be read from.
                 runCatching {
                     Injekt.get<FindMergeCandidates>().await { done, total -> report(BuildProgress(BuildProgress.Stage.MERGES, done, total)) }
@@ -278,6 +284,7 @@ class RecommendationJob(private val context: Context, workerParams: WorkerParame
         /** The stage as a line of text, with the count when the stage has one. */
         fun BuildProgress.label(context: Context): String = when (stage) {
             BuildProgress.Stage.ENRICHING -> context.getString(MR.strings.recommendation_stage_enriching, done, total)
+            BuildProgress.Stage.IDENTIFYING -> context.getString(MR.strings.recommendation_stage_identifying, done, total)
             BuildProgress.Stage.MERGES -> context.getString(MR.strings.recommendation_stage_merges, done, total)
             BuildProgress.Stage.PROFILE -> context.getString(MR.strings.recommendation_stage_profile)
             BuildProgress.Stage.SEARCHING -> context.getString(MR.strings.recommendation_stage_searching, done, total)

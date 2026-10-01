@@ -38,6 +38,16 @@ import karasu.translation.model.luminance
 import karasu.translation.model.WHITE
 import karasu.translation.model.dropDuplicateBlocks
 import karasu.translation.model.mergeStackedBlocks
+import karasu.translation.model.dropOverlappingBlocks
+import karasu.translation.model.pageSlices
+import karasu.translation.model.sliceScale
+import karasu.translation.recognizer.OcrLanguage
+import karasu.translation.translator.BOX_SCALE
+import karasu.translation.translator.FoundText
+import karasu.translation.translator.GeminiPageReader
+import karasu.translation.translator.TranslationEngine
+import karasu.translation.translator.inHalves
+import java.io.ByteArrayOutputStream
 import karasu.translation.recognizer.IntRect
 import karasu.translation.recognizer.TextRecognizer
 import karasu.translation.recognizer.findBalloon
@@ -196,6 +206,13 @@ class ChapterTranslator(private val context: Context) {
         val pageFiles = if (chapterPath != null) getChapterPages(chapterPath) else getOnlinePages(translation)
         translation.progress = Progress(pagesRead = 0, pages = pageFiles.size)
 
+        val engine = preferences.engine().get()
+        if (engine == TranslationEngine.GEMINI && preferences.geminiReadsPages().get()) {
+            val pages = readWithGemini(translation, pageFiles, fromLang, toLang, rtl)
+            writeTranslation(mangaDir, translation, pages)
+            return
+        }
+
         val pages = mutableMapOf<String, PageTranslation>()
         TextRecognizer(fromLang).use { recognizer ->
             pageFiles.forEachIndexed { index, (fileName, openStream) ->
@@ -213,7 +230,6 @@ class ChapterTranslator(private val context: Context) {
 
         if (pages.isNotEmpty()) {
             translation.progress = translation.progress.copy(phase = Progress.Phase.TRANSLATING)
-            val engine = preferences.engine().get()
             val context = contextFor(translation.manga.id)
             val translator = CachedTranslator(
                 engine.build(preferences, fromLang, toLang, context),
@@ -224,10 +240,179 @@ class ChapterTranslator(private val context: Context) {
             rememberTerms(translation.manga.id, translator.learned)
         }
 
+        writeTranslation(mangaDir, translation, pages)
+    }
+
+    private fun writeTranslation(mangaDir: UniFile, translation: Translation, pages: Map<String, PageTranslation>) {
         val file = mangaDir.createFile(provider.getTranslationFileName(translation.chapter))
             ?: error("Could not create the translation file")
         file.openOutputStream().use { Json.encodeToStream(pages.toMap(), it) }
         translation.status = Translation.State.TRANSLATED
+    }
+
+    /**
+     * Reads and translates the chapter with Gemini looking at the pages, in place of ML Kit's OCR
+     * followed by a text translation. See [GeminiPageReader] for why.
+     *
+     * Images go out [GeminiPageReader.IMAGES_PER_REQUEST] at a time, as the pages are read, so
+     * only one batch of page bytes is held at once. What the model cannot tell — the colour behind
+     * the text and the balloon around it — is still measured here from the pixels, exactly as the
+     * OCR path does, so the overlay draws both the same way.
+     */
+    private suspend fun readWithGemini(
+        translation: Translation,
+        pageFiles: List<Pair<String, () -> InputStream>>,
+        fromLang: OcrLanguage,
+        toLang: String,
+        rtl: Boolean,
+    ): Map<String, PageTranslation> {
+        val reader = GeminiPageReader(
+            fromLang = fromLang,
+            toLang = toLang,
+            apiKey = preferences.engineApiKey(TranslationEngine.GEMINI).get(),
+            modelName = preferences.engineModel(TranslationEngine.GEMINI).get(),
+            context = contextFor(translation.manga.id),
+            rtl = rtl,
+        )
+        val pages = linkedMapOf<String, PageTranslation>()
+        val pending = mutableListOf<PendingSlice>()
+        var failure: Throwable? = null
+        var readAny = false
+
+        suspend fun send(batch: List<PendingSlice>) {
+            try {
+                inHalves(batch) { part ->
+                    val found = reader.read(part.map { it.jpeg })
+                    readAny = true
+                    part.zip(found).forEach { (slice, texts) ->
+                        if (texts.isEmpty()) return@forEach
+                        pages.getOrPut(slice.key) {
+                            PageTranslation(imgWidth = slice.pageWidth.toFloat(), imgHeight = slice.pageHeight.toFloat())
+                        }.blocks += blocksFor(slice, texts)
+                    }
+                }?.let { failure = it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Before anything went through, it is the key, the model or the day's quota, and
+                // every later batch would fail the same way: stop rather than spend requests.
+                if (!readAny) throw e
+                failure = e
+                Logger.e(e) { "Gemini could not read a batch of ${batch.size} images" }
+            }
+            translation.progress = translation.progress.copy(pagesRead = batch.last().pageIndex + 1)
+        }
+
+        pageFiles.forEachIndexed { index, (fileName, openStream) ->
+            currentCoroutineContext().ensureActive()
+            val bytes = openStream().use(InputStream::readBytes)
+            pending += slicesOf(index, fileName, bytes)
+            while (pending.size >= GeminiPageReader.IMAGES_PER_REQUEST) {
+                val batch = pending.take(GeminiPageReader.IMAGES_PER_REQUEST)
+                pending.subList(0, batch.size).clear()
+                send(batch)
+            }
+        }
+        if (pending.isNotEmpty()) send(pending.toList())
+
+        failure?.let { if (!readAny) throw it }
+        pages.values.forEach { it.blocks = dropOverlappingBlocks(it.blocks) }
+        rememberTerms(translation.manga.id, reader.learned)
+        return pages
+    }
+
+    /**
+     * One page as the images sent for it: whole, or in bands when it is a long strip. A page that
+     * cannot be decoded is skipped rather than failing the chapter, as the OCR path does.
+     */
+    private fun slicesOf(index: Int, key: String, bytes: ByteArray): List<PendingSlice> {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val width = bounds.outWidth
+        val height = bounds.outHeight
+        return pageSlices(width, height).mapNotNull { band ->
+            val slice = PendingSlice(key, index, bytes, width, height, band.first, band.last + 1)
+            val bitmap = decodeSlice(slice) ?: return@mapNotNull null
+            val jpeg = ByteArrayOutputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+                out.toByteArray()
+            }
+            bitmap.recycle()
+            slice.also { it.jpeg = jpeg }
+        }
+    }
+
+    /**
+     * The band at the size it is sent, decoded again after the reply to sample the colours: the
+     * scaled bitmap is not kept across the request, sixteen of them would be a hundred megabytes.
+     */
+    private fun decodeSlice(slice: PendingSlice): Bitmap? {
+        val targetWidth = max(1, (slice.pageWidth * slice.scale).toInt())
+        val targetHeight = max(1, ((slice.bottom - slice.top) * slice.scale).toInt())
+        // Decoded at the largest power-of-two reduction that is still at least the target size,
+        // so a big page is never inflated to full resolution only to be shrunk.
+        var sample = 1
+        while (slice.pageWidth / (sample * 2) >= targetWidth) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        @Suppress("DEPRECATION")
+        val region = runCatching {
+            BitmapRegionDecoder.newInstance(slice.bytes, 0, slice.bytes.size, false)
+        }.getOrNull()
+        val decoded = if (region != null) {
+            try {
+                region.decodeRegion(Rect(0, slice.top, slice.pageWidth, slice.bottom), options)
+            } finally {
+                region.recycle()
+            }
+        } else {
+            // Formats region decoding refuses: the whole page, then the band out of it.
+            BitmapFactory.decodeByteArray(slice.bytes, 0, slice.bytes.size, options)?.let { whole ->
+                val top = slice.top / sample
+                val height = min(whole.height - top, (slice.bottom - slice.top) / sample)
+                Bitmap.createBitmap(whole, 0, top, whole.width, max(1, height))
+                    .also { if (it !== whole) whole.recycle() }
+            }
+        } ?: return null
+        if (decoded.width == targetWidth && decoded.height == targetHeight) return decoded
+        return Bitmap.createScaledBitmap(decoded, targetWidth, targetHeight, true)
+            .also { if (it !== decoded) decoded.recycle() }
+    }
+
+    /** What Gemini found on one band, in page pixels, with the colours measured off the band. */
+    private fun blocksFor(slice: PendingSlice, texts: List<FoundText>): List<TranslationBlock> {
+        val bitmap = decodeSlice(slice) ?: return emptyList()
+        try {
+            return texts.map { found ->
+                val (ymin, xmin, ymax, xmax) = found.box
+                val bounds = Rect(
+                    xmin * bitmap.width / BOX_SCALE,
+                    ymin * bitmap.height / BOX_SCALE,
+                    max(xmin + 1, xmax) * bitmap.width / BOX_SCALE,
+                    max(ymin + 1, ymax) * bitmap.height / BOX_SCALE,
+                )
+                val background = sampleBackground(bitmap, bounds)
+                val width = bounds.width() / slice.scale
+                val height = bounds.height() / slice.scale
+                // No glyph to measure, so a third of the box's short side stands in for one:
+                // it is what the overlay pads by when no balloon was found.
+                val em = min(width, height) / 3f
+                TranslationBlock(
+                    text = found.source,
+                    translation = found.translation,
+                    width = width,
+                    height = height,
+                    x = bounds.left / slice.scale,
+                    y = bounds.top / slice.scale + slice.top,
+                    symWidth = em,
+                    symHeight = em,
+                    angle = 0f,
+                    background = background,
+                    balloon = findBalloon(bitmap, bounds, background, slice.scale, slice.top),
+                )
+            }
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     /**
@@ -516,6 +701,9 @@ class ChapterTranslator(private val context: Context) {
         private const val SLICE_OVERLAP = 160
         private const val MIN_OCR_WIDTH = 1024
         private const val MAX_OCR_SCALE = 2f
+
+        /** Lettering survives this fine, and it is a third of the upload of quality 95. */
+        private const val JPEG_QUALITY = 85
     }
 
 }
@@ -558,3 +746,19 @@ internal fun parseSeriesNotes(raw: String): SeriesNotes = SeriesNotes(
         }
         .toMap(linkedMapOf()),
 )
+
+/** One image sent to [GeminiPageReader]: a page, or a band of a long one. */
+private class PendingSlice(
+    /** The page's key in the translation file. */
+    val key: String,
+    val pageIndex: Int,
+    /** The whole page, kept until the reply so the band can be decoded again for its colours. */
+    val bytes: ByteArray,
+    val pageWidth: Int,
+    val pageHeight: Int,
+    val top: Int,
+    val bottom: Int,
+) {
+    val scale: Float = sliceScale(pageWidth, bottom - top)
+    lateinit var jpeg: ByteArray
+}

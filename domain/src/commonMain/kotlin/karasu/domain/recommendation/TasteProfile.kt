@@ -213,7 +213,8 @@ private const val DISLIKED_SCALE = 0.5f
 /** And what the highest does. */
 private const val LIKED_SCALE = 1.5f
 
-private const val DEFAULT_SEEDS = 10
+/** Enough for AniList to be asked about by id in a few requests; see ExternalSuggestions. */
+private const val DEFAULT_SEEDS = 40
 
 /** How long it takes a read to count half as much. */
 private const val HALF_LIFE_MS = 270L * 24 * 60 * 60 * 1000
