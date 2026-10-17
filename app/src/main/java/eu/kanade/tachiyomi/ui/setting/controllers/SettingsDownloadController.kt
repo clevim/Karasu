@@ -79,7 +79,7 @@ class SettingsDownloadController : SettingsLegacyController() {
                     MR.strings.fifth_to_last,
                 )
                 entryRange = -1..4
-                defaultValue = -1
+                defaultValue = 2
             }
             multiSelectListPreferenceMat(activity) {
                 bindTo(preferences.removeExcludeCategories())
@@ -119,6 +119,16 @@ class SettingsDownloadController : SettingsLegacyController() {
                 entries = categories.map { it.name }
                 entryValues = categories.map { it.id.toString() }
                 allSelectionRes = MR.strings.all
+
+                preferences.downloadNewChapters().changesIn(viewScope) { isVisible = it }
+            }
+            intListPreference(activity) {
+                bindTo(downloadPreferences.newChaptersAhead())
+                titleRes = MR.strings.download_new_chapters_ahead
+                entries = listOf(context.getString(MR.strings.all_chapters)) +
+                    NEW_CHAPTERS_AHEAD.drop(1).map { context.getString(MR.plurals.next_unread_chapters, it, it) }
+                entryValues = NEW_CHAPTERS_AHEAD
+                defaultValue = 2
 
                 preferences.downloadNewChapters().changesIn(viewScope) { isVisible = it }
             }
@@ -168,3 +178,6 @@ class SettingsDownloadController : SettingsLegacyController() {
 }
 
 private val REMOVE_OLDER_THAN_DAYS = listOf(0, 7, 14, 30, 60, 90)
+
+/** 0 is every new chapter, as before the limit existed. */
+private val NEW_CHAPTERS_AHEAD = listOf(0, 1, 2, 3, 5, 10)

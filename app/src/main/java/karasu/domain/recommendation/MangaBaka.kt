@@ -13,13 +13,12 @@ import eu.kanade.tachiyomi.source.model.SManga
 import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.track.interactor.GetTrack
 import karasu.util.normalizedLevenshteinSimilarity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import java.net.URLEncoder
@@ -32,6 +31,7 @@ object ExternalIds {
     const val MAL = "mal"
     const val MANGA_UPDATES = "mu"
     const val KITSU = "kitsu"
+    const val MANGADEX = "mangadex"
 }
 
 /**
@@ -82,36 +82,36 @@ class IdentifyWithMangaBaka(
         if (pending.isEmpty()) return
         onProgress(0, pending.size)
 
-        val collected = mutableMapOf<Long, TrackerExtra>()
         for ((index, manga) in pending.withIndex()) {
             if (System.currentTimeMillis() > deadline) break
             val its = tracks[manga.id].orEmpty()
             val known = store.get(manga.id)
             val record = runCatching { find(manga, its.associate { it.sync_id to it.media_id }, known?.allTitles.orEmpty()) }
-                .onFailure { Logger.w(it) { "MangaBaka lookup failed for ${manga.title}" } }
+                .onFailure { if (it is CancellationException) throw it else Logger.w(it) { "MangaBaka lookup failed for ${manga.title}" } }
                 // A failed request is not a miss: leave it to be asked again next run.
                 .getOrElse { continue }
-            val base = known ?: TrackerExtra(key = "", tags = emptyList(), titles = emptyList())
-            val extra = if (record == null) {
-                base.copy(mangaBakaAt = now)
-            } else {
-                base.copy(
-                    ids = base.ids + record.ids,
-                    mbTags = record.tags,
-                    mbTitles = record.titles,
-                    mbStatus = record.status,
-                    mbChapters = record.chapters,
-                    mangaBakaAt = now,
-                )
+            // Only MangaBaka's fields, over what is stored now: the trackers' and the catalogues'
+            // runs may have written theirs since this entry was read.
+            store.update(manga.id!!) { base ->
+                if (record == null) {
+                    base.copy(mangaBakaAt = now)
+                } else {
+                    base.copy(
+                        ids = base.ids + record.ids,
+                        mbTags = record.tags,
+                        mbTitles = record.titles,
+                        mbStatus = record.status,
+                        mbChapters = record.chapters,
+                        mangaBakaAt = now,
+                    )
+                }
             }
-            collected[manga.id!!] = extra
             // The genres join the entry's own, as the trackers' do; the long tail of tags stays
             // with the profile, where it informs without cluttering the entry's page.
             if (record != null && record.genres.isNotEmpty()) runCatching { addToGenres(customMangaManager, manga, record.genres) }
             onProgress(index + 1, pending.size)
             delay(SEARCH_SPACING_MS)
         }
-        store.putAll(collected)
     }
 
     /** The entry's MangaBaka record, by a bound track's id when there is one, else by title. */
@@ -203,7 +203,7 @@ internal fun parseMangaBakaRecord(obj: JsonObject): MangaBakaRecord? {
         .map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
         // Latin-script names are the ones a source in the reader's languages is searched by; the
         // other scripts would only fill the backup. The native title is kept for what it is.
-        .filter { it == obj["native_title"].text() || it.isMostlyLatin() }
+        .filter { it == obj["native_title"].text() || it.isLatin() }
         .take(MAX_TITLES)
     val genres = obj["genres"].array().mapNotNull { it.text() }.map(::genreName)
     val tags = obj["tags_v2"].array().mapNotNull { it as? JsonObject }
@@ -254,11 +254,6 @@ internal fun bestMatch(names: List<String>, author: String?, candidates: List<Ma
         ?.first
 }
 
-private fun String.isMostlyLatin(): Boolean {
-    val letters = filter { it.isLetter() }
-    return letters.isNotEmpty() && letters.count { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.LATIN } * 2 > letters.length
-}
-
 private fun String.matchKey() = lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
 /** Name parts long enough to mean something, in any order: "MIURA Kentaro" is "Kentaro Miura". */
@@ -272,8 +267,6 @@ private fun genreName(raw: String): String = raw.split('_', ' ')
     .filter { it.isNotEmpty() }
     .joinToString(" ") { word -> word.replaceFirstChar { it.titlecase(Locale.ROOT) } }
 
-private fun JsonElement?.text(): String? = (this as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-private fun JsonElement?.array(): List<JsonElement> = (this as? JsonArray).orEmpty()
 
 private val STRONG_TAGS = setOf("defining", "core")
 private const val MAX_TAGS = 15
@@ -301,7 +294,7 @@ suspend fun mangaBakaNames(network: NetworkHelper, query: String): List<String> 
         val best = records.maxByOrNull { r -> r.titles.maxOfOrNull { normalizedLevenshteinSimilarity(it.matchKey(), key) } ?: 0.0 }
             ?.takeIf { r -> (r.titles.maxOfOrNull { normalizedLevenshteinSimilarity(it.matchKey(), key) } ?: 0.0) >= NAME_QUERY_MATCH }
         best?.titles.orEmpty()
-            .filter { it.isMostlyLatin() && !it.equals(q, ignoreCase = true) }
+            .filter { it.isLatin() && !it.equals(q, ignoreCase = true) }
             .take(MAX_NAME_FALLBACKS)
     }.getOrDefault(emptyList())
     // ponytail: unbounded per process; a session's searches are a few dozen strings.

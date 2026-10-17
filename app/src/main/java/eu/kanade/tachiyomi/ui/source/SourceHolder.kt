@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.source
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import android.content.res.ColorStateList
 import android.view.View
 import androidx.core.view.isVisible
@@ -9,7 +10,6 @@ import karasu.util.lang.getString
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.databinding.SourceItemBinding
 import eu.kanade.tachiyomi.source.LocalSource
-import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.util.lang.addExperimentalTag
 import eu.kanade.tachiyomi.source.icon
 import eu.kanade.tachiyomi.source.includeLangInName
@@ -45,9 +45,9 @@ class SourceHolder(view: View, val adapter: SourceAdapter) :
         val isPinned = item.isPinned ?: underPinnedSection
         val showLanguage = source.includeLangInName(adapter.enabledLanguages, adapter.extensionManager)
         val sourceName = if (showLanguage && (underPinnedSection || underLastUsedSection)) source.toString() else source.name
-        binding.title.text = if (source.id == RecommendationSource.ID) sourceName.addExperimentalTag(itemView.context) else sourceName
+        binding.title.text = if (source.id in ReleasesSource.WINDOWS) sourceName.addExperimentalTag(itemView.context) else sourceName
 
-        binding.sourcePin.isVisible = source.id != RecommendationSource.ID
+        binding.sourcePin.isVisible = source.id !in ReleasesSource.WINDOWS
         binding.sourcePin.apply {
             imageTintList = ColorStateList.valueOf(
                 context.getResourceColor(
@@ -73,7 +73,7 @@ class SourceHolder(view: View, val adapter: SourceAdapter) :
             val icon = source.icon()
             // The crow is a white silhouette drawn for notifications; tinted with the text colour
             // it follows the theme. The tint is cleared for everything else: the view is recycled.
-            binding.sourceImage.imageTintList = if (item.source.id == RecommendationSource.ID) {
+            binding.sourceImage.imageTintList = if (item.source.id in ReleasesSource.WINDOWS) {
                 ColorStateList.valueOf(itemView.context.getResourceColor(AR.attr.textColorPrimary))
             } else {
                 null
@@ -81,7 +81,7 @@ class SourceHolder(view: View, val adapter: SourceAdapter) :
             when {
                 icon != null -> binding.sourceImage.setImageDrawable(icon)
                 item.source.id == LocalSource.ID -> binding.sourceImage.setImageResource(R.mipmap.ic_local_source)
-                item.source.id == RecommendationSource.ID -> binding.sourceImage.setImageResource(R.drawable.ic_karasu)
+                item.source.id in ReleasesSource.WINDOWS -> binding.sourceImage.setImageResource(R.drawable.ic_karasu)
             }
         }
 

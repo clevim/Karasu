@@ -94,7 +94,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
         return withIOContext {
             val url = "$BASE_API_URL/manga".toUri().buildUpon()
                 .appendPath(id.toString())
-                .appendQueryParameter("fields", "id,title,synopsis,num_chapters,main_picture,status,media_type,start_date")
+                .appendQueryParameter("fields", "id,title,synopsis,num_chapters,main_picture,status,media_type,start_date,alternative_titles")
                 .build()
             authClient.newCall(GET(url.toString()))
                 .awaitSuccess()
@@ -110,6 +110,7 @@ class MyAnimeListApi(private val client: OkHttpClient, interceptor: MyAnimeListI
                         publishing_status = it.status.replace("_", " ")
                         publishing_type = it.mediaType.replace("_", " ")
                         start_date = it.startDate ?: ""
+                        alternative_titles = it.alternativeTitles?.all().orEmpty().filter { name -> name != it.title }.distinct()
                     }
                 }
         }

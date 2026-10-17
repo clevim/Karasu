@@ -2105,8 +2105,8 @@ class MangaDetailsController :
         trackingBottomSheet?.onNextTrackersUpdate(trackings)
     }
 
-    fun onTrackSearchResults(results: List<TrackSearch>) {
-        trackingBottomSheet?.onSearchResults(results)
+    fun onTrackSearchResults(results: List<TrackSearch>, matchedName: String? = null) {
+        trackingBottomSheet?.onSearchResults(results, matchedName)
     }
 
     fun refreshTracker() {

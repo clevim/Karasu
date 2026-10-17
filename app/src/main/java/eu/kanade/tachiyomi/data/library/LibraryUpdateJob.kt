@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.data.library
 
+import karasu.domain.download.DownloadNextUnread
+import karasu.domain.recommendation.CheckPublication
 import karasu.domain.recommendation.IdentifyWithMangaBaka
 import android.content.Context
 import android.content.pm.ServiceInfo
@@ -149,6 +151,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
     private val getBrokenSources: GetBrokenSources = Injekt.get()
     private val updateManga: UpdateManga = Injekt.get()
     private val getTrack: GetTrack = Injekt.get()
+    private val downloadNextUnread: DownloadNextUnread = Injekt.get()
     private val insertTrack: InsertTrack by injectLazy()
 
     private var extraDeferredJobs = mutableListOf<Deferred<Any>>()
@@ -263,6 +266,14 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
                 if (target == Target.CHAPTERS) {
                     runCatching {
                         Injekt.get<IdentifyWithMangaBaka>().await(onlyNew = true, budgetMs = IdentifyWithMangaBaka.NEW_ENTRIES_BUDGET_MS)
+                    }
+                    // Status from MangaDex and MangaUpdates for the entries just updated, each at
+                    // most weekly. Status only: genres are left to the overnight build.
+                    try {
+                        Injekt.get<CheckPublication>().await(mangaList, budgetMs = CheckPublication.LIBRARY_UPDATE_BUDGET_MS)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Logger.w(e) { "Publication lookup failed" }
                     }
                 }
                 Result.success()
@@ -563,8 +574,7 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
             // which `MergedSourceFallback` resolves.
             val added = (newChapters.first + mergedChapters).sortedBy { it.chapter_number }
             if (added.isNotEmpty()) {
-                if (shouldDownload) {
-                    downloadChapters(manga.manga, added)
+                if (shouldDownload && downloadChapters(manga.manga, added)) {
                     hasDownloads = true
                 }
                 newUpdates[manga] = added.toTypedArray()
@@ -609,10 +619,19 @@ class LibraryUpdateJob(private val context: Context, workerParams: WorkerParamet
         }
     }
 
-    private fun downloadChapters(manga: Manga, chapters: List<Chapter>) {
+    /** @return whether anything was handed to the downloader, which is what starts it after the run. */
+    private suspend fun downloadChapters(manga: Manga, chapters: List<Chapter>): Boolean {
         // We don't want to start downloading while the library is updating, because websites
         // may don't like it and they could ban the user.
-        downloadManager.downloadChapters(manga, chapters, false)
+        return if (downloadNextUnread.isLimited()) {
+            // Only the next few unread, wherever the reader is: a series they stopped reading
+            // does not pile up a download for every chapter released since. The new chapters
+            // are in the database by now, so one among the next few is part of it.
+            downloadNextUnread.await(manga, autoStart = false)
+        } else {
+            downloadManager.downloadChapters(manga, chapters, false)
+            true
+        }
     }
 
     private fun filterMangaToUpdate(mangaToAdd: List<LibraryManga>): List<LibraryManga> {

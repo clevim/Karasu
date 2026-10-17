@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.source.browse
 
+import eu.kanade.tachiyomi.ui.source.releases.ReleaseDetailsController
+import eu.kanade.tachiyomi.source.ReleasesSource
 import android.os.Build
 import android.app.Activity
 import android.R as AR
@@ -447,6 +449,7 @@ open class BrowseSourceController(bundle: Bundle) :
         menu.findItem(R.id.action_recommendation_refresh).isVisible = presenter.source is RecommendationSource
         menu.findItem(R.id.action_recommendation_settings).isVisible = presenter.source is RecommendationSource
         menu.findItem(R.id.action_recommendation_rebuild).isVisible = presenter.source is RecommendationSource
+        menu.findItem(R.id.action_releases_refresh).isVisible = presenter.source is ReleasesSource
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -459,6 +462,7 @@ open class BrowseSourceController(bundle: Bundle) :
             // Refresh: one more batch of fifty, or a fresh build when there is nothing queued.
             R.id.action_recommendation_refresh -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_CONTINUE) }
             R.id.action_recommendation_rebuild -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_FULL) }
+            R.id.action_releases_refresh -> refreshReleases()
             R.id.action_recommendation_settings -> router.pushController(
                 SettingsBrowseController().apply { preferenceKey = RECOMMENDATION_SETTINGS_KEY }.withFadeTransaction(),
             )
@@ -983,6 +987,12 @@ open class BrowseSourceController(bundle: Bundle) :
      */
     override fun onItemClick(view: View?, position: Int): Boolean {
         val item = adapter?.getItem(position) as? BrowseSourceItem ?: return false
+        if (presenter.source is ReleasesSource) {
+            // Not a manga of any source: its own page, with no chapters and nothing to track.
+            router.pushController(ReleaseDetailsController(item.manga.url).withFadeTransaction())
+            lastPosition = position
+            return false
+        }
         item.subscribe()
         router.pushController(MangaDetailsController(item.manga, true).withFadeTransaction())
         lastPosition = position
@@ -999,6 +1009,11 @@ open class BrowseSourceController(bundle: Bundle) :
      * @param position the position of the element clicked.
      */
     override fun onItemLongClick(position: Int) {
+        // Nothing to add to the library until a real source has it.
+        if (presenter.source is ReleasesSource) {
+            onItemClick(null, position)
+            return
+        }
         val manga = (adapter?.getItem(position) as? BrowseSourceItem?)?.manga ?: return
         val view = view ?: return
         val activity = activity ?: return
@@ -1038,6 +1053,18 @@ open class BrowseSourceController(bundle: Bundle) :
             return
         }
         toggleFavorite(manga, position, view, activity)
+    }
+
+    /** The releases list, fetched again now rather than when a week old. */
+    private fun refreshReleases() {
+        val source = presenter.source as? ReleasesSource ?: return
+        viewScope.launchIO {
+            val ok = runCatching { source.refresh() }.isSuccess
+            withUIContext {
+                view?.snack(if (ok) MR.strings.releases_refreshed else MR.strings.releases_refresh_failed)
+                if (ok) applyFilters()
+            }
+        }
     }
 
     private fun toggleFavorite(manga: Manga, position: Int, view: View, activity: Activity) {

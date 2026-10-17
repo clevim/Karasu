@@ -207,7 +207,11 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
 
     fun lastLibrarySuggestion() = preferenceStore.getLong("last_library_suggestion", 0L)
 
-    fun removeAfterReadSlots() = preferenceStore.getInt(Keys.removeAfterReadSlots, -1)
+    /**
+     * How many of the last read chapters stay downloaded; older read ones are deleted on finishing
+     * a chapter (see ReaderViewModel.deleteChapterIfNeeded). -1 never. Keeps two by default.
+     */
+    fun removeAfterReadSlots() = preferenceStore.getInt(Keys.removeAfterReadSlots, 2)
 
     fun removeAfterMarkedAsRead() = preferenceStore.getBoolean(Keys.removeAfterMarkedAsRead, false)
 

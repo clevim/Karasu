@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.migration
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -23,7 +24,6 @@ import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.smartsearch.SmartSearchEngine
 import eu.kanade.tachiyomi.source.CatalogueSource
-import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.ui.main.MainActivity
@@ -145,7 +145,7 @@ class AutoMigrateJob(private val context: Context, workerParams: WorkerParameter
      */
     private fun candidateSources(languages: List<String>, exclude: Long): List<CatalogueSource> {
         val installed = sourceManager.getCatalogueSources()
-            .filter { it.id != exclude && it.id != RecommendationSource.ID }
+            .filter { it.id != exclude && it.id !in ReleasesSource.WINDOWS }
         return languages.flatMap { lang -> installed.filter { it.lang.equals(lang, ignoreCase = true) } }
     }
 

@@ -759,8 +759,9 @@ class BrowseController :
     fun setLastUsedSource(item: SourceItem?) {
         adapter?.removeAllScrollableHeaders()
         // Added bottom-up: the recommendations sit right under "last used", above the languages.
-        presenter.recommendationItem?.let {
-            adapter?.addScrollableHeader(it)
+        val windows = listOfNotNull(presenter.recommendationItem, presenter.releasesItem)
+        if (windows.isNotEmpty()) {
+            windows.asReversed().forEach { adapter?.addScrollableHeader(it) }
             adapter?.addScrollableHeader(LangItem(SourcePresenter.RECOMMENDATIONS_KEY))
         }
         if (item != null) {

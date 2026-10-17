@@ -5,8 +5,8 @@ import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MUContext
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MUListItem
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MULoginResponse
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MURating
-import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MURecord
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MUSearchResult
+import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MUSearchResultItem
 import eu.kanade.tachiyomi.network.DELETE
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
@@ -136,7 +136,7 @@ class MangaUpdatesApi(
         }
     }
 
-    suspend fun search(query: String): List<MURecord> {
+    suspend fun search(query: String): List<MUSearchResultItem> {
         val body = buildJsonObject {
             put("search", query)
             put(
@@ -156,7 +156,6 @@ class MangaUpdatesApi(
             .awaitSuccess()
             .parseAs<MUSearchResult>()
             .results
-            .map { it.record }
     }
 
     suspend fun authenticate(username: String, password: String): MUContext? {

@@ -13,6 +13,7 @@ data class ALSearchItem(
     val startDate: ALFuzzyDate,
     val chapters: Long?,
     val averageScore: Int?,
+    val synonyms: List<String> = emptyList(),
 ) {
     fun toALManga(): ALManga = ALManga(
         remoteId = id,
@@ -24,12 +25,18 @@ data class ALSearchItem(
         startDateFuzzy = startDate.toEpochMilli(),
         totalChapters = chapters ?: 0,
         averageScore = averageScore ?: -1,
+        alternativeTitles = (listOfNotNull(title.english, title.romaji, title.native) + synonyms)
+            .filter { it != title.userPreferred }
+            .distinct(),
     )
 }
 
 @Serializable
 data class ALItemTitle(
     val userPreferred: String,
+    val romaji: String? = null,
+    val english: String? = null,
+    val native: String? = null,
 )
 
 @Serializable

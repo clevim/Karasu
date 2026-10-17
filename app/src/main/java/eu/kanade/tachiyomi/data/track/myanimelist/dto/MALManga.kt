@@ -18,7 +18,18 @@ data class MALManga(
     val mediaType: String,
     @SerialName("start_date")
     val startDate: String?,
+    @SerialName("alternative_titles")
+    val alternativeTitles: MALAlternativeTitles? = null,
 )
+
+@Serializable
+data class MALAlternativeTitles(
+    val synonyms: List<String> = emptyList(),
+    val en: String? = null,
+    val ja: String? = null,
+) {
+    fun all() = (listOfNotNull(en, ja) + synonyms).filter { it.isNotBlank() }
+}
 
 @Serializable
 data class MALMangaCovers(

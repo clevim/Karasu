@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MUListItem
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.MURating
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.copyTo
 import eu.kanade.tachiyomi.data.track.mangaupdates.dto.toTrackSearch
+import eu.kanade.tachiyomi.util.lang.htmlDecode
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.data.track.updateNewTrackInfo
 import kotlinx.collections.immutable.ImmutableList
@@ -118,8 +119,10 @@ class MangaUpdates(private val context: Context, id: Long) : TrackService(id) {
 
     override suspend fun search(query: String): List<TrackSearch> {
         return api.search(query)
-            .map {
-                it.toTrackSearch(id)
+            .map { item ->
+                item.record.toTrackSearch(id).apply {
+                    alternative_titles = listOfNotNull(item.hitTitle?.htmlDecode()).filter { it != title }
+                }
             }
     }
 

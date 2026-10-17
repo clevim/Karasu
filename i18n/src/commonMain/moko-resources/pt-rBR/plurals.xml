@@ -121,6 +121,18 @@
         <item quantity="many">Pulando %d capítulos, ou eles estão faltando na fonte, ou eles foram filtrados</item>
         <item quantity="other">Pulando %d capítulos, ou eles estão faltando na fonte, ou eles foram filtrados</item>
     </plurals>
+    <plurals name="releases_months">
+        <item quantity="one">Último mês</item>
+        <item quantity="many">Últimos %d meses</item>
+        <item quantity="other">Últimos %d meses</item>
+    </plurals>
+
+    <plurals name="releases_volumes">
+        <item quantity="one">%d volume</item>
+        <item quantity="many">%d volumes</item>
+        <item quantity="other">%d volumes</item>
+    </plurals>
+
     <plurals name="next_unread_chapters">
         <item quantity="one">Próximo capítulo não lido</item>
         <item quantity="many">Próximos %d capítulos não lidos</item>

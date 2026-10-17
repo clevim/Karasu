@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.source.globalsearch
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import karasu.domain.recommendation.mangaBakaNames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -15,7 +16,6 @@ import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SManga
@@ -114,8 +114,8 @@ open class GlobalSearchPresenter(
         val list = sourceManager.getCatalogueSources()
             .filter { it.lang in languages }
             .filterNot { it.id.toString() in hiddenCatalogues }
-            // The recommendations window is not a catalogue: a hit from it would be filed under its id.
-            .filterNot { it.id == RecommendationSource.ID }
+            // The recommendations and releases windows are not catalogues: a hit from one would be filed under its id.
+            .filterNot { it.id in ReleasesSource.WINDOWS }
             .sortedBy { "(${it.lang}) ${it.name}" }
 
         return if (preferences.onlySearchPinned().get()) {

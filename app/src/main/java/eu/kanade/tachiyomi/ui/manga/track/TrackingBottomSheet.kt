@@ -268,7 +268,7 @@ class TrackingBottomSheet(private val controller: MangaDetailsController) :
         val title = presenter.manga.title
         sheetBehavior.expand()
         sheetBehavior.isDraggable = false
-        search(title)
+        search(title, withAliases = true)
         binding.trackSearch.setText(title, TextView.BufferType.EDITABLE)
         binding.trackRecycler.isVisible = false
         binding.trackSearchConstraintLayout.isVisible = true
@@ -285,14 +285,14 @@ class TrackingBottomSheet(private val controller: MangaDetailsController) :
         backCallback.isEnabled = false
     }
 
-    private fun search(query: String) {
+    private fun search(query: String, withAliases: Boolean = false) {
         startTransition()
         binding.searchProgress.visibility = View.VISIBLE
         binding.trackSearchRecycler.visibility = View.GONE
         setMiddleTrackView(binding.searchProgress.id)
         binding.searchEmptyView.hide()
         val searchingItem = searchingItem ?: return
-        presenter.trackSearch(query, searchingItem.service)
+        presenter.trackSearch(query, searchingItem.service, withAliases)
     }
 
     private fun setMiddleTrackView(id: Int) {
@@ -304,8 +304,11 @@ class TrackingBottomSheet(private val controller: MangaDetailsController) :
         }
     }
 
-    fun onSearchResults(results: List<TrackSearch>) {
+    /** @param matchedName the other name of the entry that found [results], when its title did not. */
+    fun onSearchResults(results: List<TrackSearch>, matchedName: String? = null) {
         startTransition()
+        // Shows which name was searched, so the search box matches the results.
+        matchedName?.let { binding.trackSearch.setText(it, TextView.BufferType.EDITABLE) }
         binding.searchProgress.visibility = View.GONE
         binding.trackSearchRecycler.visibility = View.VISIBLE
         searchItemAdapter.set(
@@ -324,7 +327,8 @@ class TrackingBottomSheet(private val controller: MangaDetailsController) :
         } else {
             setMiddleTrackView(binding.trackSearchRecycler.id)
             binding.searchEmptyView.hide()
-            if (results.size == 1 && searchingItem?.track == null) {
+            // Not on a match by another name: a lone hit for an alias is a guess, the user picks.
+            if (results.size == 1 && searchingItem?.track == null && matchedName == null) {
                 trackItem(0)
             }
         }

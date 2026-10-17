@@ -39,6 +39,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,6 +57,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import nl.adaptivity.xmlutil.serialization.XML
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -296,47 +299,58 @@ class Downloader(
         }
 
         val source = sourceManager.get(manga.source) as? HttpSource ?: return@launchIO
-        val wasEmpty = queueState.value.isEmpty()
         // Called in background thread, the operation can be slow with SAF.
-        val chaptersWithoutDir = async {
-            chapters
-                // Filter out those already downloaded.
-                .filter { provider.findChapterDir(it, manga, source) == null }
-                // Add chapters to queue from the start.
-                .sortedByDescending { it.source_order }
-        }
+        val chaptersWithoutDir = chapters
+            // Filter out those already downloaded.
+            .filter { provider.findChapterDir(it, manga, source) == null }
+            // Add chapters to queue from the start.
+            .sortedByDescending { it.source_order }
 
-        // Runs in main thread (synchronization needed).
-        val chaptersToQueue = chaptersWithoutDir.await()
-            // Filter out those already enqueued.
-            .filter { chapter -> queueState.value.none { it.chapter.id == chapter.id } }
-            // Create a download for each one.
-            .map { Download(source, manga, it) }
+        // Serialised: the reader asks for the same chapter from two places at once (download
+        // ahead and the next unread), each on its own IO coroutine, and both reading the queue
+        // before either wrote it is how one chapter got two downloads. The queue is read here,
+        // after the slow disk check above, never before it.
+        enqueueLock.withLock {
+            // Not "empty": a download that failed stays in the queue in ERROR after the downloader
+            // stops, and with it there every later enqueue — download ahead, new chapters — only
+            // showed "paused" and never ran. A queue the user paused still has entries in QUEUE.
+            val wasIdle = queueState.value.none { it.status == Download.State.QUEUE || it.status == Download.State.DOWNLOADING }
+            val queued = queueState.value.associateBy { it.chapter.id }
+            val chaptersToQueue = chaptersWithoutDir
+                // Filter out those already enqueued — unless they are wanted now. The chapter the
+                // reader needs next is often already queued by a library update, at the back behind
+                // everything else, and skipping it here left it there.
+                .filter { toFrontOfQueue || it.id !in queued }
+                // Create a download for each one, reusing a queued one so its page list is kept.
+                .map { queued[it.id] ?: Download(source, manga, it) }
 
-        if (chaptersToQueue.isNotEmpty()) {
-            addAllToQueue(chaptersToQueue, toFrontOfQueue)
+            if (chaptersToQueue.isNotEmpty()) {
+                addAllToQueue(chaptersToQueue, toFrontOfQueue)
 
-            // Start downloader if needed
-            if (autoStart && wasEmpty) {
-                val queuedDownloads = queueState.value.count { it.source !is UnmeteredSource }
-                val maxDownloadsFromSource = queueState.value
-                    .groupBy { it.source }
-                    .filterKeys { it !is UnmeteredSource }
-                    .maxOfOrNull { it.value.size } ?: 0
-                if (
-                    queuedDownloads > DOWNLOADS_QUEUED_WARNING_THRESHOLD ||
-                    maxDownloadsFromSource > CHAPTERS_PER_SOURCE_QUEUE_WARNING_THRESHOLD
-                ) {
-                    withUIContext {
-                        notifier.massDownloadWarning()
+                // Start downloader if needed
+                if (autoStart && wasIdle) {
+                    val queuedDownloads = queueState.value.count { it.source !is UnmeteredSource }
+                    val maxDownloadsFromSource = queueState.value
+                        .groupBy { it.source }
+                        .filterKeys { it !is UnmeteredSource }
+                        .maxOfOrNull { it.value.size } ?: 0
+                    if (
+                        queuedDownloads > DOWNLOADS_QUEUED_WARNING_THRESHOLD ||
+                        maxDownloadsFromSource > CHAPTERS_PER_SOURCE_QUEUE_WARNING_THRESHOLD
+                    ) {
+                        withUIContext {
+                            notifier.massDownloadWarning()
+                        }
                     }
+                    DownloadJob.start(context)
+                } else if (!isRunning && !LibraryUpdateJob.isRunning(context)) {
+                    notifier.onDownloadPaused()
                 }
-                DownloadJob.start(context)
-            } else if (!isRunning && !LibraryUpdateJob.isRunning(context)) {
-                notifier.onDownloadPaused()
             }
         }
     }
+
+    private val enqueueLock = Mutex()
 
     /**
      * Downloads a chapter.
@@ -475,21 +489,25 @@ class Downloader(
         source: HttpSource,
         tmpDir: UniFile,
     ) {
-        // Get all the URLs to the source images, fetch pages if necessary
-        pageList.filter { it.imageUrl.isNullOrEmpty() }.forEach { page ->
-            page.status = Page.State.LoadPage
-            try {
-                page.imageUrl = source.getImageUrl(page)
-            } catch (e: Throwable) {
-                page.status = Page.State.Error
-            }
-        }
-
         // Start downloading images, consider we can have downloaded images already
-        // Concurrently do 2 pages at a time
+        // Concurrently do 2 pages at a time, in page order
         pageList.asFlow()
             .flatMapMerge(concurrency = 2) { page ->
                 flow {
+                    // Resolved per page, as Mihon does, rather than all of them up front: on a
+                    // source with one request per page that held the first image back until every
+                    // page of the chapter had been asked for, so a chapter being read while it
+                    // downloads had nothing to show for its whole page count.
+                    if (page.imageUrl.isNullOrEmpty()) {
+                        page.status = Page.State.LoadPage
+                        try {
+                            // Retried like the image: one failed lookup failed the whole chapter.
+                            page.imageUrl = flow { emit(source.getImageUrl(page)) }.retryWithBackoff().first()
+                        } catch (e: Throwable) {
+                            if (e is CancellationException) throw e
+                            page.status = Page.State.Error
+                        }
+                    }
                     withIOContext { getOrDownloadImage(page, download, source, tmpDir) }
                     emit(page)
                 }.flowOn(Dispatchers.IO)
@@ -618,16 +636,18 @@ class Downloader(
             }
             emit(file)
         }
-            // Retry 3 times, waiting 2, 4 and 8 seconds between attempts.
-            .retryWhen { _, attempt ->
-                if (attempt < 3) {
-                    delay((2L shl attempt.toInt()) * 1000)
-                    true
-                } else {
-                    false
-                }
-            }
+            .retryWithBackoff()
             .first()
+    }
+
+    /** Retry 3 times, waiting 2, 4 and 8 seconds between attempts. */
+    private fun <T> Flow<T>.retryWithBackoff() = retryWhen { e, attempt ->
+        if (e !is CancellationException && attempt < 3) {
+            delay((2L shl attempt.toInt()) * 1000)
+            true
+        } else {
+            false
+        }
     }
 
     /**
@@ -761,9 +781,16 @@ class Downloader(
     private fun addAllToQueue(downloads: List<Download>, toFrontOfQueue: Boolean = false) {
         _queueState.update { queue ->
             downloads.forEach { download ->
-                download.status = Download.State.QUEUE
+                // One being moved to the front may already be running; it keeps going.
+                if (download.status != Download.State.DOWNLOADING) download.status = Download.State.QUEUE
             }
-            val updated = if (toFrontOfQueue) downloads + queue else queue + downloads
+            // By chapter, not by object: a second Download of a queued chapter is still the same chapter.
+            val ids = downloads.map { it.chapter.id }.toSet()
+            val updated = if (toFrontOfQueue) {
+                downloads + queue.filterNot { it.chapter.id in ids }
+            } else {
+                queue + downloads.filterNot { download -> queue.any { it.chapter.id == download.chapter.id } }
+            }
             // The store numbers downloads with a counter that only goes up and restores them in
             // that order, so persisting just the new ones would bring them back at the end of the
             // queue — the opposite of what jumping the queue meant. Entries are keyed by chapter,

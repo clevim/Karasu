@@ -1,12 +1,12 @@
 package karasu.domain.recommendation
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import android.content.Context
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.smartsearch.SmartSearchEngine
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.LocalSource
-import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.util.lang.toNormalized
 import java.io.File
@@ -135,7 +135,7 @@ class FindMergeCandidates(
         val languages = preferences.enabledLanguages().get()
         val hidden = preferences.hiddenSources().get()
         return sourceManager.getCatalogueSources().filter {
-            it.lang in languages && it.id.toString() !in hidden && it.id != LocalSource.ID && it.id != RecommendationSource.ID
+            it.lang in languages && it.id.toString() !in hidden && it.id != LocalSource.ID && it.id !in ReleasesSource.WINDOWS
         }
     }
 

@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit
 import karasu.domain.recommendation.BuildProgress
 import karasu.domain.recommendation.BuildRecommendations
 import karasu.domain.recommendation.DiscardRecommendations
+import karasu.domain.recommendation.CheckPublication
 import karasu.domain.recommendation.EnrichFromTrackers
 import karasu.domain.recommendation.IdentifyWithMangaBaka
 import karasu.domain.recommendation.FindMergeCandidates
@@ -85,6 +86,13 @@ class RecommendationJob(private val context: Context, workerParams: WorkerParame
                 runCatching {
                     Injekt.get<EnrichFromTrackers>().await { done, total -> report(BuildProgress(BuildProgress.Stage.ENRICHING, done, total)) }
                 }.onFailure { Logger.w(it) { "Tracker enrichment failed; building on what the sources said" } }
+                // MangaDex and MangaUpdates: status, names and exact tags. The tags join the
+                // genres here, as the trackers' do, and for entries a library update checked too.
+                runCatching {
+                    val check = Injekt.get<CheckPublication>()
+                    check.await { done, total -> report(BuildProgress(BuildProgress.Stage.ENRICHING, done, total)) }
+                    check.applyGenres()
+                }.onFailure { Logger.w(it) { "Publication lookup failed" } }
                 // Then MangaBaka, for what no tracker knows: ids, names, tags and status for the
                 // whole library, and the ids the recommendations below ask AniList by.
                 runCatching {

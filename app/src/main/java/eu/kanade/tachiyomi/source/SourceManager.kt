@@ -48,6 +48,7 @@ class SourceManager(
                         mapOf(
                             LocalSource.ID to LocalSource(context),
                             RecommendationSource.ID to RecommendationSource(context),
+                            ReleasesSource.ID to ReleasesSource(context),
                         ),
                     )
                     extensions.forEach { extension ->

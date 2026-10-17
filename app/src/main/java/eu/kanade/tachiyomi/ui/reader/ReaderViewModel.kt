@@ -41,6 +41,7 @@ import eu.kanade.tachiyomi.ui.reader.settings.OrientationType
 import eu.kanade.tachiyomi.ui.reader.settings.ReadingModeType
 import eu.kanade.tachiyomi.util.chapter.ChapterFilter
 import eu.kanade.tachiyomi.util.chapter.ChapterSort
+import eu.kanade.tachiyomi.util.shouldDownloadNewChapters
 import eu.kanade.tachiyomi.util.chapter.ChapterUtil.Companion.preferredChapterName
 import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
 import eu.kanade.tachiyomi.util.chapter.updateTrackChapterRead
@@ -78,7 +79,9 @@ import karasu.domain.chapter.interactor.InsertChapter
 import karasu.domain.chapter.interactor.UpdateChapter
 import karasu.domain.chapter.interactor.withAlternate
 import karasu.domain.chapter.models.ChapterUpdate
+import karasu.domain.download.DownloadNextUnread
 import karasu.domain.download.DownloadPreferences
+import karasu.domain.download.readChaptersToRemove
 import karasu.domain.history.interactor.GetHistory
 import karasu.domain.history.interactor.UpsertHistory
 import karasu.domain.library.LibraryPreferences
@@ -127,6 +130,7 @@ class ReaderViewModel(
     private val getTrack: GetTrack by injectLazy()
     private val translationManager: TranslationManager by injectLazy()
     private val translationPreferences: TranslationPreferences by injectLazy()
+    private val downloadNextUnread: DownloadNextUnread by injectLazy()
 
     private val mutableState = MutableStateFlow(State())
     val state = mutableState.asStateFlow()
@@ -218,9 +222,7 @@ class ReaderViewModel(
         val currentChapters = state.value.viewerChapters
         if (currentChapters != null) {
             currentChapters.unref()
-            chapterToDownload?.let {
-                downloadManager.addDownloadsToStartOfQueue(listOf(it))
-            }
+            chapterToDownload?.let(::requeue)
         }
     }
 
@@ -664,6 +666,19 @@ class ReaderViewModel(
         }
     }
 
+    /**
+     * "Download new chapters" keeps only a few unread chapters downloaded ahead, so finishing one
+     * is what lets the next one in.
+     */
+    private fun downloadNextUnreadIfNeeded(readerChapter: ReaderChapter) {
+        val manga = manga ?: return
+        if (!downloadNextUnread.isLimited()) return
+        viewModelScope.launchNonCancellableIO {
+            if (!manga.shouldDownloadNewChapters(preferences)) return@launchNonCancellableIO
+            downloadNextUnread.await(manga, justRead = readerChapter.chapter.id, toFrontOfQueue = true)
+        }
+    }
+
     private suspend fun downloadAutoNextChapters(choice: Int, nextChapterId: Long?) {
         val chaptersToDownload = getNextUnreadChaptersSorted(nextChapterId).take(choice - 1)
         if (chaptersToDownload.isNotEmpty()) {
@@ -705,24 +720,21 @@ class ReaderViewModel(
     }
 
     /**
-     * Determines if deleting option is enabled and nth to last chapter actually exists.
-     * If both conditions are satisfied enqueues chapter for delete
+     * If deleting is enabled, enqueues for delete every downloaded read chapter older than the
+     * last n read ones, see [readChaptersToRemove].
      * @param currentChapter current chapter, which is going to be marked as read.
      */
     private fun deleteChapterIfNeeded(currentChapter: ReaderChapter) {
         viewModelScope.launchNonCancellableIO {
-            // Determine which chapter should be deleted and enqueue
-            val currentChapterPosition = chapterList.indexOf(currentChapter)
             val removeAfterReadSlots = preferences.removeAfterReadSlots().get()
-            val chapterToDelete = chapterList.getOrNull(currentChapterPosition - removeAfterReadSlots)
 
             if (removeAfterReadSlots != 0 && chapterToDownload != null) {
-                downloadManager.addDownloadsToStartOfQueue(listOf(chapterToDownload!!))
+                requeue(chapterToDownload!!)
             } else {
                 chapterToDownload = null
             }
-            // Check if deleting option is enabled and chapter exists
-            if (removeAfterReadSlots != -1 && chapterToDelete != null) {
+            // Check if deleting option is enabled
+            if (removeAfterReadSlots != -1) {
                 val excludedCategories = preferences.removeExcludeCategories().get().map(String::toInt)
                 if (excludedCategories.any()) {
                     val categories = getCategories.awaitByMangaId(manga!!.id!!)
@@ -732,9 +744,24 @@ class ReaderViewModel(
                     if (categories.any { it in excludedCategories }) return@launchNonCancellableIO
                 }
 
-                enqueueDeleteReadChapters(chapterToDelete)
+                // The whole entry, not the reader's list: with "skip read" that list leaves out
+                // the very chapters read in earlier sessions that are waiting to be deleted.
+                val manga = manga!!
+                val sorted = getChapter.awaitAll(manga).sortedWith(ChapterSort(manga, chapterFilter, preferences).sortComparator(true))
+                val toDelete = readChaptersToRemove(sorted, currentChapter.chapter.id!!, removeAfterReadSlots)
+                    .filter { downloadManager.isChapterDownloaded(it, manga) }
+                if (toDelete.isNotEmpty()) downloadManager.enqueueDeleteChapters(toDelete, manga)
             }
         }
+    }
+
+    /**
+     * Puts the chapter being read, taken out of the queue when it was opened, back at the end of
+     * it. Not the front: by now download ahead has queued the chapters after it there, and those
+     * are the ones the reader is waiting on.
+     */
+    private fun requeue(download: Download) {
+        downloadManager.downloadChapters(download.manga, listOf(download.chapter))
     }
 
     /**
@@ -799,6 +826,7 @@ class ReaderViewModel(
         readerChapter.chapter.read = true
         updateTrackChapterAfterReading(readerChapter)
         deleteChapterIfNeeded(readerChapter)
+        downloadNextUnreadIfNeeded(readerChapter)
         // Finishing a chapter is the moment "started reading" and "caught up" become true, so
         // let the category rules act on it while the user is still in the reader.
         manga?.id?.let { applyCategoryRules.awaitFor(it) }
@@ -1177,19 +1205,6 @@ class ReaderViewModel(
             if (errors.isNotEmpty()) {
                 eventChannel.send(Event.ShareTrackingError(errors))
             }
-        }
-    }
-
-    /**
-     * Enqueues this [chapter] to be deleted when [deletePendingChapters] is called. The download
-     * manager handles persisting it across process deaths.
-     */
-    private fun enqueueDeleteReadChapters(chapter: ReaderChapter) {
-        if (!chapter.chapter.read) return
-        val manga = manga ?: return
-
-        viewModelScope.launchNonCancellableIO {
-            downloadManager.enqueueDeleteChapters(listOf(chapter.chapter), manga)
         }
     }
 

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.source
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -41,6 +42,12 @@ class SourcePresenter(
     /** The recommendations window, pinned under "last used" rather than filed under "other". */
     val recommendationItem: SourceItem?
         get() = (sourceManager.get(RecommendationSource.ID) as? CatalogueSource)
+            ?.takeUnless { it.id.toString() in preferences.hiddenSources().get() }
+            ?.let { SourceItem(it, LangItem(RECOMMENDATIONS_KEY)) }
+
+    /** The releases window, in the same section as the recommendations. Experimental. */
+    val releasesItem: SourceItem?
+        get() = (sourceManager.get(ReleasesSource.ID) as? CatalogueSource)
             ?.takeUnless { it.id.toString() in preferences.hiddenSources().get() }
             ?.let { SourceItem(it, LangItem(RECOMMENDATIONS_KEY)) }
 
@@ -147,7 +154,7 @@ class SourcePresenter(
         return sourceManager.getCatalogueSources()
             .filter { it.lang in languages || it.id == LocalSource.ID }
             // Shown as its own section above the languages, see [recommendationItem].
-            .filterNot { it.id == RecommendationSource.ID }
+            .filterNot { it.id in ReleasesSource.WINDOWS }
             .filterNot { it.id.toString() in hiddenCatalogues }
             .sortedBy { "(${it.lang}) ${it.name}" }
     }

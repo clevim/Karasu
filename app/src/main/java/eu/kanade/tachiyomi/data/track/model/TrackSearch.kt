@@ -40,6 +40,9 @@ class TrackSearch : Track {
 
     var start_date: String = ""
 
+    /** The other names the tracker lists it under, shown so a translated title can be matched. */
+    var alternative_titles: List<String> = emptyList()
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

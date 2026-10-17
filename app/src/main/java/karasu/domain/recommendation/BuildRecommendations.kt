@@ -1,12 +1,12 @@
 package karasu.domain.recommendation
 
+import eu.kanade.tachiyomi.source.ReleasesSource
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.LibraryManga
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.LocalSource
-import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -363,7 +363,7 @@ class BuildRecommendations(
         val languages = preferences.enabledLanguages().get()
         val hidden = preferences.hiddenSources().get()
         return sourceManager.getCatalogueSources().filter {
-            it.lang in languages && it.id.toString() !in hidden && it.id != LocalSource.ID && it.id != RecommendationSource.ID
+            it.lang in languages && it.id.toString() !in hidden && it.id != LocalSource.ID && it.id !in ReleasesSource.WINDOWS
         }
     }
 

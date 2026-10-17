@@ -47,6 +47,8 @@ class TrackSearchItem(val trackSearch: TrackSearch) : AbstractItem<TrackSearchIt
             val track = item.trackSearch
             binding.checkbox.isVisible = item.isSelected
             binding.trackSearchTitle.text = track.title
+            binding.trackSearchAltTitles.text = track.alternative_titles.joinToString(" · ")
+            binding.trackSearchAltTitles.isVisible = track.alternative_titles.isNotEmpty()
             binding.trackSearchSummary.text = track.summary
             binding.trackSearchSummary.isVisible = track.summary.isNotBlank()
             binding.trackSearchCover.dispose()

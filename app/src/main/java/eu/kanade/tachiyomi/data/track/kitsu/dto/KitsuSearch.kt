@@ -34,6 +34,8 @@ data class KitsuAlgoliaSearchItem(
     val averageRating: Double?,
     val startDate: Long?,
     val endDate: Long?,
+    val titles: Map<String, String?>? = null,
+    val abbreviatedTitles: List<String>? = null,
 ) {
     fun toTrack(): TrackSearch {
         return TrackSearch.create(TrackManager.KITSU).apply {
@@ -46,6 +48,9 @@ data class KitsuAlgoliaSearchItem(
             score = averageRating?.toFloat() ?: -1.0F
             publishing_status = if (endDate == null) "Publishing" else "Finished"
             publishing_type = subtype ?: ""
+            alternative_titles = (titles?.values.orEmpty().filterNotNull() + abbreviatedTitles.orEmpty())
+                .filter { it.isNotBlank() && it != canonicalTitle }
+                .distinct()
             start_date = startDate?.let {
                 val outputDf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 outputDf.format(Date(it * 1000))

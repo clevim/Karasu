@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.safeMemo
 import eu.kanade.tachiyomi.source.RecommendationSource
+import eu.kanade.tachiyomi.source.ReleasesSource
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -287,6 +288,20 @@ open class BrowseSourcePresenter(
                     id = localManga.id!!,
                     title = sManga.title,
                 )
+            )
+        } else if (sourceId == ReleasesSource.ID) {
+            // A release's row is only ever a copy of the list, which a weekly refresh rewrites:
+            // without this it kept the status and genres of the first time it was shown.
+            localManga.title = sManga.title
+            localManga.status = sManga.status
+            localManga.genre = sManga.genre
+            updateManga.await(
+                MangaUpdate(
+                    id = localManga.id!!,
+                    title = sManga.title,
+                    status = sManga.status,
+                    genres = sManga.genre?.split(", ").orEmpty(),
+                ),
             )
         } else if (!localManga.favorite) {
             // if the manga isn't a favorite, set its display title from source

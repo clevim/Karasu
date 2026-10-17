@@ -10,6 +10,65 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.13.0]
+
+### Additions
+- "Releases" (experimental), next to Recommendations in Browse: the 100 most popular manga, manhwa
+  and manhua that started in the last 6 months, from AniList, or from MangaDex when AniList cannot
+  be reached. The list is fetched again once a week when the source is opened, or from "Refresh"
+  in its menu; nothing runs in the background. Every filter works on the saved list without asking
+  the network again: period (1, 3 or 6 months), type, genres, status, "Hide what is in my library",
+  and sorting by popularity, release date, score or title, both ascending and descending. Covers
+  come straight from where the list came from
+- Tapping a release opens a page of its own instead of a manga page, since there are no chapters to
+  list until a source has it: cover and banner, every name, synopsis, status, start, chapter and
+  volume counts, genres and tags, story and art, score, popularity, related series (sequels,
+  prequels, spin-offs) and links, the official platform among them. "Search my sources" runs the
+  global search with all of its names, Portuguese ones first, and says so when none of your
+  sources has it
+- Publication status from MangaDex and MangaUpdates, the two catalogues that actually mark hiatus
+  and cancellation: it becomes the entry's status in the library, over AniList, Kitsu and
+  MyAnimeList when they disagree, and a status you edited by hand is never overwritten. It is
+  checked at the end of a library update, for the entries that update covered, each at most once
+  a week and within two minutes per update
+- Entries are matched on those catalogues by the ids of the trackers you bound first, then by an
+  exact name, the source's Portuguese title included; same-named series are told apart by type
+  (manga, manhwa, manhua) and by the year of the chapters, and an ambiguous match applies nothing.
+  Their other names and tags join what the trackers and MangaBaka already provided
+- Tracker search shows each result's other names under its title, and when the title finds
+  nothing it tries up to five other names the entry is known by
+- "Keep downloaded ahead" (Settings › Downloads, under "Download new chapters"): new chapters are
+  downloaded on their own only up to that many unread chapters past the last one read (2 by
+  default; "All chapters" keeps the old behaviour), and the reader tops it up as you finish
+  chapters. Downloads you start yourself, from any menu, are never cut
+
+### Changes
+- "Remove after read" keeps the last N read chapters downloaded and removes every older read
+  chapter of the entry, not just one, including those read in earlier sessions; unread chapters
+  are never touched. Installs that never changed the setting now keep the last 2 read
+- Download ahead delivers in reading order: the next chapters jump to the front of the queue,
+  the one being read goes back to the end, and inside a chapter each page's address is looked up
+  as its turn comes, so page 1 arrives first
+- What the trackers say about publication status now reaches the library status, not only the
+  calendar and the stats
+
+### Fixes
+- The download queue never started again after a download failed while it was stopped
+- A failed page address lookup failed the whole chapter; it is retried like the images are
+- Two requests for the same chapter at the same moment queued it twice
+- Asking the reader for a chapter that was already queued at the back, or had failed, left it
+  there; it now moves to the front and is retried
+- MangaUpdates' "completely scanlated" was read as the series being finished; its status text is
+  read instead ("Suspended" is a hiatus, "Dropped" and "Axed" are cancelled)
+- An interrupted recommendations build could freeze an entry's status as if you had edited it
+- Cancelling a library update did not stop its status lookups
+- The download job started after a library update that had queued nothing
+- Releases that were refreshed kept the title, status and genres they were first listed with
+
+### Other
+- What the trackers and catalogues know about an entry is written one entry at a time, re-read
+  before each change, instead of all at the end from a copy taken at the start
+
 ## [1.12.0]
 
 ### Additions

@@ -18,6 +18,8 @@ import eu.kanade.tachiyomi.network.parseAs
 import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.library.custom.model.CustomMangaInfo
 import karasu.domain.track.interactor.GetTrack
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -65,15 +67,27 @@ data class TrackerExtra(
     val mbChapters: Int? = null,
     /** When MangaBaka was last asked, found or not; 0 = never. */
     val mangaBakaAt: Long = 0,
+    /** What MangaDex and MangaUpdates said, see [CheckPublication]. Names English-first. */
+    val catalogTags: List<String> = emptyList(),
+    val catalogTitles: List<String> = emptyList(),
+    val catalogStatus: Int? = null,
+    /** When they were last asked, found or not; 0 = never. */
+    val catalogAt: Long = 0,
 ) {
-    /** Every tag known about the series, trackers first. */
-    val allTags: List<String> get() = (tags + mbTags).distinctBy { it.lowercase() }
+    /** Every tag known about the series, catalogues and trackers first. */
+    val allTags: List<String> get() = (catalogTags + tags + mbTags).distinctBy { it.lowercase() }
 
-    /** Every other name it goes by. */
-    val allTitles: List<String> get() = (titles + mbTitles).distinctBy { it.lowercase() }
+    /** Every other name it goes by, the catalogues' English and romanised names first. */
+    val allTitles: List<String> get() = (catalogTitles + titles + mbTitles).distinctBy { it.lowercase() }
 
-    /** The trackers' word on its status, else MangaBaka's. */
-    val anyStatus: Int? get() = status ?: mbStatus
+    /**
+     * The status the library shows: the catalogues', which know hiatus and cancelled, else the
+     * trackers'. MangaBaka's is left to the calendar and the stats, as before.
+     */
+    val publicationStatus: Int? get() = catalogStatus ?: status
+
+    /** The best word on its status there is, MangaBaka's last. */
+    val anyStatus: Int? get() = publicationStatus ?: mbStatus
 }
 
 /**
@@ -104,6 +118,22 @@ class TrackerExtrasStore(
             }
         }.onFailure { Logger.e(it) { "Could not store library extras" } }
         cached = all() + extras
+    }
+
+    private val writing = Mutex()
+
+    /**
+     * Rewrites one entry from what is stored at this moment, under a lock: the trackers' run, the
+     * catalogues' and MangaBaka's each own some of the fields, and a copy read before a minute of
+     * network calls would put back what another one wrote meanwhile.
+     *
+     * @return what was stored before, and what is stored now.
+     */
+    suspend fun update(mangaId: Long, change: (TrackerExtra) -> TrackerExtra): Pair<TrackerExtra?, TrackerExtra> = writing.withLock {
+        val before = get(mangaId)
+        val after = change(before ?: TrackerExtra(key = "", tags = emptyList(), titles = emptyList()))
+        putAll(mapOf(mangaId to after))
+        before to after
     }
 
     fun encode(extra: TrackerExtra): String = json.encodeToString(extra)
@@ -171,7 +201,6 @@ class EnrichFromTrackers(
             .flatMap { ids -> runCatching { fromAniList(ids) }.onFailure { Logger.w(it) { "AniList batch failed" } }.getOrDefault(emptyMap()).entries }
             .associate { it.key to it.value }
 
-        val collected = mutableMapOf<Long, TrackerExtra>()
         pending.forEachIndexed { index, (manga, its, key) ->
             val found = its.mapNotNull { track ->
                 when (track.sync_id) {
@@ -185,34 +214,27 @@ class EnrichFromTrackers(
             onProgress(index + 1, pending.size)
             // Nothing answered — the network, most likely. Not stored, so it is asked again.
             if (found.isEmpty()) return@forEachIndexed
-            // Copied over what is there, so MangaBaka's half of the record survives a tracker refresh.
-            val extra = (store.get(manga.id) ?: TrackerExtra(key = "", tags = emptyList(), titles = emptyList())).copy(
-                key = key,
-                tags = found.flatMap { it.tags }.mapNotNull(::normalizeTag).distinctBy { it.lowercase() },
-                titles = found.flatMap { it.titles }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() },
-                // Finished beats hiatus beats releasing: the most final word any tracker gave.
-                status = found.mapNotNull { it.status }.maxByOrNull { STATUS_RANK.indexOf(it) },
-                fetchedAt = now,
-            )
-            collected[manga.id!!] = extra
+            // Only the trackers' fields change: MangaBaka's and the catalogues' half of the record
+            // is whatever is stored now. Stored before the status is applied, so a run stopped
+            // halfway leaves no status this put there that the store does not know as its own.
+            val (before, extra) = store.update(manga.id!!) {
+                it.copy(
+                    key = key,
+                    tags = found.flatMap { it.tags }.mapNotNull(::normalizeTag).distinctBy { it.lowercase() },
+                    titles = found.flatMap { it.titles }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() },
+                    // Finished beats hiatus beats releasing: the most final word any tracker gave.
+                    status = found.mapNotNull { it.status }.maxByOrNull { STATUS_RANK.indexOf(it) },
+                    fetchedAt = now,
+                )
+            }
             if (extra.tags.isNotEmpty()) runCatching { addToGenres(manga, extra.tags) }
+            runCatching { applyTrackerStatus(customMangaManager, manga, before?.publicationStatus, extra.publicationStatus) }
         }
-        // One write: the preference is the whole map, and rewriting it per entry is quadratic.
-        store.putAll(collected)
     }
 
     private suspend fun addToGenres(manga: Manga, tags: List<String>) = addToGenres(customMangaManager, manga, tags)
 
     private data class Found(val tags: List<String>, val titles: List<String>, val status: Int? = null)
-
-    /** A tracker's status word as the app's status number, or null for anything it does not know. */
-    private fun statusOf(word: String?): Int? = when (word?.lowercase()) {
-        "releasing", "currently_publishing", "current", "ongoing" -> SManga.ONGOING
-        "hiatus", "on_hiatus" -> SManga.ON_HIATUS
-        "finished", "complete", "completed" -> SManga.COMPLETED
-        "cancelled", "canceled", "discontinued" -> SManga.CANCELLED
-        else -> null
-    }
 
     private suspend fun fromAniList(ids: List<Long>): Map<Long, Found> {
         val payload = buildJsonObject {
@@ -234,7 +256,7 @@ class EnrichFromTrackers(
                         val t = tag.jsonObject
                         t["name"]?.jsonPrimitive?.contentOrNull?.takeIf { (t["rank"]?.jsonPrimitive?.intOrNull ?: 0) >= TAG_RANK }
                     }
-                id to Found(tags, titles, statusOf(obj["status"]?.jsonPrimitive?.contentOrNull))
+                id to Found(tags, titles, trackerStatusOf(obj["status"]?.jsonPrimitive?.contentOrNull))
             }.toMap()
     }
 
@@ -246,7 +268,7 @@ class EnrichFromTrackers(
         val titles = listOfNotNull(obj["title"]?.jsonPrimitive?.contentOrNull, alt?.get("en")?.jsonPrimitive?.contentOrNull, alt?.get("ja")?.jsonPrimitive?.contentOrNull) +
             alt?.get("synonyms")?.jsonArray.orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull }
         val tags = obj["genres"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull }
-        return Found(tags, titles, statusOf(obj["status"]?.jsonPrimitive?.contentOrNull))
+        return Found(tags, titles, trackerStatusOf(obj["status"]?.jsonPrimitive?.contentOrNull))
     }
 
     private suspend fun fromKitsu(track: Track): Found {
@@ -260,7 +282,7 @@ class EnrichFromTrackers(
         val tags = root["included"]?.jsonArray.orEmpty()
             .filter { it.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "categories" }
             .mapNotNull { it.jsonObject["attributes"]?.jsonObject?.get("title")?.jsonPrimitive?.contentOrNull }
-        return Found(tags, titles, statusOf(attributes?.get("status")?.jsonPrimitive?.contentOrNull))
+        return Found(tags, titles, trackerStatusOf(attributes?.get("status")?.jsonPrimitive?.contentOrNull))
     }
 
     private suspend fun fromMangaUpdates(track: Track): Found {
@@ -272,16 +294,8 @@ class EnrichFromTrackers(
                 .sortedByDescending { it.jsonObject["votes"]?.jsonPrimitive?.intOrNull ?: 0 }
                 .take(MU_CATEGORIES)
                 .mapNotNull { it.jsonObject["category"]?.jsonPrimitive?.contentOrNull }
-        // MangaUpdates' status is prose ("Ongoing", "Complete (Hiatus)"): the strongest word wins.
-        val prose = obj["status"]?.jsonPrimitive?.contentOrNull?.lowercase().orEmpty()
-        val status = when {
-            obj["completed"]?.jsonPrimitive?.contentOrNull == "true" || "complete" in prose -> SManga.COMPLETED
-            "hiatus" in prose -> SManga.ON_HIATUS
-            "cancel" in prose || "discontinued" in prose || "dropped" in prose -> SManga.CANCELLED
-            "ongoing" in prose -> SManga.ONGOING
-            else -> null
-        }
-        return Found(tags, titles, status)
+        // Not `completed`: that flag means the translation is complete, not the series.
+        return Found(tags, titles, mangaUpdatesStatusOf(obj["status"]?.jsonPrimitive?.contentOrNull))
     }
 
     private val malHeaders = Headers.headersOf("X-MAL-CLIENT-ID", MyAnimeListApi.CLIENT_ID)
@@ -293,7 +307,7 @@ class EnrichFromTrackers(
         private const val KITSU = "https://kitsu.io/api/edge"
         private const val MU = "https://api.mangaupdates.com"
 
-        private val KNOWN = setOf(TrackManager.ANILIST, TrackManager.MYANIMELIST, TrackManager.KITSU, TrackManager.MANGA_UPDATES)
+        val KNOWN = setOf(TrackManager.ANILIST, TrackManager.MYANIMELIST, TrackManager.KITSU, TrackManager.MANGA_UPDATES)
 
         /** AniList tags below this rank are noise. */
         private const val TAG_RANK = 60
@@ -318,12 +332,80 @@ class EnrichFromTrackers(
             |}
         """.trimMargin()
 
-        /** Least to most final. */
-        private val STATUS_RANK = listOf(SManga.ONGOING, SManga.ON_HIATUS, SManga.CANCELLED, SManga.COMPLETED)
-
         /** How long a read stays fresh before status is asked about again. */
         private const val REFRESH_MS = 30L * 24 * 60 * 60 * 1000
     }
+}
+
+/** Least to most final. */
+private val STATUS_RANK = listOf(SManga.ONGOING, SManga.ON_HIATUS, SManga.CANCELLED, SManga.COMPLETED)
+
+/**
+ * A tracker's status word as the app's status number, or null for anything it does not know.
+ * Takes both the APIs' words and what the search results show (MyAnimeList's with spaces).
+ */
+internal fun trackerStatusOf(word: String?): Int? = when (word?.lowercase()?.replace(' ', '_')) {
+    "releasing", "currently_publishing", "current", "ongoing", "publishing" -> SManga.ONGOING
+    "hiatus", "on_hiatus" -> SManga.ON_HIATUS
+    "finished", "complete", "completed" -> SManga.COMPLETED
+    "cancelled", "canceled", "discontinued" -> SManga.CANCELLED
+    else -> null
+}
+
+/**
+ * The status the library should show when the trackers said [tracker] and the source [source],
+ * or null to leave the source's own. The trackers win: people keep them current, where a source
+ * rarely touches its status after the first scrape and almost never says hiatus or cancelled.
+ * Except where the source says more: "publishing finished" (the original is done, the
+ * translation is not) and "licensed" are both truer than a tracker's plain "finished".
+ */
+internal fun libraryStatus(source: Int, tracker: Int?): Int? = when {
+    tracker == null || tracker == source -> null
+    tracker == SManga.COMPLETED && (source == SManga.PUBLISHING_FINISHED || source == SManga.LICENSED) -> null
+    else -> tracker
+}
+
+/**
+ * Shows the trackers' status in the library, as a custom edit so a refresh from the source does
+ * not undo it. [previous] is what the trackers said last time, which is how a status this put
+ * there is told apart from one the reader set by hand: theirs is never touched.
+ */
+internal suspend fun applyTrackerStatus(customMangaManager: CustomMangaManager, manga: Manga, previous: Int?, tracker: Int?) {
+    val current = customMangaManager.getManga(manga)
+    val custom = current?.status?.takeIf { it != -1 }
+    if (custom != null && custom != previous) return
+    val wanted = libraryStatus(manga.ogStatus, tracker)
+    if (wanted == custom) return
+    customMangaManager.saveMangaInfo(
+        CustomMangaInfo(
+            mangaId = manga.id!!,
+            title = current?.title?.takeIf { it.isNotBlank() },
+            author = current?.author,
+            artist = current?.artist,
+            description = current?.description,
+            genre = current?.genre,
+            status = wanted,
+        ),
+    )
+}
+
+/**
+ * On binding a tracker, the status its search result showed goes to the library right away
+ * rather than after the next overnight [EnrichFromTrackers] run, which then takes over. Kept in
+ * [TrackerExtrasStore] like that run's, so the run knows it as its own. The key is left alone,
+ * so the run still fetches the entry in full.
+ */
+suspend fun applyBoundTrackerStatus(
+    store: TrackerExtrasStore,
+    customMangaManager: CustomMangaManager,
+    manga: Manga,
+    syncId: Long,
+    publishingStatus: String,
+) {
+    if (syncId !in EnrichFromTrackers.KNOWN) return
+    val found = trackerStatusOf(publishingStatus) ?: return
+    val (before, after) = store.update(manga.id!!) { it.copy(status = listOfNotNull(it.status, found).maxBy { s -> STATUS_RANK.indexOf(s) }) }
+    applyTrackerStatus(customMangaManager, manga, before?.publicationStatus, after.publicationStatus)
 }
 
 /**

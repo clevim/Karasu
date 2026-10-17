@@ -1,5 +1,10 @@
 package eu.kanade.tachiyomi.ui.manga
 
+import karasu.domain.migration.MangaAliases
+import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import karasu.domain.recommendation.CheckPublication
+import karasu.domain.recommendation.applyBoundTrackerStatus
+import karasu.domain.download.DownloadNextUnread
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
@@ -745,10 +750,15 @@ class MangaDetailsPresenter(
         val added = ownAdded + mergedAdded
         if (added.isNotEmpty()) {
             if (manga.shouldDownloadNewChapters(preferences) && manualFetch) {
-                downloadChapters(
-                    added.sortedBy { it.chapter_number }
-                        .map { it.toModel() },
-                )
+                val downloadNextUnread = Injekt.get<DownloadNextUnread>()
+                if (downloadNextUnread.isLimited()) {
+                    downloadNextUnread.await(manga)
+                } else {
+                    downloadChapters(
+                        added.sortedBy { it.chapter_number }
+                            .map { it.toModel() },
+                    )
+                }
             }
             view?.view?.context?.let { mangaShortcutManager.updateShortcuts(it) }
         }
@@ -1440,18 +1450,48 @@ class MangaDetailsPresenter(
         }
     }
 
-    fun trackSearch(query: String, service: TrackService) {
+    /** @param withAliases when [query] finds nothing, try the entry's other names, see [searchByAliases]. */
+    fun trackSearch(query: String, service: TrackService, withAliases: Boolean = false) {
         if (view?.isNotOnline() == false) {
             presenterScope.launch(Dispatchers.IO) {
+                var matchedName: String? = null
                 val results = try {
-                    service.search(query)
+                    service.search(query).ifEmpty {
+                        if (!withAliases) return@ifEmpty emptyList()
+                        val (name, found) = searchByAliases(query, service) ?: return@ifEmpty emptyList()
+                        matchedName = name
+                        found
+                    }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) { view?.trackSearchError(e) }
                     return@launch
                 }
-                withContext(Dispatchers.Main) { view?.onTrackSearchResults(results) }
+                withContext(Dispatchers.Main) { view?.onTrackSearchResults(results, matchedName) }
             }
         }
+    }
+
+    /**
+     * The tracker's results for the first of the entry's other names that finds anything, with
+     * that name. A pt-BR source's title is often the scanlation group's own translation, which no
+     * tracker knows; the names already on the device usually are (English and romanised first).
+     * With none, MangaDex is asked now — it lists Portuguese names, so the source's title finds
+     * the series there, and its other names find it on the tracker. AniList's names come last.
+     */
+    private suspend fun searchByAliases(query: String, service: TrackService): Pair<String, List<TrackSearch>>? {
+        val aliases = Injekt.get<MangaAliases>()
+        val names = aliases.local(manga).filterNot { it.equals(query, true) }
+            .ifEmpty {
+                runCatching { Injekt.get<CheckPublication>().check(manga) }
+                aliases.local(manga).filterNot { it.equals(query, true) }
+            }
+            .ifEmpty { aliases.online(query).filterNot { it.equals(query, true) } }
+        // A few names at most: each one is a request against the tracker's rate limit.
+        for (name in names.take(MAX_ALIAS_SEARCHES)) {
+            val found = runCatching { service.search(name) }.getOrNull().orEmpty()
+            if (found.isNotEmpty()) return name to found
+        }
+        return null
     }
 
     fun registerTracking(item: Track?, service: TrackService) {
@@ -1468,6 +1508,12 @@ class MangaDetailsPresenter(
                 withContext(Dispatchers.IO) {
                     if (binding != null) {
                         insertTrack.await(binding)
+                        // The result the user picked already said how the series is doing.
+                        (item as? TrackSearch)?.let {
+                            runCatching {
+                                applyBoundTrackerStatus(Injekt.get(), customMangaManager, manga, service.id, it.publishing_status)
+                            }
+                        }
                     }
 
                     syncChaptersWithTrackServiceTwoWay(chapters, item, service)
@@ -1583,6 +1629,7 @@ class MangaDetailsPresenter(
     }
 
     companion object {
+        private const val MAX_ALIAS_SEARCHES = 5
         const val MULTIPLE_VOLUMES = 1
         const val TENS_OF_CHAPTERS = 2
         const val MULTIPLE_SEASONS = 3
