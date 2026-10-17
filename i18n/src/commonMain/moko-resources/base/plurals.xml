@@ -214,4 +214,8 @@
         <item quantity="one">%d source is not answering</item>
         <item quantity="other">%d sources are not answering</item>
     </plurals>
+    <plurals name="releases_count_value">
+        <item quantity="one">%d series</item>
+        <item quantity="other">%d series</item>
+    </plurals>
 </resources>

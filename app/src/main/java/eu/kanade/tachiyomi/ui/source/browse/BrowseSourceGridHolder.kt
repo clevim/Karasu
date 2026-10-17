@@ -37,13 +37,14 @@ class BrowseSourceGridHolder(
     var title by mutableStateOf("")
     var cover by mutableStateOf(MangaCover(0L, 0L, "", 0L, false))
     private var count by mutableStateOf<Int?>(null)
+    private var libraryHas by mutableStateOf(false)
 
     init {
         view.setContent {
             KarasuTheme {
                 val count = this@BrowseSourceGridHolder.count
                 val badgeSegments = buildList {
-                    if (cover.inLibrary)
+                    if (cover.inLibrary || libraryHas)
                         add(
                             BadgeSegment.text(
                                 backgroundColor = MaterialTheme.colorScheme.secondary,
@@ -116,5 +117,9 @@ class BrowseSourceGridHolder(
 
     override fun setChapterCount(count: Int?) {
         this.count = count
+    }
+
+    override fun setInLibrary(inLibrary: Boolean) {
+        libraryHas = inLibrary
     }
 }

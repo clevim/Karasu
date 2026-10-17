@@ -278,6 +278,15 @@ class PreferencesHelper(val context: Context, val preferenceStore: PreferenceSto
 
     fun recommendationOnlyOnWifi() = preferenceStore.getBoolean("recommendation_only_on_wifi", true)
 
+    /** How many series the releases list holds, most popular first: AniList pages of fifty. */
+    fun releasesCount() = preferenceStore.getInt("releases_count", 100)
+
+    /** Days before the releases list is fetched again when the window opens. */
+    fun releasesIntervalDays() = preferenceStore.getInt("releases_interval_days", 7)
+
+    /** Whether the releases window opens with "Hide what is in my library" already on. */
+    fun releasesHideLibrary() = preferenceStore.getBoolean("releases_hide_library", false)
+
     /** JSON object of lowercase canonical tag to the name of the group the reader merged it into. */
     fun recommendationTagMerges() = preferenceStore.getString("recommendation_tag_merges", "{}")
 

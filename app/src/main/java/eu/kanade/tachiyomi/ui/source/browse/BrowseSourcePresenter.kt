@@ -17,6 +17,7 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.safeMemo
 import eu.kanade.tachiyomi.source.RecommendationSource
 import eu.kanade.tachiyomi.source.ReleasesSource
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -128,28 +129,12 @@ open class BrowseSourcePresenter(
 
     var query = searchQuery ?: ""
 
-    private val oldFilters = mutableListOf<Any?>()
-
     override fun onCreate() {
         super.onCreate()
         if (!::pager.isInitialized) {
             source = sourceManager.get(sourceId) as? CatalogueSource ?: return
 
             sourceFilters = source.getFilterList()
-
-            if (oldFilters.isEmpty()) {
-                for (i in sourceFilters) {
-                    if (i is Filter.Group<*>) {
-                        val subFilters = mutableListOf<Any?>()
-                        for (j in i.state) {
-                            subFilters.add((j as Filter<*>).state)
-                        }
-                        oldFilters.add(subFilters)
-                    } else {
-                        oldFilters.add(i.state)
-                    }
-                }
-            }
             filtersChanged = false
 
             runBlocking { view?.savedSearches = loadSearches() }
@@ -163,22 +148,30 @@ open class BrowseSourcePresenter(
         }
     }
 
+    /**
+     * Whether every filter is where the source's own defaults put it. Asked of the source each
+     * time, by name, rather than remembered by position when the screen opened: a source can list
+     * filters it didn't have then (the releases' genres arrive with their list, and change with
+     * it), and a remembered group read by position ran past a shorter one or never matched again.
+     */
     fun filtersMatchDefault(): Boolean {
-        for (i in sourceFilters.indices) {
-            val filter = oldFilters.getOrNull(i)
-            if (filter is List<*>) {
-                for (j in filter.indices) {
-                    val state = ((sourceFilters[i] as Filter.Group<*>).state[j] as Filter<*>).state
-                    if (filter[j] != state) {
-                        return false
-                    }
+        val defaults = source.getFilterList()
+        return sourceFilters.all { filter ->
+            val default = defaults.firstOrNull { it.name == filter.name && it::class == filter::class }
+            if (filter is Filter.Group<*>) {
+                val subDefaults = (default as? Filter.Group<*>)?.state.orEmpty().filterIsInstance<Filter<*>>()
+                filter.state.filterIsInstance<Filter<*>>().all { sub ->
+                    subDefaults.firstOrNull { it.name == sub.name }?.let { it.state == sub.state } ?: sub.isUnset()
                 }
-            } else if (filter != sourceFilters[i].state) {
-                return false
+            } else {
+                default?.let { it.state == filter.state } ?: filter.isUnset()
             }
         }
-        return true
     }
+
+    /** A filter the defaults don't list counts as default only while nothing is chosen in it. */
+    private fun Filter<*>.isUnset() = state == false || state == Filter.TriState.STATE_IGNORE || state == "" ||
+        this is Filter.Header || this is Filter.Separator
 
     /**
      * Restarts the pager for the active source with the provided query and filters.
@@ -210,19 +203,20 @@ open class BrowseSourcePresenter(
             pager.asFlow()
                 .map { (first, second) ->
                     first to second
-                        .map { networkToLocalManga(it, sourceId) to it.safeMemo()[RecommendationSource.BECAUSE_MEMO]?.jsonPrimitive?.contentOrNull }
+                        .map { networkToLocalManga(it, sourceId) to it.safeMemo() }
                         // The recommendations are library entries by design; hiding them would empty it.
                         .filter { (manga, _) -> sourceId == RecommendationSource.ID || !preferences.hideInLibraryItems().get() || !manga.favorite }
                 }
                 .onEach { initializeMangas(it.second.map { (manga, _) -> manga }) }
                 .map { (first, second) ->
-                    first to second.map { (manga, because) ->
+                    first to second.map { (manga, memo) ->
                         BrowseSourceItem(
                             manga,
                             browseAsList,
                             sourceListType,
                             outlineCovers,
-                            subtitle = because,
+                            subtitle = memo[RecommendationSource.BECAUSE_MEMO]?.jsonPrimitive?.contentOrNull,
+                            inLibrary = memo[ReleasesSource.IN_LIBRARY_MEMO]?.jsonPrimitive?.booleanOrNull == true,
                         )
                     }
                 }
@@ -291,16 +285,18 @@ open class BrowseSourcePresenter(
             )
         } else if (sourceId == ReleasesSource.ID) {
             // A release's row is only ever a copy of the list, which a weekly refresh rewrites:
-            // without this it kept the status and genres of the first time it was shown.
+            // without this it kept the title, status, genres and cover of the first time it was shown.
             localManga.title = sManga.title
             localManga.status = sManga.status
             localManga.genre = sManga.genre
+            localManga.thumbnail_url = sManga.thumbnail_url
             updateManga.await(
                 MangaUpdate(
                     id = localManga.id!!,
                     title = sManga.title,
                     status = sManga.status,
                     genres = sManga.genre?.split(", ").orEmpty(),
+                    thumbnailUrl = sManga.thumbnail_url,
                 ),
             )
         } else if (!localManga.favorite) {

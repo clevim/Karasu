@@ -73,7 +73,7 @@ class ReleasesTest {
         val parsed = parseAniListReleases(aniList, since = monthsAgo(now, 6))
         assertEquals(listOf("212562"), parsed.map { it.id })
         val item = parsed.single()
-        assertEquals("Goedame Tteoreojyeodo Chulgeuneul Haeya Haneunguna", item.title) // no English title: romaji
+        assertEquals("Got Dropped into a Ghost Story, Still Gotta Work", item.title) // no English title: its English synonym
         assertEquals(TYPE_MANHWA, item.type)
         assertEquals(SManga.ONGOING, item.status)
         assertEquals(20260605, item.start)
@@ -96,7 +96,7 @@ class ReleasesTest {
     @Test
     fun `falls back to MangaDex when AniList fails, and says so`() = runBlocking {
         val md = parseMangaDexReleases(mangaDex)
-        val fromMangaDex = fetchWithFallback(now, { throw java.io.IOException("AniList down") }, { md })!!
+        val fromMangaDex = fetchWithFallback(now, 100, { throw java.io.IOException("AniList down") }, { md })!!
         assertEquals(ORIGIN_MANGADEX, fromMangaDex.origin)
         val item = fromMangaDex.items.single()
         assertEquals("The Protagonist's Childhood Friend", item.title)
@@ -105,13 +105,26 @@ class ReleasesTest {
         assertEquals(listOf("Romance"), item.genres)
         assertEquals("https://uploads.mangadex.org/covers/5272da37-6c69-4ecc-a1e0-d25db7b3e80f/3ef08942-c50b-4dc8-bda3-c22259e57dc7.jpg.512.jpg", item.cover)
         // An empty answer is as good as a failure; AniList, when it answers, is the one used.
-        assertEquals(ORIGIN_MANGADEX, fetchWithFallback(now, { emptyList() }, { md })!!.origin)
-        assertEquals(ORIGIN_ANILIST, fetchWithFallback(now, { parseAniListReleases(aniList, 0) }, { md })!!.origin)
-        assertNull(fetchWithFallback(now, { emptyList() }, { throw java.io.IOException() }))
+        assertEquals(ORIGIN_MANGADEX, fetchWithFallback(now, 100, { emptyList() }, { md })!!.origin)
+        assertEquals(ORIGIN_ANILIST, fetchWithFallback(now, 100, { parseAniListReleases(aniList, 0) }, { md })!!.origin)
+        assertNull(fetchWithFallback(now, 100, { emptyList() }, { throw java.io.IOException() }))
     }
 
     @Test
     fun `cleans AniList's description`() {
         assertEquals("One line.\nAnother & more", cleanDescription("One <i>line</i>.<br>Another &amp; more<br><br><br>"))
+    }
+
+    @Test
+    fun `takes the English synonym when AniList has no English title`() {
+        // Real entries of 2026-10-17's list.
+        assertEquals("A Painter Who Draws Dungeons", englishSynonym(listOf("A Painter Who Draws Dungeons", "The Dungeon Painter")))
+        assertEquals("Got Dropped into a Ghost Story, Still Gotta Work", englishSynonym(listOf("GSGW", "Got Dropped into a Ghost Story, Still Gotta Work")))
+        assertEquals("Goodbye, Lara", englishSynonym(listOf("Goodbye, Lara")))
+        assertNull(englishSynonym(listOf("GSGW", "외전")))
+        val media = Json.parseToJsonElement(
+            """{"id":1,"title":{"romaji":"Dungeon-eul Geurineun Hwaga","english":null,"native":"던전을 그리는 화가"},"synonyms":["The Dungeon Painter"]}""",
+        ).jsonObject
+        assertEquals("The Dungeon Painter", parseAniListRelease(media)!!.title)
     }
 }

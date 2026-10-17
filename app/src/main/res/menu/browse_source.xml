@@ -53,6 +53,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_releases_settings"
+        android:icon="@drawable/ic_settings_24dp"
+        android:title="@string/releases_settings"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_recommendation_settings"
         android:icon="@drawable/ic_settings_24dp"
         android:title="@string/recommendation_settings"

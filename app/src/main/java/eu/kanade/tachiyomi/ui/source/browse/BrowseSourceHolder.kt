@@ -28,6 +28,9 @@ abstract class BrowseSourceHolder(view: View, adapter: FlexibleAdapter<IFlexible
     /** Only the list layout has room for one. */
     open fun onSetSubtitle(subtitle: String?) {}
 
+    /** The "in library" badge for an entry that isn't this source's favourite but is the library's. */
+    abstract fun setInLibrary(inLibrary: Boolean)
+
     /**
      * Updates the image for this holder. Useful to update the image when the manga is initialized
      * and the url is now known.

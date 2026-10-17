@@ -173,6 +173,7 @@ open class BrowseSourceController(bundle: Bundle) :
     private var filterSheet: SourceFilterSheet? = null
     private var lastPosition: Int = -1
     private var tagsEdited = false
+    private var releasesSettingsOpened = false
 
     /** The recommendation build the adapter's cards came from, to notice when a newer one exists. */
     private var shownBuild: Long? = null
@@ -450,6 +451,7 @@ open class BrowseSourceController(bundle: Bundle) :
         menu.findItem(R.id.action_recommendation_settings).isVisible = presenter.source is RecommendationSource
         menu.findItem(R.id.action_recommendation_rebuild).isVisible = presenter.source is RecommendationSource
         menu.findItem(R.id.action_releases_refresh).isVisible = presenter.source is ReleasesSource
+        menu.findItem(R.id.action_releases_settings).isVisible = presenter.source is ReleasesSource
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -463,6 +465,10 @@ open class BrowseSourceController(bundle: Bundle) :
             R.id.action_recommendation_refresh -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_CONTINUE) }
             R.id.action_recommendation_rebuild -> view?.context?.let { RecommendationJob.runNow(it, RecommendationJob.MODE_FULL) }
             R.id.action_releases_refresh -> refreshReleases()
+            R.id.action_releases_settings -> {
+                releasesSettingsOpened = true
+                router.pushController(SettingsBrowseController().apply { preferenceKey = RELEASES_SETTINGS_KEY }.withFadeTransaction())
+            }
             R.id.action_recommendation_settings -> router.pushController(
                 SettingsBrowseController().apply { preferenceKey = RECOMMENDATION_SETTINGS_KEY }.withFadeTransaction(),
             )
@@ -691,6 +697,13 @@ open class BrowseSourceController(bundle: Bundle) :
         if (type == ControllerChangeType.POP_ENTER && tagsEdited) {
             tagsEdited = false
             presenter.restartPager()
+        }
+        // The count, the age or the default filters may have changed: the list and the filters
+        // start over from the settings (the list is fetched again if the count changed).
+        if (type == ControllerChangeType.POP_ENTER && releasesSettingsOpened) {
+            releasesSettingsOpened = false
+            resetPager()
+            updatePopLatestIcons()
         }
     }
 
@@ -1099,6 +1112,7 @@ open class BrowseSourceController(bundle: Bundle) :
 
         /** The preference the settings screen scrolls to and highlights. */
         private const val RECOMMENDATION_SETTINGS_KEY = "recommendation_hour"
+        private const val RELEASES_SETTINGS_KEY = "releases_count"
 
         const val SEARCH_QUERY_KEY = "searchQuery"
         const val USE_LATEST_KEY = "useLatest"

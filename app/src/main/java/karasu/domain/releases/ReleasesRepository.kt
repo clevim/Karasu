@@ -3,6 +3,7 @@ package karasu.domain.releases
 import android.content.Context
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.BuildConfig
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.POST
@@ -32,10 +33,11 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Where the "Releases" window's list comes from: AniList, the hundred most popular series that
- * started in the last six months, in two requests; MangaDex when AniList cannot be reached. Kept
- * on disk and fetched again only when a week old or when the reader asks — opening the window
- * costs nothing in between, and the list itself makes no request per entry.
+ * Where the "Releases" window's list comes from: AniList, the most popular series that started in
+ * the last six months (a hundred by default, one request per fifty); MangaDex when AniList cannot
+ * be reached. Kept on disk and fetched again only when older than the settings allow (a week by
+ * default), when that count changes, or when the reader asks — opening the window costs nothing
+ * in between, and the list itself makes no request per entry.
  *
  * ponytail: no background job. A week-old list fetched on open is fresh enough for a list of
  * what started months ago, and nothing runs for a reader who never opens the window.
@@ -43,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap
 class ReleasesRepository(
     context: Context,
     private val network: NetworkHelper,
+    private val preferences: PreferencesHelper,
 ) {
     private val file = File(context.filesDir, "releases.json")
 
@@ -61,8 +64,11 @@ class ReleasesRepository(
      */
     suspend fun snapshot(force: Boolean = false, now: Long = System.currentTimeMillis()): ReleasesSnapshot {
         val have = read()
-        if (!force && have != null && now - have.fetchedAt < REFRESH_MS) return have
-        val fetched = fetch(now)
+        val count = preferences.releasesCount().get()
+        val fresh = have != null && have.format >= SNAPSHOT_FORMAT && have.requested == count &&
+            now - have.fetchedAt < preferences.releasesIntervalDays().get() * DAY_MS
+        if (!force && fresh) return have!!
+        val fetched = fetch(now, count)
         if (fetched == null) return have ?: throw Exception("Releases unavailable")
         synchronized(this) {
             file.writeText(Json.encodeToString(fetched))
@@ -71,10 +77,10 @@ class ReleasesRepository(
         return fetched
     }
 
-    private suspend fun fetch(now: Long): ReleasesSnapshot? =
-        fetchWithFallback(now, { fromAniList(monthsAgo(now, RELEASE_WINDOW_MONTHS)) }, { fromMangaDex(now) })
+    private suspend fun fetch(now: Long, count: Int): ReleasesSnapshot? =
+        fetchWithFallback(now, count, { fromAniList(monthsAgo(now, RELEASE_WINDOW_MONTHS), count) }, { fromMangaDex(now, count) })
 
-    private suspend fun fromAniList(since: Int): List<Release> = (1..ANILIST_PAGES).flatMap { page ->
+    private suspend fun fromAniList(since: Int, count: Int): List<Release> = (1..(count + 49) / 50).flatMap { page ->
         val root = aniList(LIST_QUERY) {
             put("page", page)
             put("since", since)
@@ -82,15 +88,16 @@ class ReleasesRepository(
         parseAniListReleases(root, since)
     }.distinctBy { it.id }
 
-    private suspend fun fromMangaDex(now: Long): List<Release> {
+    private suspend fun fromMangaDex(now: Long, count: Int): List<Release> {
         val since = SimpleDateFormat("yyyy-MM-dd'T'00:00:00", Locale.US).format(
             java.util.Calendar.getInstance().apply {
                 timeInMillis = now
                 add(java.util.Calendar.MONTH, -RELEASE_WINDOW_MONTHS)
             }.time,
         )
-        val url = "$MANGADEX/manga?limit=100&createdAtSince=$since&order%5BfollowedCount%5D=desc" +
+        val url = "$MANGADEX/manga?limit=${count.coerceAtMost(100)}&createdAtSince=$since&order%5BfollowedCount%5D=desc" +
             "&includes%5B%5D=cover_art&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive" +
+            "&excludedTags%5B%5D=$MANGADEX_ONESHOT" +
             LANGUAGES.joinToString("") { "&originalLanguage%5B%5D=$it" }
         val items = withTimeout(TIMEOUT_MS) {
             network.client.newCall(GET(url, userAgent)).awaitSuccess().parseAs<JsonObject>()
@@ -154,16 +161,18 @@ class ReleasesRepository(
     companion object {
         private const val ANILIST = "https://graphql.anilist.co/"
         private const val MANGADEX = "https://api.mangadex.org"
-        private const val ANILIST_PAGES = 2
         private const val TIMEOUT_MS = 20_000L
-        private const val REFRESH_MS = 7L * 24 * 60 * 60 * 1000
-        private const val DETAIL_CACHE_MS = 24L * 60 * 60 * 1000
+        private const val DAY_MS = 24L * 60 * 60 * 1000
+        private const val DETAIL_CACHE_MS = DAY_MS
         private val LANGUAGES = listOf("ja", "ko", "zh", "zh-hk")
+
+        /** One-shots are left out on both catalogues: the window lists series to follow. */
+        private const val MANGADEX_ONESHOT = "0234a31e-a729-4e28-9d6a-3f87c4966b9e"
 
         private val LIST_QUERY = """
             |query (${'$'}page: Int, ${'$'}since: FuzzyDateInt) {
               |Page(page: ${'$'}page, perPage: 50) {
-                |media(type: MANGA, startDate_greater: ${'$'}since, isAdult: false, sort: POPULARITY_DESC, format_not_in: [NOVEL]) {
+                |media(type: MANGA, startDate_greater: ${'$'}since, isAdult: false, sort: POPULARITY_DESC, format_not_in: [NOVEL, ONE_SHOT]) {
                   |id siteUrl title { romaji english native } synonyms coverImage { extraLarge large }
                   |countryOfOrigin status startDate { year month day } genres popularity averageScore
                 |}
@@ -188,21 +197,22 @@ class ReleasesRepository(
 
 /**
  * AniList's list, else MangaDex's, else null. An error, a timeout or an empty answer all count as
- * "not reachable": a list of nothing is never what was asked for.
+ * "not reachable": a list of nothing is never what was asked for. [requested] is kept with it.
  */
 internal suspend fun fetchWithFallback(
     now: Long,
+    requested: Int,
     aniList: suspend () -> List<Release>,
     mangaDex: suspend () -> List<Release>,
 ): ReleasesSnapshot? {
     runCatching { aniList() }
         .onFailure { Logger.w(it) { "AniList releases failed; trying MangaDex" } }
         .getOrNull()?.takeIf { it.isNotEmpty() }
-        ?.let { return ReleasesSnapshot(ORIGIN_ANILIST, now, it) }
+        ?.let { return ReleasesSnapshot(ORIGIN_ANILIST, now, it, SNAPSHOT_FORMAT, requested) }
     return runCatching { mangaDex() }
         .onFailure { Logger.w(it) { "MangaDex releases failed too" } }
         .getOrNull()?.takeIf { it.isNotEmpty() }
-        ?.let { ReleasesSnapshot(ORIGIN_MANGADEX, now, it) }
+        ?.let { ReleasesSnapshot(ORIGIN_MANGADEX, now, it, SNAPSHOT_FORMAT, requested) }
 }
 
 /** What a series' page shows besides what the list already had. */

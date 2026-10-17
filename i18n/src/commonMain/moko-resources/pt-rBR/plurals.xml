@@ -230,4 +230,8 @@
         <item quantity="one">%d fonte não está respondendo</item>
         <item quantity="other">%d fontes não estão respondendo</item>
     </plurals>
+    <plurals name="releases_count_value">
+        <item quantity="one">%d obra</item>
+        <item quantity="other">%d obras</item>
+    </plurals>
 </resources>

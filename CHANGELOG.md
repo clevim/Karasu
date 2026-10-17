@@ -10,6 +10,32 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.13.1]
+
+### Additions
+- Releases settings (Browse settings, or "Releases settings" in the window's menu): how many series
+  the list holds (50 to 200), how often it is fetched again (1 to 14 days), and whether the window
+  opens with "Hide what is in my library" already on
+- A release the library already has (found by catalogue id or by name) carries the "In library"
+  badge, without having to hide it
+
+### Changes
+- Releases show their English name when AniList has one among the synonyms, rather than the
+  romanised title (two in three new series have no English title of their own yet). A list saved
+  by 1.13.0 is fetched again once, to pick the names up
+- Release genres are shown in the app's language, in the filter and on a release's page
+- One-shots are left out of Releases, on AniList and on MangaDex: the window lists series to follow
+
+### Fixes
+- Release covers no longer show a red "0" and a dimmed cover: a release has no chapters by design
+- The Popular button in Browse could stay unchecked and seem to do nothing on a source whose filters
+  change after the screen opens (the releases' genres, which arrive with their list); filters are
+  now compared with the source's current defaults by name
+- The releases' genre filter is there on the first open, before any list was fetched, and keeps the
+  same genres across refreshes (AniList's own list, plus any a MangaDex list adds)
+- A release's cover follows the list when a refresh changes it
+- Coming back from the releases settings reloads the list and its filters with them
+
 ## [1.13.0]
 
 ### Additions

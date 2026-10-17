@@ -127,7 +127,7 @@ fun domainModule() = module {
     single { RecommendationFeedbackStore(get()) }
     factory { BuildRecommendations(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { RecommendationStore(get<Application>()) }
-    single { karasu.domain.releases.ReleasesRepository(get<Application>(), get()) }
+    single { karasu.domain.releases.ReleasesRepository(get<Application>(), get(), get()) }
     factory { DiscardRecommendations(get(), get(), get()) }
     single { TrackerExtrasStore(get(), get()) }
     factory { EnrichFromTrackers(get(), get(), get(), get(), get()) }

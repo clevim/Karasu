@@ -2,6 +2,7 @@ package karasu.domain.chapter.interactor
 
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.domain.manga.models.Manga
+import eu.kanade.tachiyomi.source.ReleasesSource
 import eu.kanade.tachiyomi.source.SourceManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -53,6 +54,9 @@ object GetSourceChapterCount {
     /** The count, fetching it once if needed. Null when the source could not be asked. */
     suspend fun await(manga: Manga): Int? {
         val id = manga.id ?: return null
+        // A release has no chapters by design, not because a source came up empty: no count,
+        // no red "0", no dimmed cover.
+        if (manga.source == ReleasesSource.ID) return null
         // One request per manga, shared by every holder that asks for it.
         return counts.getOrPut(id) { scope.async { fetch(manga, id) } }.await()
     }

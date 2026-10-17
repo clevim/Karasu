@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.source
 
 import android.content.Context
+import dev.icerock.moko.resources.StringResource
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -12,6 +14,7 @@ import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.recommendation.ExternalIds
 import karasu.domain.recommendation.TrackerExtrasStore
 import karasu.domain.recommendation.titleKey
+import karasu.domain.releases.ANILIST_GENRES
 import karasu.domain.releases.RELEASE_STATUSES
 import karasu.domain.releases.Release
 import karasu.domain.releases.ReleaseFilters
@@ -25,6 +28,8 @@ import karasu.domain.releases.releaseOrder
 import karasu.domain.track.interactor.GetTrack
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import uy.kohesive.injekt.injectLazy
 
 /**
@@ -41,6 +46,7 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
     private val getLibraryManga: GetLibraryManga by injectLazy()
     private val getTrack: GetTrack by injectLazy()
     private val extras: TrackerExtrasStore by injectLazy()
+    private val preferences: PreferencesHelper by injectLazy()
 
     override val id = ID
     override val name = context.getString(MR.strings.releases)
@@ -50,24 +56,26 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
     override fun toString() = name
 
     override fun getFilterList(): FilterList {
-        val genres = repository.read()?.items.orEmpty().flatMap { it.genres }.distinct().sorted()
+        // AniList's fixed list first, so the filter is there on the first open (before any list)
+        // and stays the same across refreshes; a MangaDex list adds its own on top.
+        val genres = (ANILIST_GENRES + repository.read()?.items.orEmpty().flatMap { it.genres }).distinct()
         return FilterList(
             listOfNotNull(
                 Period(context),
                 TypeGroup(context),
                 StatusGroup(context),
-                HideLibrary(context),
+                HideLibrary(context, preferences.releasesHideLibrary().get()),
                 OrderBy(context),
                 genres.takeIf { it.isNotEmpty() }?.let { GenreGroup(context, it) },
             ),
         )
     }
 
-    /** Most popular first. */
-    override suspend fun getPopularManga(page: Int) = page(page, "", FilterList())
+    /** Most popular first, with the default filters (the library hidden, if the settings say so). */
+    override suspend fun getPopularManga(page: Int) = page(page, "", getFilterList())
 
     /** Most recent start first. */
-    override suspend fun getLatestUpdates(page: Int) = page(page, "", FilterList(), latest = true)
+    override suspend fun getLatestUpdates(page: Int) = page(page, "", getFilterList(), latest = true)
 
     override suspend fun getSearchManga(page: Int, query: String, filters: FilterList) = page(page, query, filters)
 
@@ -86,21 +94,19 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
         val chosen = ReleaseFilters(
             months = filters.filterIsInstance<Period>().firstOrNull()?.months ?: 6,
             types = filters.filterIsInstance<TypeGroup>().firstOrNull()?.state.orEmpty().filter { it.state }.map { it.type }.toSet(),
-            genres = filters.filterIsInstance<GenreGroup>().firstOrNull()?.state.orEmpty().filter { it.state }.map { it.name }.toSet(),
+            genres = filters.filterIsInstance<GenreGroup>().firstOrNull()?.state.orEmpty().filter { it.state }.map { it.genre }.toSet(),
             statuses = filters.filterIsInstance<StatusGroup>().firstOrNull()?.state.orEmpty().filter { it.state }.map { it.status }.toSet(),
             query = query,
         )
         // Built on the first page of each listing — a new filter, a refresh — and reused for the
         // pages after it rather than reading the library, its tracks and extras every 30 entries.
-        val library = if (hideLibrary) {
-            matcher?.takeIf { page > 1 } ?: libraryMatcher().also { matcher = it }
-        } else {
-            { _: Release -> false }
-        }
+        // Needed either way: hidden, or marked with the "in library" badge.
+        val library = matcher?.takeIf { page > 1 } ?: libraryMatcher().also { matcher = it }
         val order = if (latest) releaseOrder(1, false) else releaseOrder(sort?.index ?: 0, sort?.ascending ?: false)
-        val all = filterReleases(snapshot.items, chosen, System.currentTimeMillis(), library).sortedWith(order)
+        val hidden = if (hideLibrary) library else { _: Release -> false }
+        val all = filterReleases(snapshot.items, chosen, System.currentTimeMillis(), hidden).sortedWith(order)
         val from = (page - 1) * PAGE_SIZE
-        return MangasPage(all.drop(from).take(PAGE_SIZE).map { it.toSManga() }, hasNextPage = from + PAGE_SIZE < all.size)
+        return MangasPage(all.drop(from).take(PAGE_SIZE).map { it.toSManga(library(it)) }, hasNextPage = from + PAGE_SIZE < all.size)
     }
 
     @Volatile
@@ -118,12 +124,13 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
         return { inLibrary(it, anilist, mangaDex, keys) }
     }
 
-    private fun Release.toSManga() = SManga.create().also {
+    private fun Release.toSManga(inLibrary: Boolean) = SManga.create().also {
         it.url = key
         it.title = title
         it.thumbnail_url = cover
         it.genre = genres.joinToString(", ").ifBlank { null }
         status?.let { status -> it.status = status }
+        if (inLibrary) it.memo = buildJsonObject { put(IN_LIBRARY_MEMO, JsonPrimitive(true)) }
         it.initialized = true
     }
 
@@ -153,12 +160,16 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
             .map { (status, label) -> StatusFilter(context.getString(label), status) },
     )
 
-    private class GenreFilter(name: String) : Filter.CheckBox(name)
+    /** Shown in the reader's language, matched by the catalogue's own (English) [genre]. */
+    private class GenreFilter(name: String, val genre: String) : Filter.CheckBox(name)
 
-    private class GenreGroup(context: Context, genres: List<String>) :
-        Filter.Group<GenreFilter>(context.getString(MR.strings.releases_genres), genres.map(::GenreFilter))
+    private class GenreGroup(context: Context, genres: List<String>) : Filter.Group<GenreFilter>(
+        context.getString(MR.strings.releases_genres),
+        genres.map { GenreFilter(RELEASE_GENRE_NAMES[it]?.let { name -> context.getString(name) } ?: it, it) }.sortedBy { it.name.lowercase() },
+    )
 
-    private class HideLibrary(context: Context) : Filter.CheckBox(context.getString(MR.strings.releases_hide_library))
+    private class HideLibrary(context: Context, default: Boolean) :
+        Filter.CheckBox(context.getString(MR.strings.releases_hide_library), default)
 
     private class OrderBy(context: Context) : Filter.Sort(
         context.getString(MR.strings.order_by),
@@ -179,6 +190,9 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
 
     companion object {
         const val ID = 2L
+
+        /** Set on a row the library already has (by catalogue id or name), for its badge. */
+        const val IN_LIBRARY_MEMO = "karasu.releases.in_library"
         private const val PAGE_SIZE = 30
         private val MONTHS = listOf(6, 3, 1)
 
@@ -189,3 +203,25 @@ class ReleasesSource(private val context: Context) : CatalogueSource {
 
 /** How a release is addressed in a browse row's url: catalogue and id. */
 val Release.key: String get() = "$origin:$id"
+
+/** AniList's genres in the reader's language; one MangaDex adds keeps its English name. */
+val RELEASE_GENRE_NAMES: Map<String, StringResource> = mapOf(
+    "Action" to MR.strings.releases_genre_action,
+    "Adventure" to MR.strings.releases_genre_adventure,
+    "Comedy" to MR.strings.releases_genre_comedy,
+    "Drama" to MR.strings.releases_genre_drama,
+    "Ecchi" to MR.strings.releases_genre_ecchi,
+    "Fantasy" to MR.strings.releases_genre_fantasy,
+    "Horror" to MR.strings.releases_genre_horror,
+    "Mahou Shoujo" to MR.strings.releases_genre_mahou_shoujo,
+    "Mecha" to MR.strings.releases_genre_mecha,
+    "Music" to MR.strings.releases_genre_music,
+    "Mystery" to MR.strings.releases_genre_mystery,
+    "Psychological" to MR.strings.releases_genre_psychological,
+    "Romance" to MR.strings.releases_genre_romance,
+    "Sci-Fi" to MR.strings.releases_genre_sci_fi,
+    "Slice of Life" to MR.strings.releases_genre_slice_of_life,
+    "Sports" to MR.strings.releases_genre_sports,
+    "Supernatural" to MR.strings.releases_genre_supernatural,
+    "Thriller" to MR.strings.releases_genre_thriller,
+)

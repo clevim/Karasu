@@ -47,7 +47,14 @@ data class ReleasesSnapshot(
     val origin: String,
     val fetchedAt: Long,
     val items: List<Release>,
+    /** [SNAPSHOT_FORMAT] when saved; an older list is fetched again, whatever its age. */
+    val format: Int = 0,
+    /** How many series were asked for: a different count in the settings fetches again. */
+    val requested: Int = 100,
 )
+
+/** 1: an English synonym as the title when AniList has no English one; no one-shots. */
+const val SNAPSHOT_FORMAT = 1
 
 const val ORIGIN_ANILIST = "anilist"
 const val ORIGIN_MANGADEX = "mangadex"
@@ -155,10 +162,9 @@ internal fun parseAniListReleases(root: JsonObject, since: Int): List<Release> =
 internal fun parseAniListRelease(media: JsonObject): Release? {
     val id = media["id"].text() ?: return null
     val title = media["title"] as? JsonObject
-    val names = (
-        listOfNotNull(title?.get("english").text(), title?.get("romaji").text(), title?.get("native").text()) +
-            media["synonyms"].array().mapNotNull { it.text() }
-        ).distinct()
+    val synonyms = media["synonyms"].array().mapNotNull { it.text() }
+    val english = title?.get("english").text() ?: englishSynonym(synonyms)
+    val names = (listOfNotNull(english, title?.get("romaji").text(), title?.get("native").text()) + synonyms).distinct()
     val cover = media["coverImage"] as? JsonObject
     return Release(
         origin = ORIGIN_ANILIST,
@@ -175,6 +181,25 @@ internal fun parseAniListRelease(media: JsonObject): Release? {
         url = media["siteUrl"].text() ?: "https://anilist.co/manga/$id",
     )
 }
+
+/**
+ * The English name among AniList's synonyms, for the two in three new series whose `english` is
+ * still empty: a Latin one with an English word in it, else the first Latin one of a few words
+ * (a bare romaji rarely has a space and an English word both). Acronyms ("GSGW") never count.
+ */
+internal fun englishSynonym(synonyms: List<String>): String? {
+    val phrases = synonyms.filter { it.trim().contains(' ') && it.isLatin() }
+    return phrases.firstOrNull { name -> name.lowercase().split(Regex("[^a-z]+")).any { it in ENGLISH_WORDS } }
+        ?: phrases.firstOrNull()
+}
+
+// ponytail: a stopword list, not language detection. Enough to tell a translated title from a
+// romanised one; "to" and "no" are left out, romaji particles too. A title of only content words
+// falls to the first phrase above.
+private val ENGLISH_WORDS = setOf(
+    "the", "a", "an", "of", "in", "is", "i", "my", "me", "you", "your", "and", "with", "for", "on",
+    "at", "from", "his", "her", "be", "are", "it", "its", "who", "that", "this", "not", "by", "as", "into", "was", "has",
+)
 
 /** MangaDex's `/manga` list, the fallback when AniList cannot be reached. */
 internal fun parseMangaDexReleases(root: JsonObject): List<Release> = root["data"].array()
@@ -213,6 +238,12 @@ internal fun parseMangaDexRelease(obj: JsonObject): Release? {
         url = "https://mangadex.org/title/$id",
     )
 }
+
+/** AniList's `GenreCollection`, without Hentai: the list asks for `isAdult: false`. */
+val ANILIST_GENRES = listOf(
+    "Action", "Adventure", "Comedy", "Drama", "Ecchi", "Fantasy", "Horror", "Mahou Shoujo", "Mecha", "Music",
+    "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller",
+)
 
 /** Ongoing, completed, hiatus, cancelled: the statuses the filter offers, in that order. */
 val RELEASE_STATUSES = listOf(SManga.ONGOING, SManga.COMPLETED, SManga.ON_HIATUS, SManga.CANCELLED)

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.icerock.moko.resources.compose.pluralStringResource
 import dev.icerock.moko.resources.compose.stringResource
+import eu.kanade.tachiyomi.source.RELEASE_GENRE_NAMES
 import eu.kanade.tachiyomi.source.model.SManga
 import karasu.domain.releases.ORIGIN_MANGADEX
 import karasu.domain.releases.Release
@@ -174,7 +175,14 @@ fun ReleaseDetailsScreen(
                     Section(stringResource(MR.strings.releases_tags)) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             tags.distinctBy { it.first.lowercase() }.forEach { (tag, rank) ->
-                                AssistChip(onClick = {}, label = { Text(if (rank in 1..99) "$tag $rank%" else tag) })
+                                AssistChip(
+                                    onClick = {},
+                                    label = {
+                                        // A genre in the app's language; AniList's tags keep their own names.
+                                        val name = RELEASE_GENRE_NAMES[tag]?.let { stringResource(it) } ?: tag
+                                        Text(if (rank in 1..99) "$name $rank%" else name)
+                                    },
+                                )
                             }
                         }
                     }

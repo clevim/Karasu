@@ -25,6 +25,8 @@ class BrowseSourceItem(
     private val outlineOnCovers: Preference<Boolean>,
     /** A line under the title in list layout; the recommendations put their reason here. */
     val subtitle: String? = null,
+    /** In the library under another source: a release the reader already has. */
+    private val inLibrary: Boolean = false,
 ) :
     AbstractFlexibleItem<BrowseSourceHolder>() {
 
@@ -83,6 +85,7 @@ class BrowseSourceItem(
     ) {
         holder.onSetValues(manga)
         holder.onSetSubtitle(subtitle)
+        holder.setInLibrary(inLibrary)
         holder.bindChapterCount(manga)
     }
 

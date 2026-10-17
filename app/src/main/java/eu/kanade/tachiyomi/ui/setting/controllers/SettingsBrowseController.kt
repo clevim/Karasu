@@ -439,6 +439,32 @@ class SettingsBrowseController : SettingsLegacyController() {
                 }
             }
         }
+
+        preferenceCategory {
+            titleRes = MR.strings.releases
+
+            intListPreference(activity) {
+                bindTo(preferences.releasesCount())
+                titleRes = MR.strings.releases_count
+                entries = RELEASES_COUNTS.map { context.getString(MR.plurals.releases_count_value, it, it) }
+                entryValues = RELEASES_COUNTS
+                defaultValue = 100
+            }
+
+            intListPreference(activity) {
+                bindTo(preferences.releasesIntervalDays())
+                titleRes = MR.strings.releases_update_every
+                entries = RELEASES_INTERVALS.map { context.getString(MR.plurals.recommendation_every_days, it, it) }
+                entryValues = RELEASES_INTERVALS
+                defaultValue = 7
+            }
+
+            switchPreference {
+                bindTo(preferences.releasesHideLibrary())
+                titleRes = MR.strings.releases_hide_library_default
+                defaultValue = false
+            }
+        }
     }
 
     override fun onActivityResumed(activity: Activity) {
@@ -453,5 +479,8 @@ class SettingsBrowseController : SettingsLegacyController() {
         val RECOMMENDATION_INTERVALS = listOf(7, 15, 30, 90, 180)
         val RECOMMENDATION_TARGETS = listOf(25, 50, 150, 250, 500)
         val RECOMMENDATION_RECENT_YEARS = listOf(1, 2, 3, 5, 10)
+        /** Fifty per AniList request; MangaDex, the fallback, stops at a hundred. */
+        val RELEASES_COUNTS = listOf(50, 100, 150, 200)
+        val RELEASES_INTERVALS = listOf(1, 3, 7, 14)
     }
 }
