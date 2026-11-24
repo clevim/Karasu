@@ -126,4 +126,7 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
     fun lastLibrarySyncAt() = preferenceStore.getLong(Preference.appStateKey("yata_last_library_sync_at"), 0L)
 
     fun lastLibrarySyncSummary() = preferenceStore.getString(Preference.appStateKey("yata_last_library_sync_summary"), "")
+
+    /** Extensions reported by the server/other devices that are not installed on this device. */
+    fun missingExtensions() = preferenceStore.getStringSet(Preference.appStateKey("yata_missing_extensions"), emptySet())
 }

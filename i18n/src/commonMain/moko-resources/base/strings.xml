@@ -932,6 +932,11 @@
     <string name="yata_backup_upload_summary">Sends the newest .tachibk from your backups folder to the server vault</string>
     <string name="yata_backup_uploaded">Backup uploaded to Yatagarasu (%1$s)</string>
     <string name="yata_backup_none_found">No local backup found. Create one in Data and storage first.</string>
+    <string name="yata_backup_restore">Restore from Yatagarasu</string>
+    <string name="yata_backup_restore_summary">Download and restore a backup stored on your Yatagarasu server</string>
+    <string name="yata_backup_remote_empty">No backups found on Yatagarasu</string>
+    <string name="yata_backup_downloading">Downloading backup from Yatagarasu…</string>
+    <string name="yata_missing_extensions_info">%1$d extensions on server not installed here: %2$s</string>
     <string name="yata_translation_hint">To translate chapters on your server and share cache across devices, select "Yatagarasu (companion server)" under Settings → Translation.</string>
     <string name="koreader_what_to_send">What to send</string>
     <string name="koreader_send_to_shelf">Send to Yatagarasu</string>

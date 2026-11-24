@@ -193,6 +193,14 @@ class SyncYatagarasuLibrary(
 
         preferences.syncedMangaKeys().set(localKeys)
         preferences.lastLibrarySyncAt().set(merged.serverTime.takeIf { it > 0 } ?: System.currentTimeMillis())
+        preferences.missingExtensions().set(
+            merged.missingExtensions
+                .map { ext ->
+                    val label = ext.name.ifBlank { ext.pkgName }
+                    if (ext.lang.isNotBlank()) "$label (${ext.lang})" else label
+                }
+                .toSet(),
+        )
 
         return Summary(
             chaptersUpdated = chaptersUpdated,

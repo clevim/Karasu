@@ -3,6 +3,7 @@ package karasu.presentation.settings.screen
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import co.touchlab.kermit.Logger
+import com.hippo.unifile.UniFile
 import dev.icerock.moko.resources.StringResource
 import dev.icerock.moko.resources.compose.stringResource
 import eu.kanade.tachiyomi.core.storage.preference.collectAsState
@@ -47,13 +49,17 @@ import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.system.withUIContext
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import karasu.data.koreader.KoreaderApi
 import karasu.domain.backup.BackupPreferences
 import karasu.domain.category.interactor.TransferCategoryRules
+import karasu.domain.koreader.KoreaderPreferences
 import karasu.domain.storage.StorageManager
 import karasu.domain.storage.StoragePreferences
 import karasu.i18n.MR
@@ -66,8 +72,10 @@ import karasu.presentation.settings.ComposableSettings
 import karasu.presentation.settings.screen.data.StorageInfo
 import karasu.presentation.settings.screen.data.awaitCreateBackup
 import karasu.presentation.settings.screen.data.awaitRestoreBackup
+import karasu.presentation.settings.screen.data.awaitSelectRemoteBackup
 import karasu.presentation.settings.screen.data.storageLocationPicker
 import karasu.util.lang.getString
+import java.io.File
 
 object SettingsDataScreen : ComposableSettings() {
 
@@ -213,6 +221,8 @@ object SettingsDataScreen : ComposableSettings() {
         val alertDialog = LocalDialogHostState.currentOrThrow
         val extensionManager = remember { Injekt.get<ExtensionManager>() }
         val storageManager = remember { Injekt.get<StorageManager>() }
+        val koreaderApi = remember { Injekt.get<KoreaderApi>() }
+        val koreaderPreferences = remember { Injekt.get<KoreaderPreferences>() }
 
         val chooseBackup = rememberLauncherForActivityResult(
             object : ActivityResultContracts.GetContent() {
@@ -242,102 +252,239 @@ object SettingsDataScreen : ComposableSettings() {
 
         val backupInterval by backupPreferences.backupInterval().collectAsState()
         val lastAutoBackup by backupPreferences.lastAutoBackupTimestamp().collectAsState()
+        val serverUrl by koreaderPreferences.serverUrl().collectAsState()
+        val fallbackUrl by koreaderPreferences.fallbackServerUrl().collectAsState()
+        val isYatagarasuConfigured = remember(serverUrl, fallbackUrl) { koreaderApi.isConfigured }
+
+        val remoteBackupItems = if (isYatagarasuConfigured) {
+            listOf(
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.yata_backup_restore),
+                    subtitle = stringResource(MR.strings.yata_backup_restore_summary),
+                    onClick = {
+                        if (BackupRestoreJob.isRunning(context)) {
+                            context.toast(MR.strings.restore_in_progress)
+                        } else {
+                            if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
+                                context.toast(MR.strings.restore_miui_warning, Toast.LENGTH_LONG)
+                            }
+                            scope.launchIO {
+                                val backups = try {
+                                    koreaderApi.listBackups().sortedByDescending { it.createdAt }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    withUIContext {
+                                        context.toast(
+                                            context.getString(
+                                                MR.strings.koreader_connection_failed,
+                                                e.messageOrType(),
+                                            ),
+                                        )
+                                    }
+                                    return@launchIO
+                                }
+
+                                if (backups.isEmpty()) {
+                                    withUIContext { context.toast(MR.strings.yata_backup_remote_empty) }
+                                    return@launchIO
+                                }
+
+                                val selected = withUIContext {
+                                    alertDialog.awaitSelectRemoteBackup(
+                                        context = context,
+                                        backups = backups,
+                                    )
+                                } ?: return@launchIO
+
+                                scope.launch { extensionManager.getExtensionUpdates(true) }
+                                withUIContext { context.toast(MR.strings.yata_backup_downloading) }
+
+                                val tempFile = try {
+                                    val safeName = selected.name
+                                        .ifBlank { "${selected.id}.tachibk" }
+                                        .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                                    val file = File(context.cacheDir, "yata_restore_$safeName")
+                                    val uniFile = UniFile.fromFile(file)
+                                        ?: error("Could not create temporary backup file")
+                                    koreaderApi.downloadBackup(selected.id, uniFile)
+                                    file
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    withUIContext {
+                                        context.toast(
+                                            context.getString(
+                                                MR.strings.koreader_connection_failed,
+                                                e.messageOrType(),
+                                            ),
+                                        )
+                                    }
+                                    return@launchIO
+                                }
+
+                                val tempUri = Uri.fromFile(tempFile)
+                                val results = try {
+                                    Pair(BackupFileValidator().validate(context, tempUri), null)
+                                } catch (e: Exception) {
+                                    Pair(null, e)
+                                }
+
+                                withUIContext {
+                                    alertDialog.awaitRestoreBackup(
+                                        context = context,
+                                        uri = tempUri,
+                                        pair = results,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.yata_backup_upload_now),
+                    subtitle = stringResource(MR.strings.yata_backup_upload_summary),
+                    onClick = {
+                        scope.launchIO {
+                            val message = try {
+                                val backupsDir = storageManager.getBackupsDirectory()
+                                val latest = backupsDir?.listFiles()
+                                    .orEmpty()
+                                    .filter {
+                                        it.isFile && (
+                                            it.name?.endsWith(".tachibk") == true ||
+                                                it.name?.endsWith(".proto.gz") == true
+                                            )
+                                    }
+                                    .maxByOrNull { it.lastModified() }
+                                if (latest == null) {
+                                    MR.strings.yata_backup_none_found.getString(context)
+                                } else {
+                                    val info = koreaderApi.uploadBackup(latest, latest.name ?: "karasu.tachibk")
+                                    context.getString(MR.strings.yata_backup_uploaded, info.name)
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                context.getString(
+                                    MR.strings.koreader_connection_failed,
+                                    e.messageOrType(),
+                                )
+                            }
+                            withUIContext { context.toast(message) }
+                        }
+                    },
+                ),
+            )
+        } else {
+            emptyList()
+        }
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.backup_and_restore),
-            preferenceItems = persistentListOf(
-                Preference.PreferenceItem.CustomPreference(
-                    title = stringResource(MR.strings.backup_and_restore),
-                ) {
-                    BasePreferenceWidget(
-                        subcomponent = {
-                            MultiChoiceSegmentedButtonRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(intrinsicSize = IntrinsicSize.Min)
-                                    .padding(horizontal = PrefsHorizontalPadding),
-                            ) {
-                                SegmentedButton(
-                                    modifier = Modifier.fillMaxHeight(),
-                                    checked = false,
-                                    onCheckedChange = {
-                                        if (!BackupRestoreJob.isRunning(context)) {
-                                            if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
-                                                context.toast(MR.strings.restore_miui_warning, Toast.LENGTH_LONG)
-                                            }
-
-                                            val dir = storageManager.getBackupsDirectory()
-                                            if (dir == null) {
-                                                context.toast(MR.strings.invalid_location_generic)
-                                                return@SegmentedButton
-                                            }
-
-                                            scope.launch {
-                                                alertDialog.awaitCreateBackup(
-                                                    context = context,
-                                                    uri = dir.uri,
-                                                )
-                                            }
-                                        } else {
-                                            context.toast(MR.strings.backup_in_progress)
-                                        }
-                                    },
-                                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+            preferenceItems = buildList<Preference.PreferenceItem<out Any>> {
+                add(
+                    Preference.PreferenceItem.CustomPreference(
+                        title = stringResource(MR.strings.backup_and_restore),
+                    ) {
+                        BasePreferenceWidget(
+                            subcomponent = {
+                                MultiChoiceSegmentedButtonRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(intrinsicSize = IntrinsicSize.Min)
+                                        .padding(horizontal = PrefsHorizontalPadding),
                                 ) {
-                                    Text(stringResource(MR.strings.create_backup))
-                                }
-                                SegmentedButton(
-                                    modifier = Modifier.fillMaxHeight(),
-                                    checked = false,
-                                    onCheckedChange = {
-                                        if (!BackupRestoreJob.isRunning(context)) {
-                                            if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
-                                                context.toast(MR.strings.restore_miui_warning, Toast.LENGTH_LONG)
-                                            }
+                                    SegmentedButton(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        checked = false,
+                                        onCheckedChange = {
+                                            if (!BackupRestoreJob.isRunning(context)) {
+                                                if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
+                                                    context.toast(MR.strings.restore_miui_warning, Toast.LENGTH_LONG)
+                                                }
 
-                                            scope.launch { extensionManager.getExtensionUpdates(true) }
-                                            chooseBackup.launch("*/*")
-                                        } else {
-                                            context.toast(MR.strings.restore_in_progress)
-                                        }
-                                    },
-                                    shape = SegmentedButtonDefaults.itemShape(1, 2),
-                                ) {
-                                    Text(stringResource(MR.strings.restore_backup))
+                                                val dir = storageManager.getBackupsDirectory()
+                                                if (dir == null) {
+                                                    context.toast(MR.strings.invalid_location_generic)
+                                                    return@SegmentedButton
+                                                }
+
+                                                scope.launch {
+                                                    alertDialog.awaitCreateBackup(
+                                                        context = context,
+                                                        uri = dir.uri,
+                                                    )
+                                                }
+                                            } else {
+                                                context.toast(MR.strings.backup_in_progress)
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                                    ) {
+                                        Text(stringResource(MR.strings.create_backup))
+                                    }
+                                    SegmentedButton(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        checked = false,
+                                        onCheckedChange = {
+                                            if (!BackupRestoreJob.isRunning(context)) {
+                                                if (DeviceUtil.isMiui && DeviceUtil.isMiuiOptimizationDisabled()) {
+                                                    context.toast(MR.strings.restore_miui_warning, Toast.LENGTH_LONG)
+                                                }
+
+                                                scope.launch { extensionManager.getExtensionUpdates(true) }
+                                                chooseBackup.launch("*/*")
+                                            } else {
+                                                context.toast(MR.strings.restore_in_progress)
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                                    ) {
+                                        Text(stringResource(MR.strings.restore_backup))
+                                    }
                                 }
-                            }
-                        },
-                    )
-                },
+                            },
+                        )
+                    },
+                )
+
+                addAll(remoteBackupItems)
 
                 // Automatic backups
-                Preference.PreferenceItem.ListPreference(
-                    pref = backupPreferences.backupInterval(),
-                    title = stringResource(MR.strings.backup_frequency),
-                    entries = persistentMapOf(
-                        0 to stringResource(MR.strings.manual),
-                        6 to stringResource(MR.strings.every_6_hours),
-                        12 to stringResource(MR.strings.every_12_hours),
-                        24 to stringResource(MR.strings.daily),
-                        48 to stringResource(MR.strings.every_2_days),
-                        168 to stringResource(MR.strings.weekly),
+                add(
+                    Preference.PreferenceItem.ListPreference(
+                        pref = backupPreferences.backupInterval(),
+                        title = stringResource(MR.strings.backup_frequency),
+                        entries = persistentMapOf(
+                            0 to stringResource(MR.strings.manual),
+                            6 to stringResource(MR.strings.every_6_hours),
+                            12 to stringResource(MR.strings.every_12_hours),
+                            24 to stringResource(MR.strings.daily),
+                            48 to stringResource(MR.strings.every_2_days),
+                            168 to stringResource(MR.strings.weekly),
+                        ),
+                        onValueChanged = {
+                            BackupCreatorJob.setupTask(context, it)
+                            true
+                        },
                     ),
-                    onValueChanged = {
-                        BackupCreatorJob.setupTask(context, it)
-                        true
-                    },
-                ),
-                Preference.PreferenceItem.ListPreference(
-                    pref = backupPreferences.numberOfBackups(),
-                    title = stringResource(MR.strings.max_auto_backups),
-                    entries = (1..5).associateWith { it.toString() }.toImmutableMap(),
-                    enabled = backupInterval > 0,
-                ),
-                Preference.PreferenceItem.InfoPreference(
-                    stringResource(MR.strings.backup_info) +
-                        "\n\n" + stringResource(MR.strings.last_auto_backup_info, relativeTimeSpanString(lastAutoBackup)),
-                ),
-            ),
+                )
+                add(
+                    Preference.PreferenceItem.ListPreference(
+                        pref = backupPreferences.numberOfBackups(),
+                        title = stringResource(MR.strings.max_auto_backups),
+                        entries = (1..5).associateWith { it.toString() }.toImmutableMap(),
+                        enabled = backupInterval > 0,
+                    ),
+                )
+                add(
+                    Preference.PreferenceItem.InfoPreference(
+                        stringResource(MR.strings.backup_info) +
+                            "\n\n" + stringResource(MR.strings.last_auto_backup_info, relativeTimeSpanString(lastAutoBackup)),
+                    ),
+                )
+            }.toImmutableList(),
         )
     }
 

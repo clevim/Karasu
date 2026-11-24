@@ -126,6 +126,23 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 summaryRes = MR.strings.yata_backup_upload_summary
                 onClick { uploadLatestBackup() }
             }
+            infoPreference(MR.strings.yata_missing_extensions_info).apply {
+                fun update(missing: Set<String>) {
+                    isVisible = missing.isNotEmpty()
+                    if (missing.isNotEmpty()) {
+                        val sorted = missing.sorted()
+                        summary = context.getString(
+                            MR.strings.yata_missing_extensions_info,
+                            sorted.size,
+                            sorted.joinToString(", "),
+                        )
+                    }
+                }
+                update(koreaderPreferences.missingExtensions().get())
+                koreaderPreferences.missingExtensions().changes()
+                    .onEach { update(it) }
+                    .launchIn(viewScope)
+            }
             infoPreference(MR.strings.yata_translation_hint)
         }
 
