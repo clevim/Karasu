@@ -2,9 +2,13 @@ package karasu.domain.koreader.interactor
 
 import android.os.Build
 import co.touchlab.kermit.Logger
+import eu.kanade.tachiyomi.data.database.models.Category
+import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import karasu.data.koreader.KoreaderApi
 import karasu.domain.category.interactor.GetCategories
+import karasu.domain.category.interactor.InsertCategories
+import karasu.domain.category.interactor.SetMangaCategories
 import karasu.domain.chapter.interactor.GetChapter
 import karasu.domain.chapter.interactor.UpdateChapter
 import karasu.domain.chapter.models.ChapterUpdate
@@ -19,21 +23,33 @@ import karasu.domain.koreader.models.SyncMangaKey
 import karasu.domain.koreader.models.SyncMergedSource
 import karasu.domain.koreader.models.SyncPayload
 import karasu.domain.manga.interactor.GetLibraryManga
+import karasu.domain.manga.interactor.GetManga
+import karasu.domain.manga.interactor.InsertManga
+import karasu.domain.manga.interactor.UpdateManga
 import karasu.domain.manga.merged.interactor.MergedSources
+import karasu.domain.manga.models.MangaUpdate
 import kotlinx.coroutines.CancellationException
 
 /**
- * Bidirectional library reconcile against the Yatagarasu companion hub (and, when enabled on the
- * server, the bundled official Suwayomi-Server).
+ * Full bidirectional library reconcile against the Yatagarasu companion hub (and, when enabled on
+ * the server, the bundled official Suwayomi-Server).
  *
- * Entities are matched by natural keys — manga by `(sourceId, url)` and chapters by `url` — so
- * database row IDs never collide across devices or backup restores.
+ * Syncs both directions:
+ * - Karasu → Server: favorites, categories, chapter read/bookmark/page state, merged sources,
+ *   extension repos, installed extensions, and explicit library removals.
+ * - Server → Karasu: new categories, new library manga, remote library removals, chapter progress,
+ *   merged sources, extension repos, and missing extensions notice.
  */
 class SyncYatagarasuLibrary(
     private val api: KoreaderApi,
     private val preferences: KoreaderPreferences,
     private val getLibraryManga: GetLibraryManga,
+    private val getManga: GetManga,
+    private val insertManga: InsertManga,
+    private val updateManga: UpdateManga,
     private val getCategories: GetCategories,
+    private val insertCategories: InsertCategories,
+    private val setMangaCategories: SetMangaCategories,
     private val getChapter: GetChapter,
     private val updateChapter: UpdateChapter,
     private val mergedSources: MergedSources,
@@ -43,6 +59,8 @@ class SyncYatagarasuLibrary(
 ) {
 
     data class Summary(
+        val mangaAdded: Int = 0,
+        val mangaRemoved: Int = 0,
         val chaptersUpdated: Int = 0,
         val mergedAdded: Int = 0,
         val reposAdded: Int = 0,
@@ -76,6 +94,9 @@ class SyncYatagarasuLibrary(
                 )
             }
             val chapters = getChapter.awaitAllRaw(mangaId, filterScanlators = false).map { ch ->
+                // Send 0 for untouched chapters so a fresh chapter fetch never overwrites read state
+                // recorded on another device or Suwayomi.
+                val hasProgress = ch.read || ch.bookmark || ch.last_page_read > 0
                 SyncChapter(
                     url = ch.url,
                     name = ch.name,
@@ -84,11 +105,7 @@ class SyncYatagarasuLibrary(
                     read = ch.read,
                     bookmark = ch.bookmark,
                     lastPageRead = ch.last_page_read,
-                    updatedAt = if (ch.read || ch.bookmark || ch.last_page_read > 0) {
-                        maxOf(ch.date_fetch, ch.date_upload)
-                    } else {
-                        0L
-                    },
+                    updatedAt = if (hasProgress) maxOf(ch.date_fetch, ch.date_upload) else 0L,
                 )
             }
             syncMangas += SyncManga(
@@ -131,19 +148,96 @@ class SyncYatagarasuLibrary(
 
         val merged = api.reconcileSync(payload)
 
-        // Apply merged state back to local DB.
+        // 1. Pull new categories from the hub.
+        val catByName = categories.associateBy { it.name.lowercase() }.toMutableMap()
+        var categoriesChanged = false
+        for (remoteCat in merged.categories) {
+            val name = remoteCat.name.trim()
+            if (name.isBlank() || name.lowercase() in catByName) continue
+            try {
+                val created = Category.create(name).apply {
+                    order = remoteCat.order
+                    flags = remoteCat.flags.toInt()
+                }
+                insertCategories.awaitOne(created)
+                categoriesChanged = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(e) { "Failed to create synced category $name" }
+            }
+        }
+        val refreshedCatByName = if (categoriesChanged) {
+            getCategories.await().associateBy { it.name.lowercase() }
+        } else {
+            catByName
+        }
+
+        // 2. Apply merged manga (including new manga added on server/other devices).
+        var mangaAdded = 0
         var chaptersUpdated = 0
         var mergedAdded = 0
         val localMangaByKey = grouped.values.associate { list ->
             val m = list.first().manga
             naturalKey(m.source, m.url) to m
-        }
+        }.toMutableMap()
+
+        val remoteKeys = mutableSetOf<String>()
 
         for (remoteManga in merged.mangas) {
-            val localManga = localMangaByKey[naturalKey(remoteManga.sourceId, remoteManga.url)] ?: continue
-            val mangaId = localManga.id ?: continue
+            if (!remoteManga.favorite) continue
+            val key = naturalKey(remoteManga.sourceId, remoteManga.url)
+            remoteKeys += key
 
-            // 1. Apply chapter read/bookmark/page updates.
+            var localManga = localMangaByKey[key]
+            if (localManga == null) {
+                // Pull new library manga added on Yatagarasu / Suwayomi / another device.
+                val existing = getManga.awaitByUrlAndSource(remoteManga.url, remoteManga.sourceId)
+                if (existing != null) {
+                    val id = existing.id
+                    if (id != null && !existing.favorite) {
+                        updateManga.await(
+                            MangaUpdate(
+                                id = id,
+                                favorite = true,
+                                dateAdded = System.currentTimeMillis(),
+                            ),
+                        )
+                        mangaAdded++
+                    }
+                    localManga = existing
+                } else {
+                    val created = Manga.create(
+                        remoteManga.url,
+                        remoteManga.title.ifBlank { remoteManga.url },
+                        remoteManga.sourceId,
+                    ).apply {
+                        favorite = true
+                        date_added = System.currentTimeMillis()
+                    }
+                    val insertedId = insertManga.await(created)
+                    if (insertedId != null) {
+                        created.id = insertedId
+                        localManga = created
+                        mangaAdded++
+                    }
+                }
+                if (localManga != null) {
+                    localMangaByKey[key] = localManga
+                }
+            }
+
+            val mangaId = localManga?.id ?: continue
+
+            // Assign synced categories when present.
+            if (remoteManga.categories.isNotEmpty()) {
+                val catIds = remoteManga.categories.mapNotNull { refreshedCatByName[it.lowercase()]?.id?.toLong() }
+                if (catIds.isNotEmpty()) {
+                    setMangaCategories.await(mangaId, catIds)
+                }
+            }
+
+            // Apply chapter read/bookmark/page updates.
             val localChapters = getChapter.awaitAllRaw(mangaId, filterScanlators = false)
             val remoteByUrl = remoteManga.chapters.associateBy { it.url }
             val updates = mutableListOf<ChapterUpdate>()
@@ -166,7 +260,7 @@ class SyncYatagarasuLibrary(
                 chaptersUpdated += updates.size
             }
 
-            // 2. Apply missing merged sources.
+            // Apply missing merged sources.
             for (ms in remoteManga.mergedSources) {
                 if (mergedSources.addAtEnd(mangaId, ms.sourceId, ms.url, localManga.source)) {
                     mergedAdded++
@@ -174,7 +268,17 @@ class SyncYatagarasuLibrary(
             }
         }
 
-        // 3. Add missing extension repos from the hub.
+        // 3. Apply remote library deletions: previously synced local manga that disappeared from hub.
+        var mangaRemoved = 0
+        val remotelyDeleted = (previousKeys intersect localKeys) - remoteKeys
+        for (delKey in remotelyDeleted) {
+            val localManga = localMangaByKey[delKey] ?: continue
+            val mangaId = localManga.id ?: continue
+            updateManga.await(MangaUpdate(id = mangaId, favorite = false))
+            mangaRemoved++
+        }
+
+        // 4. Add missing extension repos from the hub.
         var reposAdded = 0
         val existingRepoUrls = localRepos.map { it.baseUrl.trimEnd('/') }.toSet()
         for (repoUrl in merged.extensionRepos) {
@@ -191,22 +295,31 @@ class SyncYatagarasuLibrary(
             }
         }
 
-        preferences.syncedMangaKeys().set(localKeys)
-        preferences.lastLibrarySyncAt().set(merged.serverTime.takeIf { it > 0 } ?: System.currentTimeMillis())
-        preferences.missingExtensions().set(
-            merged.missingExtensions
-                .map { ext ->
-                    val label = ext.name.ifBlank { ext.pkgName }
-                    if (ext.lang.isNotBlank()) "$label (${ext.lang})" else label
+        val missingLabels = merged.missingExtensions
+            .mapNotNull { ext ->
+                val displayName = ext.name.ifBlank { ext.pkgName }.trim()
+                if (displayName.isBlank()) {
+                    null
+                } else if (ext.lang.isBlank()) {
+                    displayName
+                } else {
+                    "$displayName (${ext.lang})"
                 }
-                .toSet(),
-        )
+            }
+            .toSet()
+        preferences.missingExtensions().set(missingLabels)
+
+        val finalKeys = (localKeys - remotelyDeleted) + remoteKeys
+        preferences.syncedMangaKeys().set(finalKeys)
+        preferences.lastLibrarySyncAt().set(merged.serverTime.takeIf { it > 0 } ?: System.currentTimeMillis())
 
         return Summary(
+            mangaAdded = mangaAdded,
+            mangaRemoved = mangaRemoved,
             chaptersUpdated = chaptersUpdated,
             mergedAdded = mergedAdded,
             reposAdded = reposAdded,
-            missingExtensions = merged.missingExtensions.size,
+            missingExtensions = missingLabels.size,
         )
     }
 
