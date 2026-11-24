@@ -48,6 +48,7 @@ enum class TranslationEngine(
     OPENROUTER("OpenRouter", true, defaultModel = "google/gemma-4-31b-it:free"),
     DEEPSEEK("DeepSeek", true, defaultModel = "deepseek-chat"),
     GEMINI("Google AI Studio (Gemini)", true, defaultModel = "gemini-3.5-flash-lite"),
+    YATAGARASU("Yatagarasu (companion server)", false),
     ;
 
     /** @param context what is known about this series (notes, glossary); only an LLM uses it. */
@@ -58,6 +59,7 @@ enum class TranslationEngine(
         context: SeriesNotes = SeriesNotes(),
     ): TextTranslator = when (this) {
         MLKIT -> MLKitTranslator(fromLang, toLang)
+        YATAGARASU -> YatagarasuTranslator(fromLang, toLang, context)
         // One client for all three: the request, batching, glossary and alignment are the same,
         // and what differs is the address, the wire format (Gemini speaks its own, see
         // [OpenAiChatTranslator.gemini]) and whether there is a free allowance to check.

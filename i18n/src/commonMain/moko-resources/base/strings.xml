@@ -910,14 +910,23 @@
          still koreader_* on purpose — renaming them would reset every translation for no gain. -->
     <string name="koreader">Yatagarasu</string>
     <string name="koreader_summary">Send chapters to KOReader through a Yatagarasu server, and read progress back</string>
-    <string name="koreader_server_url">Yatagarasu address</string>
-    <string name="koreader_server_url_hint">http://192.168.1.10:3000</string>
+    <string name="koreader_server_url">Yatagarasu address (LAN)</string>
+    <string name="koreader_server_url_hint">http://192.168.1.10:3080</string>
+    <string name="koreader_fallback_url">Fallback address (Tailscale / VPN)</string>
+    <string name="koreader_fallback_url_hint">Used automatically when away from home</string>
     <string name="koreader_api_key">API key</string>
     <string name="koreader_api_key_summary">Leave blank if the server has no key set</string>
     <string name="koreader_test_connection">Test connection</string>
     <string name="koreader_connection_ok">Yatagarasu reached</string>
     <string name="koreader_connection_failed">Could not reach Yatagarasu: %1$s</string>
     <string name="koreader_set_url_first">Enter the Yatagarasu address first</string>
+    <string name="yata_companion_section">Companion sync &amp; downloads</string>
+    <string name="yata_sync_library">Sync library, progress &amp; extensions</string>
+    <string name="yata_sync_library_summary">Bidirectional reconcile of categories, read state, merged sources and extension repos</string>
+    <string name="yata_prefer_server_downloads">Prefer CBZ downloads from server</string>
+    <string name="yata_prefer_server_downloads_summary">Copy chapters already downloaded on Yatagarasu/Suwayomi over LAN before hitting the web source</string>
+    <string name="yata_acquire_via_server">Acquire missing chapters via server</string>
+    <string name="yata_acquire_via_server_summary">Ask Suwayomi to download missing chapters first (uses server FlareSolverr) before falling back to web</string>
     <string name="koreader_what_to_send">What to send</string>
     <string name="koreader_send_to_shelf">Send to Yatagarasu</string>
     <string name="koreader_on_shelf">On Yatagarasu</string>

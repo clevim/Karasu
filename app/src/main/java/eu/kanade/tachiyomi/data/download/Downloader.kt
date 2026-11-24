@@ -93,6 +93,8 @@ class Downloader(
     private val mergedSourceFallback: MergedSourceFallback by injectLazy()
     private val translationPreferences: TranslationPreferences by injectLazy()
     private val translationManager: TranslationManager by injectLazy()
+    private val koreaderPreferences: karasu.domain.koreader.KoreaderPreferences by injectLazy()
+    private val koreaderApi: karasu.data.koreader.KoreaderApi by injectLazy()
 
     /**
      * Store for persisting downloads across restarts.
@@ -377,6 +379,14 @@ class Downloader(
             return
         }
         val chapterDirname = provider.getChapterDirName(download.chapter, includeId = downloadPreferences.downloadWithId().get())
+
+        // Companion fast-path: stream the CBZ straight from Yatagarasu (or Suwayomi via Yatagarasu)
+        // over LAN/Tailscale before touching the internet source. Transparently falls back to web
+        // when the server does not have the chapter or is unreachable.
+        if (tryDownloadFromCompanion(download, mangaDir, chapterDirname)) {
+            return
+        }
+
         val tmpDir = mangaDir.createDirectory(chapterDirname + TMP_DIR_SUFFIX)!!
 
         try {
@@ -473,6 +483,62 @@ class Downloader(
             Logger.e(error)
             download.status = Download.State.ERROR
             notifier.onError(error.message, chapName, download.manga.title)
+        }
+    }
+
+    /**
+     * Attempts to stream the chapter CBZ directly from Yatagarasu (or Suwayomi via Yatagarasu).
+     * Returns true when the chapter is completely stored and cached locally; false triggers a
+     * transparent fallback to downloading pages from the internet source.
+     */
+    private suspend fun tryDownloadFromCompanion(
+        download: Download,
+        mangaDir: UniFile,
+        chapterDirname: String,
+    ): Boolean {
+        if (!koreaderPreferences.preferServerDownloads().get() || !koreaderApi.isConfigured) {
+            return false
+        }
+        val tmpName = "$chapterDirname.cbz.tmp"
+        val finalName = "$chapterDirname.cbz"
+        val tmpFile = mangaDir.createFile(tmpName) ?: return false
+        return try {
+            download.status = Download.State.DOWNLOADING
+            val fetched = koreaderApi.downloadChapterCbz(
+                sourceId = download.manga.source,
+                mangaUrl = download.manga.url,
+                chapterUrl = download.chapter.url,
+                acquire = koreaderPreferences.acquireViaServer().get(),
+                destFile = tmpFile,
+            )
+            if (!fetched) {
+                tmpFile.delete()
+                return false
+            }
+            mangaDir.findFile(finalName)?.delete()
+            if (!tmpFile.renameTo(finalName)) {
+                tmpFile.delete()
+                return false
+            }
+            cache.addChapter(finalName, mangaDir, download.manga)
+            download.status = Download.State.DOWNLOADED
+            if (translationPreferences.autoTranslateAfterDownload().get()) {
+                val metered = context.connectivityManager.isActiveNetworkMetered
+                if (metered && translationPreferences.autoTranslateOnlyUnmetered().get()) {
+                    download.chapter.id?.let { PendingTranslationJob.add(context, it) }
+                } else {
+                    translationManager.translateChapter(download.manga, download.chapter, download.source)
+                }
+            }
+            Logger.i { "Downloaded ${download.chapter.name} directly from Yatagarasu companion" }
+            true
+        } catch (e: CancellationException) {
+            tmpFile.delete()
+            throw e
+        } catch (e: Exception) {
+            tmpFile.delete()
+            Logger.w(e) { "Companion CBZ download failed for ${download.chapter.name}, falling back to source" }
+            false
         }
     }
 

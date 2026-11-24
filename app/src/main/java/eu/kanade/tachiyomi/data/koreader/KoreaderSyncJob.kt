@@ -16,13 +16,14 @@ import eu.kanade.tachiyomi.util.system.workManager
 import java.util.concurrent.TimeUnit
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.domain.koreader.interactor.SyncKoreaderShelf
+import karasu.domain.koreader.interactor.SyncYatagarasuLibrary
 import karasu.i18n.MR
 import karasu.util.lang.getString
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * Periodic reconcile of the KOReader shelf.
+ * Periodic reconcile of the KOReader shelf and Yatagarasu companion library sync.
  *
  * Uploads are whole CBZ files and the shelf is normally on the same LAN, so a failed run is
  * retried with backoff rather than reported: there is nothing the user can do about the tablet
@@ -38,7 +39,7 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
 
     override suspend fun doWork(): Result {
         val preferences = Injekt.get<KoreaderPreferences>()
-        if (preferences.serverUrl().get().isBlank()) return Result.success()
+        if (!isConfigured(preferences)) return Result.success()
 
         return try {
             val result = Injekt.get<SyncKoreaderShelf>().await()
@@ -47,9 +48,17 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
                     "${result.markedRead} marked read, ${result.queuedForDownload} queued"
             }
             record(preferences, describe(result))
+
+            if (preferences.syncLibrary().get()) {
+                val libResult = Injekt.get<SyncYatagarasuLibrary>().await()
+                val libSummary = "${libResult.chaptersUpdated} chapters, ${libResult.mergedAdded} merged, ${libResult.reposAdded} repos"
+                preferences.lastLibrarySyncSummary().set(libSummary)
+                Logger.i { "Yatagarasu library synced: $libSummary (missing extensions: ${libResult.missingExtensions})" }
+            }
+
             Result.success()
         } catch (e: Exception) {
-            Logger.e(e) { "KOReader shelf sync failed" }
+            Logger.e(e) { "Yatagarasu sync failed" }
             record(
                 preferences,
                 applicationContext.getString(
@@ -84,6 +93,9 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
     }
 
     companion object {
+        private fun isConfigured(preferences: KoreaderPreferences): Boolean =
+            preferences.serverUrl().get().isNotBlank() || preferences.fallbackServerUrl().get().isNotBlank()
+
         fun isRunning(context: Context): Boolean = context.workManager
             .getWorkInfosByTag(TAG_MANUAL).get()
             .any { it.state == WorkInfo.State.RUNNING }
@@ -91,7 +103,7 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
         fun setupTask(context: Context, prefInterval: Int? = null) {
             val preferences = Injekt.get<KoreaderPreferences>()
             val interval = prefInterval ?: preferences.syncInterval().get()
-            if (interval <= 0 || preferences.serverUrl().get().isBlank()) {
+            if (interval <= 0 || !isConfigured(preferences)) {
                 context.workManager.cancelUniqueWork(TAG_AUTO)
                 return
             }
@@ -134,7 +146,7 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
 
         /** Manual sync ignores the interval but still respects the metered-connection choice. */
         fun startNow(context: Context) {
-            if (Injekt.get<KoreaderPreferences>().serverUrl().get().isBlank()) return
+            if (!isConfigured(Injekt.get())) return
             val request = OneTimeWorkRequestBuilder<KoreaderSyncJob>()
                 .addTag(TAG_MANUAL)
                 .setConstraints(constraints(Injekt.get()))

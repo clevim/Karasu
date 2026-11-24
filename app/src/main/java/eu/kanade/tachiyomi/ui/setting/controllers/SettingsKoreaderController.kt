@@ -56,11 +56,26 @@ class SettingsKoreaderController : SettingsLegacyController() {
             summary = koreaderPreferences.serverUrl().get()
                 .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
             onChange {
+                koreaderApi.invalidateOriginCache()
                 summary = (it as String).ifBlank {
                     context.getString(MR.strings.koreader_server_url_hint)
                 }
                 // The periodic job's constraints and its very existence come from these settings,
                 // so it is re-registered whenever one of them changes rather than only at startup.
+                KoreaderSyncJob.setupTask(context.applicationContext)
+                true
+            }
+        }
+        editTextPreference(activity) {
+            bindTo(koreaderPreferences.fallbackServerUrl())
+            titleRes = MR.strings.koreader_fallback_url
+            summary = koreaderPreferences.fallbackServerUrl().get()
+                .ifBlank { context.getString(MR.strings.koreader_fallback_url_hint) }
+            onChange {
+                koreaderApi.invalidateOriginCache()
+                summary = (it as String).ifBlank {
+                    context.getString(MR.strings.koreader_fallback_url_hint)
+                }
                 KoreaderSyncJob.setupTask(context.applicationContext)
                 true
             }
@@ -73,6 +88,26 @@ class SettingsKoreaderController : SettingsLegacyController() {
         preference {
             titleRes = MR.strings.koreader_test_connection
             onClick { testConnection() }
+        }
+
+        preferenceCategory {
+            titleRes = MR.strings.yata_companion_section
+
+            switchPreference {
+                bindTo(koreaderPreferences.syncLibrary())
+                titleRes = MR.strings.yata_sync_library
+                summaryRes = MR.strings.yata_sync_library_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.preferServerDownloads())
+                titleRes = MR.strings.yata_prefer_server_downloads
+                summaryRes = MR.strings.yata_prefer_server_downloads_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.acquireViaServer())
+                titleRes = MR.strings.yata_acquire_via_server
+                summaryRes = MR.strings.yata_acquire_via_server_summary
+            }
         }
 
         preferenceCategory {
@@ -193,7 +228,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     .onEach { summary = lastSyncSummary(context) }
                     .launchIn(viewScope)
                 onClick {
-                    if (koreaderPreferences.serverUrl().get().isBlank()) {
+                    if (!koreaderApi.isConfigured) {
                         context.toast(MR.strings.koreader_set_url_first)
                         return@onClick
                     }
@@ -220,14 +255,24 @@ class SettingsKoreaderController : SettingsLegacyController() {
     }
 
     private fun testConnection() {
-        if (koreaderPreferences.serverUrl().get().isBlank()) {
+        if (!koreaderApi.isConfigured) {
             activity?.toast(MR.strings.koreader_set_url_first)
             return
         }
         viewScope.launchIO {
             val message = try {
-                koreaderApi.check()
-                MR.strings.koreader_connection_ok.getString(activity!!)
+                val res = koreaderApi.checkHealth()
+                val route = if (res.isFallback) "Fallback" else "LAN"
+                val extras = buildList {
+                    if (res.health.suwayomi.configured) {
+                        add(if (res.health.suwayomi.reachable) "Suwayomi ${res.health.suwayomi.version}".trim() else "Suwayomi offline")
+                    }
+                    if (res.health.translate.configured) {
+                        add("Translate (${res.health.translate.provider})")
+                    }
+                }
+                val suffix = if (extras.isNotEmpty()) " · ${extras.joinToString(" · ")}" else ""
+                "${MR.strings.koreader_connection_ok.getString(activity!!)} (v${res.health.version} · $route · ${res.latencyMs}ms$suffix)"
             } catch (e: Exception) {
                 activity!!.getString(
                     MR.strings.koreader_connection_failed,
