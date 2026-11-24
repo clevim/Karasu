@@ -84,7 +84,11 @@ class SyncYatagarasuLibrary(
                     read = ch.read,
                     bookmark = ch.bookmark,
                     lastPageRead = ch.last_page_read,
-                    updatedAt = maxOf(ch.date_fetch, ch.date_upload),
+                    updatedAt = if (ch.read || ch.bookmark || ch.last_page_read > 0) {
+                        maxOf(ch.date_fetch, ch.date_upload)
+                    } else {
+                        0L
+                    },
                 )
             }
             syncMangas += SyncManga(

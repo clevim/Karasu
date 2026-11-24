@@ -61,12 +61,14 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
                 onChange {
                     koreaderApi.invalidateOriginCache()
-                    summary = (it as String).ifBlank {
+                    val newUrl = it as String
+                    summary = newUrl.ifBlank {
                         context.getString(MR.strings.koreader_server_url_hint)
                     }
                     // The periodic job's constraints and its very existence come from these settings,
                     // so it is re-registered whenever one of them changes rather than only at startup.
-                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    val configured = newUrl.isNotBlank() || koreaderPreferences.fallbackServerUrl().get().isNotBlank()
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefConfigured = configured)
                     true
                 }
             }
@@ -77,10 +79,12 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     .ifBlank { context.getString(MR.strings.koreader_fallback_url_hint) }
                 onChange {
                     koreaderApi.invalidateOriginCache()
-                    summary = (it as String).ifBlank {
+                    val newUrl = it as String
+                    summary = newUrl.ifBlank {
                         context.getString(MR.strings.koreader_fallback_url_hint)
                     }
-                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    val configured = newUrl.isNotBlank() || koreaderPreferences.serverUrl().get().isNotBlank()
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefConfigured = configured)
                     true
                 }
             }
@@ -88,6 +92,10 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 bindTo(koreaderPreferences.apiKey())
                 titleRes = MR.strings.koreader_api_key
                 summaryRes = MR.strings.koreader_api_key_summary
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    true
+                }
             }
             preference {
                 titleRes = MR.strings.koreader_test_connection
@@ -226,7 +234,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 bindTo(koreaderPreferences.onlyOverWifi())
                 titleRes = MR.strings.koreader_only_over_wifi
                 onChange {
-                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefOnlyOverWifi = it as Boolean)
                     true
                 }
             }
@@ -266,6 +274,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
     }
 
     private fun testConnection() {
+        val appCtx = applicationContext ?: return
         if (!koreaderApi.isConfigured) {
             activity?.toast(MR.strings.koreader_set_url_first)
             return
@@ -283,9 +292,11 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     }
                 }
                 val suffix = if (extras.isNotEmpty()) " · ${extras.joinToString(" · ")}" else ""
-                "${MR.strings.koreader_connection_ok.getString(activity!!)} (v${res.health.version} · $route · ${res.latencyMs}ms$suffix)"
+                "${MR.strings.koreader_connection_ok.getString(appCtx)} (v${res.health.version} · $route · ${res.latencyMs}ms$suffix)"
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                activity!!.getString(
+                appCtx.getString(
                     MR.strings.koreader_connection_failed,
                     e.message ?: e::class.simpleName.orEmpty(),
                 )
@@ -295,6 +306,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
     }
 
     private fun uploadLatestBackup() {
+        val appCtx = applicationContext ?: return
         if (!koreaderApi.isConfigured) {
             activity?.toast(MR.strings.koreader_set_url_first)
             return
@@ -307,13 +319,15 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     .filter { it.isFile && (it.name?.endsWith(".tachibk") == true || it.name?.endsWith(".proto.gz") == true) }
                     .maxByOrNull { it.lastModified() }
                 if (latest == null) {
-                    MR.strings.yata_backup_none_found.getString(activity!!)
+                    MR.strings.yata_backup_none_found.getString(appCtx)
                 } else {
                     val info = koreaderApi.uploadBackup(latest, latest.name ?: "karasu.tachibk")
-                    activity!!.getString(MR.strings.yata_backup_uploaded, info.name)
+                    appCtx.getString(MR.strings.yata_backup_uploaded, info.name)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                activity!!.getString(
+                appCtx.getString(
                     MR.strings.koreader_connection_failed,
                     e.message ?: e::class.simpleName.orEmpty(),
                 )

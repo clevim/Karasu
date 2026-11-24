@@ -520,7 +520,7 @@ class Downloader(
                 tmpFile.delete()
                 return false
             }
-            cache.addChapter(finalName, mangaDir, download.manga)
+            cache.addChapter(chapterDirname, mangaDir, download.manga)
             download.status = Download.State.DOWNLOADED
             if (translationPreferences.autoTranslateAfterDownload().get()) {
                 val metered = context.connectivityManager.isActiveNetworkMetered

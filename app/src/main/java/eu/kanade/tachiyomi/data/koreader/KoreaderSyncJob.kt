@@ -57,6 +57,8 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             }
 
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e(e) { "Yatagarasu sync failed" }
             record(
@@ -100,10 +102,16 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             .getWorkInfosByTag(TAG_MANUAL).get()
             .any { it.state == WorkInfo.State.RUNNING }
 
-        fun setupTask(context: Context, prefInterval: Int? = null) {
+        fun setupTask(
+            context: Context,
+            prefInterval: Int? = null,
+            prefOnlyOverWifi: Boolean? = null,
+            prefConfigured: Boolean? = null,
+        ) {
             val preferences = Injekt.get<KoreaderPreferences>()
             val interval = prefInterval ?: preferences.syncInterval().get()
-            if (interval <= 0 || !isConfigured(preferences)) {
+            val configured = prefConfigured ?: isConfigured(preferences)
+            if (interval <= 0 || !configured) {
                 context.workManager.cancelUniqueWork(TAG_AUTO)
                 return
             }
@@ -116,7 +124,7 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             )
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                 .addTag(TAG_AUTO)
-                .setConstraints(constraints(preferences))
+                .setConstraints(constraints(preferences, prefOnlyOverWifi))
                 .build()
 
             context.workManager.enqueueUniquePeriodicWork(
@@ -154,8 +162,11 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             context.workManager.enqueueUniqueWork(TAG_MANUAL, ExistingWorkPolicy.KEEP, request)
         }
 
-        private fun constraints(preferences: KoreaderPreferences) = Constraints(
-            requiredNetworkType = if (preferences.onlyOverWifi().get()) {
+        private fun constraints(
+            preferences: KoreaderPreferences,
+            onlyOverWifi: Boolean? = null,
+        ) = Constraints(
+            requiredNetworkType = if (onlyOverWifi ?: preferences.onlyOverWifi().get()) {
                 NetworkType.UNMETERED
             } else {
                 NetworkType.CONNECTED

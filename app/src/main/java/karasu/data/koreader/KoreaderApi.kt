@@ -108,6 +108,8 @@ class KoreaderApi(
     private suspend fun isReachable(base: String): Boolean = try {
         val req = Request.Builder().url("$base/api/health").headers(headers()).get().build()
         probeClient.newCall(req).await().use { it.isSuccessful }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (_: Exception) {
         false
     }
@@ -311,7 +313,10 @@ class KoreaderApi(
     }
 
     suspend fun downloadBackup(id: String, destFile: UniFile) {
-        val request = Request.Builder().url(url("api/backups/$id")).headers(headers()).get().build()
+        val httpUrl = "${resolveBase()}/api/backups".toHttpUrl().newBuilder()
+            .addPathSegment(id)
+            .build()
+        val request = Request.Builder().url(httpUrl).headers(headers()).get().build()
         longClient.newCall(request).awaitSuccess().use { response ->
             destFile.openOutputStream().use { out ->
                 out.sink().use { sink ->
