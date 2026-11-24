@@ -42,6 +42,7 @@ import karasu.domain.history.interactor.GetHistory
 import karasu.domain.history.interactor.UpsertHistory
 import karasu.domain.koreader.interactor.PrepareShelfCbz
 import karasu.domain.koreader.interactor.SyncKoreaderShelf
+import karasu.domain.koreader.interactor.SyncYatagarasuLibrary
 import karasu.domain.library.custom.CustomMangaRepository
 import karasu.domain.library.custom.interactor.CreateCustomManga
 import karasu.domain.library.custom.interactor.DeleteCustomManga
@@ -91,6 +92,7 @@ fun domainModule() = module {
     factory { BuildRuleInputs(get(), get(), get(), get(), get(), get(), get()) }
     factory { PrepareShelfCbz(get(), get()) }
     factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { SyncYatagarasuLibrary(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
     factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }

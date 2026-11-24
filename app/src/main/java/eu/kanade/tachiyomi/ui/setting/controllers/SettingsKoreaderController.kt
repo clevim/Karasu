@@ -4,7 +4,9 @@ import android.content.Context
 import android.text.format.DateUtils
 import android.view.View
 import androidx.preference.PreferenceScreen
+import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.bindTo
 import eu.kanade.tachiyomi.ui.setting.editTextPreference
@@ -23,8 +25,12 @@ import karasu.data.koreader.KoreaderApi
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import uy.kohesive.injekt.injectLazy
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
@@ -33,6 +39,8 @@ class SettingsKoreaderController : SettingsLegacyController() {
 
     private val koreaderPreferences: KoreaderPreferences by injectLazy()
     private val koreaderApi: KoreaderApi by injectLazy()
+    private val storageManager: karasu.domain.storage.StorageManager by injectLazy()
+    private val extensionManager: ExtensionManager by injectLazy()
 
     /**
      * Leaving this screen syncs.
@@ -50,29 +58,106 @@ class SettingsKoreaderController : SettingsLegacyController() {
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.koreader
 
-        editTextPreference(activity) {
-            bindTo(koreaderPreferences.serverUrl())
-            titleRes = MR.strings.koreader_server_url
-            summary = koreaderPreferences.serverUrl().get()
-                .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
-            onChange {
-                summary = (it as String).ifBlank {
-                    context.getString(MR.strings.koreader_server_url_hint)
+        preferenceCategory {
+            titleRes = MR.strings.yata_connection_section
+
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.serverUrl())
+                titleRes = MR.strings.koreader_server_url
+                summary = koreaderPreferences.serverUrl().get()
+                    .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    val newUrl = it as String
+                    summary = newUrl.ifBlank {
+                        context.getString(MR.strings.koreader_server_url_hint)
+                    }
+                    // The periodic job's constraints and its very existence come from these settings,
+                    // so it is re-registered whenever one of them changes rather than only at startup.
+                    val configured = newUrl.isNotBlank() || koreaderPreferences.fallbackServerUrl().get().isNotBlank()
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefConfigured = configured)
+                    true
                 }
-                // The periodic job's constraints and its very existence come from these settings,
-                // so it is re-registered whenever one of them changes rather than only at startup.
-                KoreaderSyncJob.setupTask(context.applicationContext)
-                true
+            }
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.fallbackServerUrl())
+                titleRes = MR.strings.koreader_fallback_url
+                summary = koreaderPreferences.fallbackServerUrl().get()
+                    .ifBlank { context.getString(MR.strings.koreader_fallback_url_hint) }
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    val newUrl = it as String
+                    summary = newUrl.ifBlank {
+                        context.getString(MR.strings.koreader_fallback_url_hint)
+                    }
+                    val configured = newUrl.isNotBlank() || koreaderPreferences.serverUrl().get().isNotBlank()
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefConfigured = configured)
+                    true
+                }
+            }
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.apiKey())
+                titleRes = MR.strings.koreader_api_key
+                summaryRes = MR.strings.koreader_api_key_summary
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    true
+                }
+            }
+            preference {
+                titleRes = MR.strings.koreader_test_connection
+                onClick { testConnection() }
             }
         }
-        editTextPreference(activity) {
-            bindTo(koreaderPreferences.apiKey())
-            titleRes = MR.strings.koreader_api_key
-            summaryRes = MR.strings.koreader_api_key_summary
-        }
-        preference {
-            titleRes = MR.strings.koreader_test_connection
-            onClick { testConnection() }
+
+        preferenceCategory {
+            titleRes = MR.strings.yata_companion_section
+
+            switchPreference {
+                bindTo(koreaderPreferences.syncLibrary())
+                titleRes = MR.strings.yata_sync_library
+                summaryRes = MR.strings.yata_sync_library_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.preferServerDownloads())
+                titleRes = MR.strings.yata_prefer_server_downloads
+                summaryRes = MR.strings.yata_prefer_server_downloads_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.acquireViaServer())
+                titleRes = MR.strings.yata_acquire_via_server
+                summaryRes = MR.strings.yata_acquire_via_server_summary
+            }
+            switchPreference {
+                bindTo(koreaderPreferences.autoUploadBackups())
+                titleRes = MR.strings.yata_auto_upload_backups
+                summaryRes = MR.strings.yata_auto_upload_backups_summary
+            }
+            preference {
+                titleRes = MR.strings.yata_backup_upload_now
+                summaryRes = MR.strings.yata_backup_upload_summary
+                onClick { uploadLatestBackup() }
+            }
+            preference {
+                titleRes = MR.strings.yata_missing_extensions_title
+                fun update(missing: Set<String>) {
+                    isVisible = missing.isNotEmpty()
+                    if (missing.isNotEmpty()) {
+                        val sorted = missing.sorted()
+                        summary = context.getString(
+                            MR.strings.yata_missing_extensions_info,
+                            sorted.size,
+                            sorted.joinToString(", "),
+                        )
+                    }
+                }
+                update(koreaderPreferences.missingExtensions().get())
+                koreaderPreferences.missingExtensions().changes()
+                    .onEach { update(it) }
+                    .launchIn(viewScope)
+                onClick { installMissingExtensions() }
+            }
+            infoPreference(MR.strings.yata_translation_hint)
         }
 
         preferenceCategory {
@@ -180,7 +265,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 bindTo(koreaderPreferences.onlyOverWifi())
                 titleRes = MR.strings.koreader_only_over_wifi
                 onChange {
-                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    KoreaderSyncJob.setupTask(context.applicationContext, prefOnlyOverWifi = it as Boolean)
                     true
                 }
             }
@@ -193,7 +278,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     .onEach { summary = lastSyncSummary(context) }
                     .launchIn(viewScope)
                 onClick {
-                    if (koreaderPreferences.serverUrl().get().isBlank()) {
+                    if (!koreaderApi.isConfigured) {
                         context.toast(MR.strings.koreader_set_url_first)
                         return@onClick
                     }
@@ -220,21 +305,95 @@ class SettingsKoreaderController : SettingsLegacyController() {
     }
 
     private fun testConnection() {
-        if (koreaderPreferences.serverUrl().get().isBlank()) {
+        val appCtx = applicationContext ?: return
+        if (!koreaderApi.isConfigured) {
             activity?.toast(MR.strings.koreader_set_url_first)
             return
         }
         viewScope.launchIO {
             val message = try {
-                koreaderApi.check()
-                MR.strings.koreader_connection_ok.getString(activity!!)
+                val res = koreaderApi.checkHealth()
+                val route = if (res.isFallback) "Fallback" else "LAN"
+                val extras = buildList {
+                    if (res.health.suwayomi.configured) {
+                        add(if (res.health.suwayomi.reachable) "Suwayomi ${res.health.suwayomi.version}".trim() else "Suwayomi offline")
+                    }
+                    if (res.health.translate.configured) {
+                        add("Translate (${res.health.translate.provider})")
+                    }
+                }
+                val suffix = if (extras.isNotEmpty()) " · ${extras.joinToString(" · ")}" else ""
+                "${MR.strings.koreader_connection_ok.getString(appCtx)} (v${res.health.version} · $route · ${res.latencyMs}ms$suffix)"
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                activity!!.getString(
+                appCtx.getString(
                     MR.strings.koreader_connection_failed,
                     e.message ?: e::class.simpleName.orEmpty(),
                 )
             }
             withUIContext { activity?.toast(message) }
         }
+    }
+
+    private fun uploadLatestBackup() {
+        val appCtx = applicationContext ?: return
+        if (!koreaderApi.isConfigured) {
+            activity?.toast(MR.strings.koreader_set_url_first)
+            return
+        }
+        viewScope.launchIO {
+            val message = try {
+                val backupsDir = storageManager.getBackupsDirectory()
+                val latest = backupsDir?.listFiles()
+                    .orEmpty()
+                    .filter { it.isFile && (it.name?.endsWith(".tachibk") == true || it.name?.endsWith(".proto.gz") == true) }
+                    .maxByOrNull { it.lastModified() }
+                if (latest == null) {
+                    MR.strings.yata_backup_none_found.getString(appCtx)
+                } else {
+                    val info = koreaderApi.uploadBackup(latest, latest.name ?: "karasu.tachibk")
+                    appCtx.getString(MR.strings.yata_backup_uploaded, info.name)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                appCtx.getString(
+                    MR.strings.koreader_connection_failed,
+                    e.message ?: e::class.simpleName.orEmpty(),
+                )
+            }
+            withUIContext { activity?.toast(message) }
+        }
+    }
+
+    private fun installMissingExtensions() {
+        val appCtx = applicationContext ?: return
+        val missingPkgs = koreaderPreferences.missingExtensionPkgs().get()
+        val installedPkgs = extensionManager.installedExtensionsFlow.value
+            .map { it.pkgName }
+            .toSet()
+        val matches = extensionManager.availableExtensionsFlow.value
+            .filter { it.pkgName in missingPkgs && it.pkgName !in installedPkgs }
+        if (matches.isEmpty()) {
+            activity?.toast(MR.strings.yata_missing_extensions_none_available)
+            return
+        }
+        val installScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        installScope.launch {
+            matches.forEach { ext ->
+                try {
+                    extensionManager.installExtension(
+                        ExtensionManager.ExtensionInfo(ext),
+                        installScope,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.w(e) { "Failed to queue install for missing extension ${ext.pkgName}" }
+                }
+            }
+        }
+        activity?.toast(appCtx.getString(MR.strings.yata_missing_extensions_installing, matches.size))
     }
 }

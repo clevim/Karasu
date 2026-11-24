@@ -12,11 +12,29 @@ import eu.kanade.tachiyomi.core.preference.PreferenceStore
  */
 class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
 
-    /** Base URL of the shelf container, e.g. `http://192.168.1.10:3000`. Blank disables sync. */
+    /** Base URL of the companion server (LAN), e.g. `http://192.168.1.10:3080`. Blank disables sync. */
     fun serverUrl() = preferenceStore.getString("koreader_server_url", "")
+
+    /**
+     * Optional secondary URL (Tailscale/VPN/public domain) used automatically when [serverUrl]
+     * is unreachable away from home.
+     */
+    fun fallbackServerUrl() = preferenceStore.getString("koreader_fallback_server_url", "")
 
     /** Sent as a bearer token. Blank means the container was left unauthenticated. Private: kept out of backups. */
     fun apiKey() = preferenceStore.getString(Preference.privateKey("koreader_api_key"), "")
+
+    /** Bidirectional sync of library, categories, read progress, merged sources and extension repos. */
+    fun syncLibrary() = preferenceStore.getBoolean("yata_sync_library", false)
+
+    /** Pull already-downloaded CBZ chapters directly from Yatagarasu/Suwayomi over LAN before hitting the web source. */
+    fun preferServerDownloads() = preferenceStore.getBoolean("yata_prefer_server_downloads", false)
+
+    /** When a chapter is missing on Yatagarasu, ask Suwayomi to download it first before falling back to web. */
+    fun acquireViaServer() = preferenceStore.getBoolean("yata_acquire_via_server", false)
+
+    /** Automatically upload created backups to the Yatagarasu server vault. */
+    fun autoUploadBackups() = preferenceStore.getBoolean("yata_auto_upload_backups", false)
 
     /**
      * Ids of the manga that get pushed, as strings.
@@ -104,4 +122,17 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
 
     /** Already localised when written, because only the job knows what happened. */
     fun lastSyncSummary() = preferenceStore.getString(Preference.appStateKey("koreader_last_sync_summary"), "")
+
+    /** Natural keys (`sourceId|url`) of favorite manga seen in the last library reconcile. */
+    fun syncedMangaKeys() = preferenceStore.getStringSet(Preference.appStateKey("yata_synced_manga_keys"), emptySet())
+
+    fun lastLibrarySyncAt() = preferenceStore.getLong(Preference.appStateKey("yata_last_library_sync_at"), 0L)
+
+    fun lastLibrarySyncSummary() = preferenceStore.getString(Preference.appStateKey("yata_last_library_sync_summary"), "")
+
+    /** Extensions reported by the server/other devices that are not installed on this device. */
+    fun missingExtensions() = preferenceStore.getStringSet(Preference.appStateKey("yata_missing_extensions"), emptySet())
+
+    /** Package names of missing extensions reported by the server, for assisted installation. */
+    fun missingExtensionPkgs() = preferenceStore.getStringSet(Preference.appStateKey("yata_missing_extension_pkgs"), emptySet())
 }

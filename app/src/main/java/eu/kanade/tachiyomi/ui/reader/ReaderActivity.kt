@@ -730,6 +730,9 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
 
     override fun finish() {
         viewModel.onBackPressed()
+        if (uy.kohesive.injekt.Injekt.get<karasu.domain.koreader.KoreaderPreferences>().syncLibrary().get()) {
+            eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob.startIfAutomatic(applicationContext)
+        }
         super.finish()
     }
 
