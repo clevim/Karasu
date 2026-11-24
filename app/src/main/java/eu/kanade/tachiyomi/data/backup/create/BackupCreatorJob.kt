@@ -29,8 +29,11 @@ import eu.kanade.tachiyomi.util.system.workManager
 import java.util.concurrent.TimeUnit
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import karasu.data.koreader.KoreaderApi
 import karasu.domain.backup.BackupPreferences
+import karasu.domain.koreader.KoreaderPreferences
 import karasu.domain.storage.StorageManager
+import kotlinx.coroutines.CancellationException
 
 class BackupCreatorJob(private val context: Context, workerParams: WorkerParameters) :
     CoroutineWorker(context, workerParams) {
@@ -53,8 +56,24 @@ class BackupCreatorJob(private val context: Context, workerParams: WorkerParamet
 
         return try {
             val location = BackupCreator(context).createBackup(uri, options, isAutoBackup)
-            if (!isAutoBackup) notifier.showBackupComplete(UniFile.fromUri(context, location.toUri())!!)
+            val createdFile = UniFile.fromUri(context, location.toUri())
+            if (!isAutoBackup && createdFile != null) notifier.showBackupComplete(createdFile)
+            if (createdFile != null) {
+                val koreaderApi = Injekt.get<KoreaderApi>()
+                val koreaderPreferences = Injekt.get<KoreaderPreferences>()
+                if (koreaderApi.isConfigured && koreaderPreferences.autoUploadBackups().get()) {
+                    try {
+                        koreaderApi.uploadBackup(createdFile, createdFile.name ?: "karasu.tachibk")
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.w(e) { "Failed to auto-upload backup to Yatagarasu" }
+                    }
+                }
+            }
             Result.success()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e(e) { "Unable to create backup" }
             if (!isAutoBackup) notifier.showBackupError(e.message)

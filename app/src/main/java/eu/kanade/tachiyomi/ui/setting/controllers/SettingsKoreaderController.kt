@@ -4,7 +4,9 @@ import android.content.Context
 import android.text.format.DateUtils
 import android.view.View
 import androidx.preference.PreferenceScreen
+import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
+import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.ui.setting.SettingsLegacyController
 import eu.kanade.tachiyomi.ui.setting.bindTo
 import eu.kanade.tachiyomi.ui.setting.editTextPreference
@@ -23,8 +25,12 @@ import karasu.data.koreader.KoreaderApi
 import karasu.domain.koreader.KoreaderPreferences
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import uy.kohesive.injekt.injectLazy
 import eu.kanade.tachiyomi.ui.setting.summaryMRes as summaryRes
 import eu.kanade.tachiyomi.ui.setting.titleMRes as titleRes
@@ -34,6 +40,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
     private val koreaderPreferences: KoreaderPreferences by injectLazy()
     private val koreaderApi: KoreaderApi by injectLazy()
     private val storageManager: karasu.domain.storage.StorageManager by injectLazy()
+    private val extensionManager: ExtensionManager by injectLazy()
 
     /**
      * Leaving this screen syncs.
@@ -121,12 +128,18 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 titleRes = MR.strings.yata_acquire_via_server
                 summaryRes = MR.strings.yata_acquire_via_server_summary
             }
+            switchPreference {
+                bindTo(koreaderPreferences.autoUploadBackups())
+                titleRes = MR.strings.yata_auto_upload_backups
+                summaryRes = MR.strings.yata_auto_upload_backups_summary
+            }
             preference {
                 titleRes = MR.strings.yata_backup_upload_now
                 summaryRes = MR.strings.yata_backup_upload_summary
                 onClick { uploadLatestBackup() }
             }
-            infoPreference(MR.strings.yata_missing_extensions_info).apply {
+            preference {
+                titleRes = MR.strings.yata_missing_extensions_title
                 fun update(missing: Set<String>) {
                     isVisible = missing.isNotEmpty()
                     if (missing.isNotEmpty()) {
@@ -142,6 +155,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 koreaderPreferences.missingExtensions().changes()
                     .onEach { update(it) }
                     .launchIn(viewScope)
+                onClick { installMissingExtensions() }
             }
             infoPreference(MR.strings.yata_translation_hint)
         }
@@ -351,5 +365,35 @@ class SettingsKoreaderController : SettingsLegacyController() {
             }
             withUIContext { activity?.toast(message) }
         }
+    }
+
+    private fun installMissingExtensions() {
+        val appCtx = applicationContext ?: return
+        val missingPkgs = koreaderPreferences.missingExtensionPkgs().get()
+        val installedPkgs = extensionManager.installedExtensionsFlow.value
+            .map { it.pkgName }
+            .toSet()
+        val matches = extensionManager.availableExtensionsFlow.value
+            .filter { it.pkgName in missingPkgs && it.pkgName !in installedPkgs }
+        if (matches.isEmpty()) {
+            activity?.toast(MR.strings.yata_missing_extensions_none_available)
+            return
+        }
+        val installScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        installScope.launch {
+            matches.forEach { ext ->
+                try {
+                    extensionManager.installExtension(
+                        ExtensionManager.ExtensionInfo(ext),
+                        installScope,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.w(e) { "Failed to queue install for missing extension ${ext.pkgName}" }
+                }
+            }
+        }
+        activity?.toast(appCtx.getString(MR.strings.yata_missing_extensions_installing, matches.size))
     }
 }

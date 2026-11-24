@@ -23,6 +23,9 @@ import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
 import eu.kanade.tachiyomi.util.system.ImageUtil
 import eu.kanade.tachiyomi.util.system.withIOContext
 import karasu.core.archive.util.archiveReader
+import karasu.data.koreader.KoreaderApi
+import karasu.domain.koreader.KoreaderPreferences
+import karasu.domain.koreader.models.RemoteSeriesNotes
 import karasu.domain.translation.TranslationPreferences
 import karasu.translation.data.CachedTranslator
 import karasu.translation.data.TranslationCache
@@ -87,6 +90,8 @@ class ChapterTranslator(private val context: Context) {
     private val readerPreferences: PreferencesHelper by injectLazy()
     private val chapterCache: ChapterCache by injectLazy()
     private val mergedSourceFallback: MergedSourceFallback by injectLazy()
+    private val koreaderApi: KoreaderApi by injectLazy()
+    private val koreaderPreferences: KoreaderPreferences by injectLazy()
 
     private val _queueState = MutableStateFlow<List<Translation>>(emptyList())
     val queueState = _queueState.asStateFlow()
@@ -193,13 +198,36 @@ class ChapterTranslator(private val context: Context) {
 
         val fromLang = preferences.translateFrom().get()
         val toLang = preferences.translateTo().get()
+        val mangaDir = provider.getMangaDir(translation.manga, translation.source)
+            ?: error("Could not create the translations directory")
+
+        // Check Yatagarasu's shared chapter cache before doing any local OCR or LLM work.
+        if (koreaderApi.isConfigured) {
+            val remotePages = runCatching {
+                koreaderApi.getChapterTranslation(
+                    sourceId = translation.manga.source,
+                    mangaUrl = translation.manga.url,
+                    chapterUrl = translation.chapter.url,
+                    toLang = toLang,
+                )
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                Logger.w(e) { "Failed to check Yatagarasu translation cache for ${translation.chapter.name}" }
+            }.getOrNull()
+
+            if (!remotePages.isNullOrEmpty()) {
+                writeTranslation(mangaDir, translation, remotePages)
+                return
+            }
+
+            pullRemoteContext(translation.manga)
+        }
+
         val chapterPath = downloadProvider.findChapterDir(
             translation.chapter,
             translation.manga,
             translation.source,
         )
-        val mangaDir = provider.getMangaDir(translation.manga, translation.source)
-            ?: error("Could not create the translations directory")
 
         val rtl = readsRightToLeft(translation.manga)
 
@@ -210,6 +238,7 @@ class ChapterTranslator(private val context: Context) {
         if (engine == TranslationEngine.GEMINI && preferences.geminiReadsPages().get()) {
             val pages = readWithGemini(translation, pageFiles, fromLang, toLang, rtl)
             writeTranslation(mangaDir, translation, pages)
+            pushToYatagarasu(translation, toLang, pages)
             return
         }
 
@@ -241,6 +270,72 @@ class ChapterTranslator(private val context: Context) {
         }
 
         writeTranslation(mangaDir, translation, pages)
+        pushToYatagarasu(translation, toLang, pages)
+    }
+
+    private suspend fun pullRemoteContext(manga: Manga) {
+        val mangaId = manga.id ?: return
+        val remote = runCatching {
+            koreaderApi.getTranslationContext(manga.source, manga.url)
+        }.onFailure { e ->
+            if (e is CancellationException) throw e
+            Logger.w(e) { "Failed to fetch Yatagarasu translation context for ${manga.title}" }
+        }.getOrNull() ?: return
+
+        val existingRaw = contexts.get(mangaId)
+        val parsedLocal = parseSeriesNotes(existingRaw)
+        val baseRaw = if (parsedLocal.notes.isBlank() && remote.notes.isNotBlank()) {
+            listOf(remote.notes.trim(), existingRaw.trim())
+                .filter { it.isNotBlank() }
+                .joinToString("\n\n")
+        } else {
+            existingRaw
+        }
+        val merged = mergeLearnedTerms(baseRaw, remote.glossary)
+        if (merged != null) {
+            contexts.set(mangaId, merged)
+        } else if (baseRaw != existingRaw) {
+            contexts.set(mangaId, baseRaw)
+        }
+    }
+
+    private suspend fun pushToYatagarasu(
+        translation: Translation,
+        toLang: String,
+        pages: Map<String, PageTranslation>,
+    ) {
+        if (!koreaderApi.isConfigured) return
+        if (pages.isNotEmpty()) {
+            runCatching {
+                koreaderApi.putChapterTranslation(
+                    sourceId = translation.manga.source,
+                    mangaUrl = translation.manga.url,
+                    chapterUrl = translation.chapter.url,
+                    toLang = toLang,
+                    pages = pages,
+                )
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                Logger.w(e) { "Failed to upload chapter translation to Yatagarasu for ${translation.chapter.name}" }
+            }
+        }
+        val mangaId = translation.manga.id ?: return
+        val raw = contexts.get(mangaId)
+        if (raw.isNotBlank()) {
+            val parsed = parseSeriesNotes(raw)
+            if (parsed.notes.isNotBlank() || parsed.glossary.isNotEmpty()) {
+                runCatching {
+                    koreaderApi.putTranslationContext(
+                        sourceId = translation.manga.source,
+                        mangaUrl = translation.manga.url,
+                        notes = RemoteSeriesNotes(notes = parsed.notes, glossary = parsed.glossary),
+                    )
+                }.onFailure { e ->
+                    if (e is CancellationException) throw e
+                    Logger.w(e) { "Failed to upload translation context to Yatagarasu for ${translation.manga.title}" }
+                }
+            }
+        }
     }
 
     private fun writeTranslation(mangaDir: UniFile, translation: Translation, pages: Map<String, PageTranslation>) {

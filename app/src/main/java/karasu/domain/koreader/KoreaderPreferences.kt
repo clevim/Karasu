@@ -33,6 +33,9 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
     /** When a chapter is missing on Yatagarasu, ask Suwayomi to download it first before falling back to web. */
     fun acquireViaServer() = preferenceStore.getBoolean("yata_acquire_via_server", false)
 
+    /** Automatically upload created backups to the Yatagarasu server vault. */
+    fun autoUploadBackups() = preferenceStore.getBoolean("yata_auto_upload_backups", false)
+
     /**
      * Ids of the manga that get pushed, as strings.
      *
@@ -129,4 +132,7 @@ class KoreaderPreferences(private val preferenceStore: PreferenceStore) {
 
     /** Extensions reported by the server/other devices that are not installed on this device. */
     fun missingExtensions() = preferenceStore.getStringSet(Preference.appStateKey("yata_missing_extensions"), emptySet())
+
+    /** Package names of missing extensions reported by the server, for assisted installation. */
+    fun missingExtensionPkgs() = preferenceStore.getStringSet(Preference.appStateKey("yata_missing_extension_pkgs"), emptySet())
 }

@@ -928,6 +928,8 @@
     <string name="yata_prefer_server_downloads_summary">Copy chapters already downloaded on Yatagarasu/Suwayomi over LAN before hitting the web source</string>
     <string name="yata_acquire_via_server">Acquire missing chapters via server</string>
     <string name="yata_acquire_via_server_summary">Ask Suwayomi to download missing chapters first (uses server FlareSolverr) before falling back to web</string>
+    <string name="yata_auto_upload_backups">Auto-upload backups to Yatagarasu</string>
+    <string name="yata_auto_upload_backups_summary">Automatically upload newly created backups to your Yatagarasu server vault</string>
     <string name="yata_backup_upload_now">Upload latest backup to Yatagarasu</string>
     <string name="yata_backup_upload_summary">Sends the newest .tachibk from your backups folder to the server vault</string>
     <string name="yata_backup_uploaded">Backup uploaded to Yatagarasu (%1$s)</string>
@@ -936,7 +938,10 @@
     <string name="yata_backup_restore_summary">Download and restore a backup stored on your Yatagarasu server</string>
     <string name="yata_backup_remote_empty">No backups found on Yatagarasu</string>
     <string name="yata_backup_downloading">Downloading backup from Yatagarasu…</string>
+    <string name="yata_missing_extensions_title">Install missing extensions</string>
     <string name="yata_missing_extensions_info">%1$d extensions on server not installed here: %2$s</string>
+    <string name="yata_missing_extensions_installing">Queued %1$d missing extensions for installation</string>
+    <string name="yata_missing_extensions_none_available">None of the missing extensions were found in your repos yet. Refresh available extensions in Browse first.</string>
     <string name="yata_translation_hint">To translate chapters on your server and share cache across devices, select "Yatagarasu (companion server)" under Settings → Translation.</string>
     <string name="koreader_what_to_send">What to send</string>
     <string name="koreader_send_to_shelf">Send to Yatagarasu</string>

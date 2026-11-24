@@ -308,6 +308,9 @@ class SyncYatagarasuLibrary(
             }
             .toSet()
         preferences.missingExtensions().set(missingLabels)
+        preferences.missingExtensionPkgs().set(
+            merged.missingExtensions.map { it.pkgName }.filter { it.isNotBlank() }.toSet(),
+        )
 
         val finalKeys = (localKeys - remotelyDeleted) + remoteKeys
         preferences.syncedMangaKeys().set(finalKeys)

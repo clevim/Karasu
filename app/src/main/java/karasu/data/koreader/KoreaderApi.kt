@@ -11,6 +11,7 @@ import karasu.domain.koreader.models.KoreaderShelfEntry
 import karasu.domain.koreader.models.KoreaderUpload
 import karasu.domain.koreader.models.RemoteBackupInfo
 import karasu.domain.koreader.models.RemoteBackupListResponse
+import karasu.domain.koreader.models.RemoteSeriesNotes
 import karasu.domain.koreader.models.RemoteTranslateRequest
 import karasu.domain.koreader.models.RemoteTranslateResponse
 import karasu.domain.koreader.models.SyncPayload
@@ -285,6 +286,35 @@ class KoreaderApi(
             .addQueryParameter("toLang", toLang)
             .build()
         val body = json.encodeToString(pages).toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder().url(httpUrl).headers(headers()).put(body).build()
+        network.client.newCall(request).awaitSuccess().close()
+    }
+
+    suspend fun getTranslationContext(
+        sourceId: Long,
+        mangaUrl: String,
+    ): RemoteSeriesNotes? {
+        val httpUrl = "${resolveBase()}/api/translations/context".toHttpUrl().newBuilder()
+            .addQueryParameter("sourceId", sourceId.toString())
+            .addQueryParameter("mangaUrl", mangaUrl)
+            .build()
+        val request = Request.Builder().url(httpUrl).headers(headers()).get().build()
+        network.client.newCall(request).await().use { response ->
+            if (response.code == 404 || !response.isSuccessful) return null
+            return json.decodeFromString(response.body.string())
+        }
+    }
+
+    suspend fun putTranslationContext(
+        sourceId: Long,
+        mangaUrl: String,
+        notes: RemoteSeriesNotes,
+    ) {
+        val httpUrl = "${resolveBase()}/api/translations/context".toHttpUrl().newBuilder()
+            .addQueryParameter("sourceId", sourceId.toString())
+            .addQueryParameter("mangaUrl", mangaUrl)
+            .build()
+        val body = json.encodeToString(notes).toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder().url(httpUrl).headers(headers()).put(body).build()
         network.client.newCall(request).awaitSuccess().close()
     }
