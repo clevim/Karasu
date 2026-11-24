@@ -909,7 +909,8 @@
     <!-- Yatagarasu: the self-hosted server that carries chapters to KOReader. String names are
          still koreader_* on purpose — renaming them would reset every translation for no gain. -->
     <string name="koreader">Yatagarasu</string>
-    <string name="koreader_summary">Send chapters to KOReader through a Yatagarasu server, and read progress back</string>
+    <string name="koreader_summary">Sync library, CBZ downloads, translation &amp; KOReader via Yatagarasu</string>
+    <string name="yata_connection_section">Connection</string>
     <string name="koreader_server_url">Yatagarasu address (LAN)</string>
     <string name="koreader_server_url_hint">http://192.168.1.10:3080</string>
     <string name="koreader_fallback_url">Fallback address (Tailscale / VPN)</string>
@@ -927,6 +928,11 @@
     <string name="yata_prefer_server_downloads_summary">Copy chapters already downloaded on Yatagarasu/Suwayomi over LAN before hitting the web source</string>
     <string name="yata_acquire_via_server">Acquire missing chapters via server</string>
     <string name="yata_acquire_via_server_summary">Ask Suwayomi to download missing chapters first (uses server FlareSolverr) before falling back to web</string>
+    <string name="yata_backup_upload_now">Upload latest backup to Yatagarasu</string>
+    <string name="yata_backup_upload_summary">Sends the newest .tachibk from your backups folder to the server vault</string>
+    <string name="yata_backup_uploaded">Backup uploaded to Yatagarasu (%1$s)</string>
+    <string name="yata_backup_none_found">No local backup found. Create one in Data and storage first.</string>
+    <string name="yata_translation_hint">To translate chapters on your server and share cache across devices, select "Yatagarasu (companion server)" under Settings → Translation.</string>
     <string name="koreader_what_to_send">What to send</string>
     <string name="koreader_send_to_shelf">Send to Yatagarasu</string>
     <string name="koreader_on_shelf">On Yatagarasu</string>

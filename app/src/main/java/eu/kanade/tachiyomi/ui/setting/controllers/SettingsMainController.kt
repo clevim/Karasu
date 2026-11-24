@@ -100,7 +100,7 @@ class SettingsMainController : SettingsLegacyController(), FloatingSearchInterfa
             onClick { navigateTo(SettingsTrackingController()) }
         }
         preference {
-            iconRes = R.drawable.ic_read_outline_24dp
+            iconRes = R.drawable.ic_cloud_24dp
             iconTint = tintColor
             titleRes = MR.strings.koreader
             summaryRes = MR.strings.koreader_summary

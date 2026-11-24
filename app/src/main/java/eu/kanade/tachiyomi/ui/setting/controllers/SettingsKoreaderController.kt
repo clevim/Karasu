@@ -33,6 +33,7 @@ class SettingsKoreaderController : SettingsLegacyController() {
 
     private val koreaderPreferences: KoreaderPreferences by injectLazy()
     private val koreaderApi: KoreaderApi by injectLazy()
+    private val storageManager: karasu.domain.storage.StorageManager by injectLazy()
 
     /**
      * Leaving this screen syncs.
@@ -50,44 +51,48 @@ class SettingsKoreaderController : SettingsLegacyController() {
     override fun setupPreferenceScreen(screen: PreferenceScreen) = screen.apply {
         titleRes = MR.strings.koreader
 
-        editTextPreference(activity) {
-            bindTo(koreaderPreferences.serverUrl())
-            titleRes = MR.strings.koreader_server_url
-            summary = koreaderPreferences.serverUrl().get()
-                .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
-            onChange {
-                koreaderApi.invalidateOriginCache()
-                summary = (it as String).ifBlank {
-                    context.getString(MR.strings.koreader_server_url_hint)
+        preferenceCategory {
+            titleRes = MR.strings.yata_connection_section
+
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.serverUrl())
+                titleRes = MR.strings.koreader_server_url
+                summary = koreaderPreferences.serverUrl().get()
+                    .ifBlank { context.getString(MR.strings.koreader_server_url_hint) }
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    summary = (it as String).ifBlank {
+                        context.getString(MR.strings.koreader_server_url_hint)
+                    }
+                    // The periodic job's constraints and its very existence come from these settings,
+                    // so it is re-registered whenever one of them changes rather than only at startup.
+                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    true
                 }
-                // The periodic job's constraints and its very existence come from these settings,
-                // so it is re-registered whenever one of them changes rather than only at startup.
-                KoreaderSyncJob.setupTask(context.applicationContext)
-                true
             }
-        }
-        editTextPreference(activity) {
-            bindTo(koreaderPreferences.fallbackServerUrl())
-            titleRes = MR.strings.koreader_fallback_url
-            summary = koreaderPreferences.fallbackServerUrl().get()
-                .ifBlank { context.getString(MR.strings.koreader_fallback_url_hint) }
-            onChange {
-                koreaderApi.invalidateOriginCache()
-                summary = (it as String).ifBlank {
-                    context.getString(MR.strings.koreader_fallback_url_hint)
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.fallbackServerUrl())
+                titleRes = MR.strings.koreader_fallback_url
+                summary = koreaderPreferences.fallbackServerUrl().get()
+                    .ifBlank { context.getString(MR.strings.koreader_fallback_url_hint) }
+                onChange {
+                    koreaderApi.invalidateOriginCache()
+                    summary = (it as String).ifBlank {
+                        context.getString(MR.strings.koreader_fallback_url_hint)
+                    }
+                    KoreaderSyncJob.setupTask(context.applicationContext)
+                    true
                 }
-                KoreaderSyncJob.setupTask(context.applicationContext)
-                true
             }
-        }
-        editTextPreference(activity) {
-            bindTo(koreaderPreferences.apiKey())
-            titleRes = MR.strings.koreader_api_key
-            summaryRes = MR.strings.koreader_api_key_summary
-        }
-        preference {
-            titleRes = MR.strings.koreader_test_connection
-            onClick { testConnection() }
+            editTextPreference(activity) {
+                bindTo(koreaderPreferences.apiKey())
+                titleRes = MR.strings.koreader_api_key
+                summaryRes = MR.strings.koreader_api_key_summary
+            }
+            preference {
+                titleRes = MR.strings.koreader_test_connection
+                onClick { testConnection() }
+            }
         }
 
         preferenceCategory {
@@ -108,6 +113,12 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 titleRes = MR.strings.yata_acquire_via_server
                 summaryRes = MR.strings.yata_acquire_via_server_summary
             }
+            preference {
+                titleRes = MR.strings.yata_backup_upload_now
+                summaryRes = MR.strings.yata_backup_upload_summary
+                onClick { uploadLatestBackup() }
+            }
+            infoPreference(MR.strings.yata_translation_hint)
         }
 
         preferenceCategory {
@@ -273,6 +284,34 @@ class SettingsKoreaderController : SettingsLegacyController() {
                 }
                 val suffix = if (extras.isNotEmpty()) " · ${extras.joinToString(" · ")}" else ""
                 "${MR.strings.koreader_connection_ok.getString(activity!!)} (v${res.health.version} · $route · ${res.latencyMs}ms$suffix)"
+            } catch (e: Exception) {
+                activity!!.getString(
+                    MR.strings.koreader_connection_failed,
+                    e.message ?: e::class.simpleName.orEmpty(),
+                )
+            }
+            withUIContext { activity?.toast(message) }
+        }
+    }
+
+    private fun uploadLatestBackup() {
+        if (!koreaderApi.isConfigured) {
+            activity?.toast(MR.strings.koreader_set_url_first)
+            return
+        }
+        viewScope.launchIO {
+            val message = try {
+                val backupsDir = storageManager.getBackupsDirectory()
+                val latest = backupsDir?.listFiles()
+                    .orEmpty()
+                    .filter { it.isFile && (it.name?.endsWith(".tachibk") == true || it.name?.endsWith(".proto.gz") == true) }
+                    .maxByOrNull { it.lastModified() }
+                if (latest == null) {
+                    MR.strings.yata_backup_none_found.getString(activity!!)
+                } else {
+                    val info = koreaderApi.uploadBackup(latest, latest.name ?: "karasu.tachibk")
+                    activity!!.getString(MR.strings.yata_backup_uploaded, info.name)
+                }
             } catch (e: Exception) {
                 activity!!.getString(
                     MR.strings.koreader_connection_failed,
