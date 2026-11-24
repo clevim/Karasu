@@ -10,6 +10,16 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.14.0]
+
+### Additions
+- Unified **Yatagarasu Companion v2** integration in *Settings → Yatagarasu* with Dual-Origin connectivity (LAN primary URL + automatic Tailscale/VPN fallback) and live route/latency/capability test
+- Bidirectional library sync (Karasu ↔ Yatagarasu ↔ Suwayomi): categories, new manga, remote removals, chapter read/bookmark/page progress, merged sources, extension repos, and automatic sync on closing the reader
+- Smart CBZ downloader: streams chapters already downloaded on Yatagarasu/Suwayomi over LAN (with optional server-side acquisition via Suwayomi/FlareSolverr) and transparent web fallback
+- New **Yatagarasu (companion server)** translation engine + shared chapter translation (`<chapter>.json`) and series glossary (`SeriesNotes`) cache across devices
+- Remote `.tachibk` cloud backups: upload latest backup, automatic upload of scheduled backups, and direct restore from Yatagarasu in *Settings → Data and storage*
+- Assisted installation of missing extensions reported by the companion server
+
 ## [1.13.1]
 
 ### Additions

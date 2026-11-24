@@ -3,6 +3,7 @@ package karasu.domain.koreader.interactor
 import android.os.Build
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Category
+import eu.kanade.tachiyomi.data.database.models.create
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import karasu.data.koreader.KoreaderApi

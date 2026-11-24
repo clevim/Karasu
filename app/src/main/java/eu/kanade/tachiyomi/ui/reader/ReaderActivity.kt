@@ -1,5 +1,9 @@
 package eu.kanade.tachiyomi.ui.reader
 
+import eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob
+import karasu.domain.koreader.KoreaderPreferences
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityOptions
@@ -730,8 +734,8 @@ class ReaderActivity : BaseActivity<ReaderActivityBinding>() {
 
     override fun finish() {
         viewModel.onBackPressed()
-        if (uy.kohesive.injekt.Injekt.get<karasu.domain.koreader.KoreaderPreferences>().syncLibrary().get()) {
-            eu.kanade.tachiyomi.data.koreader.KoreaderSyncJob.startIfAutomatic(applicationContext)
+        if (Injekt.get<KoreaderPreferences>().syncLibrary().get()) {
+            KoreaderSyncJob.startIfAutomatic(applicationContext)
         }
         super.finish()
     }
