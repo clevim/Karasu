@@ -28,6 +28,7 @@ import karasu.util.lang.getString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -271,19 +272,57 @@ class SettingsKoreaderController : SettingsLegacyController() {
             }
             preference {
                 titleRes = MR.strings.koreader_sync_now
-                summary = lastSyncSummary(context)
-                // The job finishes minutes after the tap, long after this screen was built, so
-                // the line follows the preference instead of being a snapshot of it.
-                koreaderPreferences.lastSyncAt().changes()
-                    .onEach { summary = lastSyncSummary(context) }
+                var isRunning = false
+                var pendingManualSyncUntil = 0L
+                var observedSyncAt = koreaderPreferences.lastSyncAt().get()
+
+                fun refreshSummary() {
+                    val showRunning = isRunning || System.currentTimeMillis() < pendingManualSyncUntil
+                    isEnabled = !isRunning
+                    summary = if (showRunning) {
+                        context.getString(MR.strings.koreader_sync_running)
+                    } else {
+                        lastSyncSummary(context)
+                    }
+                }
+
+                refreshSummary()
+
+                KoreaderSyncJob.isRunningFlow(context.applicationContext)
+                    .onEach { running ->
+                        isRunning = running
+                        if (running) pendingManualSyncUntil = 0L
+                        refreshSummary()
+                    }
                     .launchIn(viewScope)
+                koreaderPreferences.lastSyncAt().changes()
+                    .onEach { at ->
+                        if (at != observedSyncAt) {
+                            observedSyncAt = at
+                            pendingManualSyncUntil = 0L
+                        }
+                        refreshSummary()
+                    }
+                    .launchIn(viewScope)
+                koreaderPreferences.lastSyncSummary().changes()
+                    .onEach { refreshSummary() }
+                    .launchIn(viewScope)
+
                 onClick {
                     if (!koreaderApi.isConfigured) {
                         context.toast(MR.strings.koreader_set_url_first)
                         return@onClick
                     }
+                    if (isRunning) return@onClick
+                    koreaderApi.invalidateOriginCache()
+                    pendingManualSyncUntil = System.currentTimeMillis() + 1_500L
+                    summary = context.getString(MR.strings.koreader_sync_running)
                     KoreaderSyncJob.startNow(context.applicationContext)
                     context.toast(MR.strings.koreader_sync_started)
+                    viewScope.launch {
+                        delay(1_600L)
+                        refreshSummary()
+                    }
                 }
             }
         }
@@ -320,6 +359,12 @@ class SettingsKoreaderController : SettingsLegacyController() {
                     }
                     if (res.health.translate.configured) {
                         add("Translate (${res.health.translate.provider})")
+                    }
+                    if (res.health.imageTranslator.isActive) {
+                        val mode = res.health.imageTranslator.mode.takeIf {
+                            it.isNotBlank() && !it.equals("off", ignoreCase = true)
+                        }
+                        add(if (mode != null) "Visual Translate ($mode)" else "Visual Translate")
                     }
                 }
                 val suffix = if (extras.isNotEmpty()) " · ${extras.joinToString(" · ")}" else ""

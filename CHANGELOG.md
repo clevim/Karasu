@@ -10,6 +10,18 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.14.1]
+
+### Additions
+- Sync manga cover URLs (`thumbnailUrl`) bidirectionally with Yatagarasu/Suwayomi so newly synced library entries display covers immediately before a manual refresh
+- Show active **Visual Translate** mode alongside Suwayomi and LLM Translate in *Settings → Yatagarasu → Test connection*
+- Live WorkManager progress indicator (`Syncing…`) and detailed library sync summary on *Sync now* in *Settings → Yatagarasu*, plus full Brazilian Portuguese (`pt-rBR`) localization for Yatagarasu Companion settings
+
+### Fixes
+- Fix manual *Sync now* being silently ignored on mobile data when *Only sync over Wi-Fi* is enabled or when a previous sync attempt was waiting in WorkManager retry backoff (`ExistingWorkPolicy.REPLACE` + `NetworkType.CONNECTED` for manual runs, capped retries)
+- Fix wake-on-request reverse proxies (`HTTP 502/503/504/521–524` and container boot timeouts) failing immediately instead of waiting for Yatagarasu to finish waking up, and replace raw HTML error dumps with clean `<title>` status messages
+- Fix library sync summary always showing *"nothing to do"* when no manga are marked for the KOReader shelf, and ensure shelf and library sync run independently so a failure in one does not skip the other
+
 ## [1.14.0]
 
 ### Additions

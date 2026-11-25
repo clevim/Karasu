@@ -18,6 +18,24 @@ data class YatagarasuTranslateHealth(
 )
 
 @Serializable
+data class YatagarasuImageTranslatorHealth(
+    val configured: Boolean = false,
+    val enabled: Boolean = false,
+    val reachable: Boolean = false,
+    val mode: String = "",
+    val provider: String = "",
+    val model: String = "",
+) {
+    val isActive: Boolean
+        get() = configured || enabled || (
+            mode.isNotBlank() &&
+                !mode.equals("off", ignoreCase = true) &&
+                !mode.equals("disabled", ignoreCase = true) &&
+                !mode.equals("none", ignoreCase = true)
+            )
+}
+
+@Serializable
 data class YatagarasuHealth(
     val name: String = "yatagarasu",
     val version: String = "1",
@@ -25,6 +43,7 @@ data class YatagarasuHealth(
     val capabilities: List<String> = emptyList(),
     val suwayomi: YatagarasuSuwayomiHealth = YatagarasuSuwayomiHealth(),
     val translate: YatagarasuTranslateHealth = YatagarasuTranslateHealth(),
+    val imageTranslator: YatagarasuImageTranslatorHealth = YatagarasuImageTranslatorHealth(),
 )
 
 @Serializable
@@ -65,6 +84,7 @@ data class SyncManga(
     val sourceId: Long,
     val url: String,
     val title: String = "",
+    val thumbnailUrl: String = "",
     val favorite: Boolean = true,
     val categories: List<String> = emptyList(),
     val updatedAt: Long = 0L,

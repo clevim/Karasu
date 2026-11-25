@@ -66,6 +66,7 @@ class SyncYatagarasuLibrary(
         val mergedAdded: Int = 0,
         val reposAdded: Int = 0,
         val missingExtensions: Int = 0,
+        val totalLibraryManga: Int = 0,
     )
 
     suspend fun await(): Summary {
@@ -113,6 +114,7 @@ class SyncYatagarasuLibrary(
                 sourceId = manga.source,
                 url = manga.url,
                 title = manga.title,
+                thumbnailUrl = manga.thumbnail_url.orEmpty(),
                 favorite = manga.favorite,
                 categories = catNames,
                 updatedAt = manga.last_update,
@@ -196,15 +198,24 @@ class SyncYatagarasuLibrary(
                 val existing = getManga.awaitByUrlAndSource(remoteManga.url, remoteManga.sourceId)
                 if (existing != null) {
                     val id = existing.id
-                    if (id != null && !existing.favorite) {
+                    val newThumb = remoteManga.thumbnailUrl.takeIf {
+                        existing.thumbnail_url.isNullOrBlank() && it.isNotBlank()
+                    }
+                    if (id != null && (!existing.favorite || newThumb != null)) {
                         updateManga.await(
                             MangaUpdate(
                                 id = id,
-                                favorite = true,
-                                dateAdded = System.currentTimeMillis(),
+                                favorite = if (!existing.favorite) true else null,
+                                dateAdded = if (!existing.favorite) System.currentTimeMillis() else null,
+                                thumbnailUrl = newThumb,
                             ),
                         )
-                        mangaAdded++
+                        if (!existing.favorite) {
+                            mangaAdded++
+                        }
+                        if (newThumb != null) {
+                            existing.thumbnail_url = newThumb
+                        }
                     }
                     localManga = existing
                 } else {
@@ -215,6 +226,7 @@ class SyncYatagarasuLibrary(
                     ).apply {
                         favorite = true
                         date_added = System.currentTimeMillis()
+                        thumbnail_url = remoteManga.thumbnailUrl.takeIf { it.isNotBlank() }
                     }
                     val insertedId = insertManga.await(created)
                     if (insertedId != null) {
@@ -225,6 +237,12 @@ class SyncYatagarasuLibrary(
                 }
                 if (localManga != null) {
                     localMangaByKey[key] = localManga
+                }
+            } else if (localManga.thumbnail_url.isNullOrBlank() && remoteManga.thumbnailUrl.isNotBlank()) {
+                val id = localManga.id
+                if (id != null) {
+                    updateManga.await(MangaUpdate(id = id, thumbnailUrl = remoteManga.thumbnailUrl))
+                    localManga.thumbnail_url = remoteManga.thumbnailUrl
                 }
             }
 
@@ -324,6 +342,7 @@ class SyncYatagarasuLibrary(
             mergedAdded = mergedAdded,
             reposAdded = reposAdded,
             missingExtensions = missingLabels.size,
+            totalLibraryManga = finalKeys.size,
         )
     }
 

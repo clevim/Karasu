@@ -19,15 +19,15 @@ import karasu.domain.koreader.interactor.SyncKoreaderShelf
 import karasu.domain.koreader.interactor.SyncYatagarasuLibrary
 import karasu.i18n.MR
 import karasu.util.lang.getString
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * Periodic reconcile of the KOReader shelf and Yatagarasu companion library sync.
- *
- * Uploads are whole CBZ files and the shelf is normally on the same LAN, so a failed run is
- * retried with backoff rather than reported: there is nothing the user can do about the tablet
- * being off, and the next run picks up exactly where this one stopped.
+ * Periodic and manual reconcile of the KOReader shelf and Yatagarasu companion library sync.
  *
  * Deliberately not a foreground worker. A first sync of many chapters can outlive WorkManager's
  * execution window, but the run is a reconcile — whatever reached the shelf stays there, and the
@@ -41,35 +41,59 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
         val preferences = Injekt.get<KoreaderPreferences>()
         if (!isConfigured(preferences)) return Result.success()
 
-        return try {
-            val result = Injekt.get<SyncKoreaderShelf>().await()
+        val syncLibEnabled = preferences.syncLibrary().get()
+        var shelfResult: SyncKoreaderShelf.Summary? = null
+        var shelfError: Exception? = null
+        var libResult: SyncYatagarasuLibrary.Summary? = null
+        var libError: Exception? = null
+
+        try {
+            val res = Injekt.get<SyncKoreaderShelf>().await()
             Logger.i {
-                "KOReader shelf synced: ${result.uploaded} uploaded, ${result.removed} removed, " +
-                    "${result.markedRead} marked read, ${result.queuedForDownload} queued"
+                "KOReader shelf synced: ${res.uploaded} uploaded, ${res.removed} removed, " +
+                    "${res.markedRead} marked read, ${res.queuedForDownload} queued"
             }
-            record(preferences, describe(result))
-
-            if (preferences.syncLibrary().get()) {
-                val libResult = Injekt.get<SyncYatagarasuLibrary>().await()
-                val libSummary = "${libResult.chaptersUpdated} chapters, ${libResult.mergedAdded} merged, ${libResult.reposAdded} repos"
-                preferences.lastLibrarySyncSummary().set(libSummary)
-                Logger.i { "Yatagarasu library synced: $libSummary (missing extensions: ${libResult.missingExtensions})" }
-            }
-
-            Result.success()
-        } catch (e: kotlinx.coroutines.CancellationException) {
+            shelfResult = res
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Logger.e(e) { "Yatagarasu sync failed" }
-            record(
-                preferences,
-                applicationContext.getString(
-                    MR.strings.koreader_sync_failed_summary,
-                    e.message ?: e::class.simpleName.orEmpty(),
-                ),
-            )
-            Result.retry()
+            Logger.e(e) { "KOReader shelf sync failed" }
+            shelfError = e
         }
+
+        if (syncLibEnabled) {
+            try {
+                val res = Injekt.get<SyncYatagarasuLibrary>().await()
+                val libSummary = describeLibrary(res)
+                preferences.lastLibrarySyncSummary().set(libSummary)
+                Logger.i {
+                    "Yatagarasu library synced: $libSummary " +
+                        "(missing extensions: ${res.missingExtensions}, total: ${res.totalLibraryManga})"
+                }
+                libResult = res
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e(e) { "Yatagarasu library sync failed" }
+                libError = e
+            }
+        }
+
+        if (shelfResult == null && (!syncLibEnabled || libResult == null)) {
+            val primaryError = libError ?: shelfError
+            record(preferences, describeFailure(primaryError))
+            return if (runAttemptCount < MAX_RETRY_ATTEMPTS) Result.retry() else Result.failure()
+        }
+
+        val summary = buildCombinedSummary(
+            shelfResult = shelfResult,
+            shelfError = shelfError,
+            syncLibEnabled = syncLibEnabled,
+            libResult = libResult,
+            libError = libError,
+        )
+        record(preferences, summary)
+        return Result.success()
     }
 
     private fun record(preferences: KoreaderPreferences, summary: String) {
@@ -77,20 +101,72 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
         preferences.lastSyncAt().set(System.currentTimeMillis())
     }
 
-    /** A run that did nothing is the common case, and four zeroes read as a malfunction. */
-    private fun describe(result: SyncKoreaderShelf.Summary): String {
-        val idle = result.uploaded == 0 && result.removed == 0 &&
+    private fun describeFailure(error: Exception?): String = applicationContext.getString(
+        MR.strings.koreader_sync_failed_summary,
+        error?.message ?: error?.let { it::class.simpleName }.orEmpty(),
+    )
+
+    private fun isShelfIdle(result: SyncKoreaderShelf.Summary): Boolean =
+        result.uploaded == 0 && result.removed == 0 &&
             result.markedRead == 0 && result.queuedForDownload == 0
-        return if (idle) {
-            applicationContext.getString(MR.strings.koreader_sync_nothing_to_do)
+
+    private fun describeShelfCounts(result: SyncKoreaderShelf.Summary): String =
+        applicationContext.getString(
+            MR.strings.koreader_sync_counts,
+            result.uploaded,
+            result.removed,
+            result.markedRead,
+            result.queuedForDownload,
+        )
+
+    private fun describeLibrary(result: SyncYatagarasuLibrary.Summary): String {
+        val deltas = buildList {
+            if (result.mangaAdded > 0) {
+                add(applicationContext.getString(MR.strings.yata_delta_manga_added, result.mangaAdded))
+            }
+            if (result.mangaRemoved > 0) {
+                add(applicationContext.getString(MR.strings.yata_delta_manga_removed, result.mangaRemoved))
+            }
+            if (result.chaptersUpdated > 0) {
+                add(applicationContext.getString(MR.strings.yata_delta_chapters, result.chaptersUpdated))
+            }
+            if (result.mergedAdded > 0) {
+                add(applicationContext.getString(MR.strings.yata_delta_merged, result.mergedAdded))
+            }
+            if (result.reposAdded > 0) {
+                add(applicationContext.getString(MR.strings.yata_delta_repos, result.reposAdded))
+            }
+        }
+        return if (deltas.isNotEmpty()) {
+            deltas.joinToString(", ")
         } else {
-            applicationContext.getString(
-                MR.strings.koreader_sync_counts,
-                result.uploaded,
-                result.removed,
-                result.markedRead,
-                result.queuedForDownload,
-            )
+            applicationContext.getString(MR.strings.yata_library_up_to_date, result.totalLibraryManga)
+        }
+    }
+
+    private fun buildCombinedSummary(
+        shelfResult: SyncKoreaderShelf.Summary?,
+        shelfError: Exception?,
+        syncLibEnabled: Boolean,
+        libResult: SyncYatagarasuLibrary.Summary?,
+        libError: Exception?,
+    ): String {
+        val shelfPart = when {
+            shelfResult != null && !isShelfIdle(shelfResult) -> describeShelfCounts(shelfResult)
+            shelfError != null -> describeFailure(shelfError)
+            else -> null
+        }
+        val libPart = when {
+            !syncLibEnabled -> null
+            libResult != null -> describeLibrary(libResult)
+            libError != null -> describeFailure(libError)
+            else -> null
+        }
+        val parts = listOfNotNull(shelfPart, libPart)
+        return if (parts.isNotEmpty()) {
+            parts.joinToString(" · ")
+        } else {
+            applicationContext.getString(MR.strings.koreader_sync_nothing_to_do)
         }
     }
 
@@ -98,9 +174,25 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
         private fun isConfigured(preferences: KoreaderPreferences): Boolean =
             preferences.serverUrl().get().isNotBlank() || preferences.fallbackServerUrl().get().isNotBlank()
 
-        fun isRunning(context: Context): Boolean = context.workManager
-            .getWorkInfosByTag(TAG_MANUAL).get()
-            .any { it.state == WorkInfo.State.RUNNING }
+        fun isRunning(context: Context): Boolean {
+            val wm = context.workManager
+            val manualRunning = wm.getWorkInfosForUniqueWork(TAG_MANUAL).get()
+                .any { it.state == WorkInfo.State.RUNNING }
+            val autoRunning = wm.getWorkInfosForUniqueWork(TAG_AUTO).get()
+                .any { it.state == WorkInfo.State.RUNNING }
+            return manualRunning || autoRunning
+        }
+
+        fun isRunningFlow(context: Context): Flow<Boolean> {
+            val wm = context.workManager
+            return combine(
+                wm.getWorkInfosForUniqueWorkFlow(TAG_MANUAL),
+                wm.getWorkInfosForUniqueWorkFlow(TAG_AUTO),
+            ) { manual, auto ->
+                manual.any { it.state == WorkInfo.State.RUNNING } ||
+                    auto.any { it.state == WorkInfo.State.RUNNING }
+            }.distinctUntilChanged()
+        }
 
         fun setupTask(
             context: Context,
@@ -135,31 +227,36 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
         }
 
         /**
-         * Sync because something happened that the shelf's answer depends on: chapters finished
-         * downloading, the library found new ones, or the settings that decide what belongs on the
-         * shelf were edited.
+         * Sync because something happened that the shelf or library depends on: chapters finished
+         * downloading, the library found new ones, the reader closed, or sync settings were edited.
          *
-         * Twelve hours between runs is fine for keeping a shelf current and far too long for
-         * reacting to something the user just did. A periodic job registered with `UPDATE` also
-         * keeps its existing schedule, so changing a category would otherwise not be acted on until
-         * the period happened to come round — which is what left people pressing "Sync now" by hand.
-         *
-         * The same unique work as that button, so a burst of these is still one run. Silent when the
-         * interval is Manual: none of these events is a request to be synced.
+         * Respects [KoreaderPreferences.onlyOverWifi] and uses [ExistingWorkPolicy.KEEP] so automatic
+         * event triggers never use mobile data when Wi-Fi-only is enabled and never interrupt an
+         * already running sync. Silent when the interval is Manual.
          */
         fun startIfAutomatic(context: Context) {
-            if (Injekt.get<KoreaderPreferences>().syncInterval().get() <= 0) return
-            startNow(context)
+            val preferences = Injekt.get<KoreaderPreferences>()
+            if (preferences.syncInterval().get() <= 0 || !isConfigured(preferences)) return
+            val request = OneTimeWorkRequestBuilder<KoreaderSyncJob>()
+                .addTag(TAG_MANUAL)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
+                .setConstraints(constraints(preferences))
+                .build()
+            context.workManager.enqueueUniqueWork(TAG_MANUAL, ExistingWorkPolicy.KEEP, request)
         }
 
-        /** Manual sync ignores the interval but still respects the metered-connection choice. */
+        /**
+         * Explicit manual sync requested by the user ("Sync now"): runs immediately over any active
+         * network (Wi-Fi or mobile data) and replaces any stuck/waiting work.
+         */
         fun startNow(context: Context) {
             if (!isConfigured(Injekt.get())) return
             val request = OneTimeWorkRequestBuilder<KoreaderSyncJob>()
                 .addTag(TAG_MANUAL)
-                .setConstraints(constraints(Injekt.get()))
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
                 .build()
-            context.workManager.enqueueUniqueWork(TAG_MANUAL, ExistingWorkPolicy.KEEP, request)
+            context.workManager.enqueueUniqueWork(TAG_MANUAL, ExistingWorkPolicy.REPLACE, request)
         }
 
         private fun constraints(
@@ -173,6 +270,7 @@ class KoreaderSyncJob(context: Context, workerParams: WorkerParameters) :
             },
         )
 
+        private const val MAX_RETRY_ATTEMPTS = 3
         private const val TAG_AUTO = "KoreaderSync"
         private const val TAG_MANUAL = "$TAG_AUTO:manual"
     }
