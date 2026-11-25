@@ -92,7 +92,7 @@ fun domainModule() = module {
     factory { BuildRuleInputs(get(), get(), get(), get(), get(), get(), get()) }
     factory { PrepareShelfCbz(get(), get()) }
     factory { SyncKoreaderShelf(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
-    factory { SyncYatagarasuLibrary(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory { SyncYatagarasuLibrary(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 
     single<CategoryRepository> { CategoryRepositoryImpl(get()) }
     factory { ApplyCategoryRules(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }

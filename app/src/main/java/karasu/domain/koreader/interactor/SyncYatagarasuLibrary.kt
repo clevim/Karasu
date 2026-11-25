@@ -3,7 +3,10 @@ package karasu.domain.koreader.interactor
 import android.os.Build
 import co.touchlab.kermit.Logger
 import eu.kanade.tachiyomi.data.database.models.Category
+import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.database.models.create
+import eu.kanade.tachiyomi.data.track.TrackManager
+import eu.kanade.tachiyomi.data.track.TrackPreferences
 import eu.kanade.tachiyomi.domain.manga.models.Manga
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import karasu.data.koreader.KoreaderApi
@@ -23,12 +26,16 @@ import karasu.domain.koreader.models.SyncManga
 import karasu.domain.koreader.models.SyncMangaKey
 import karasu.domain.koreader.models.SyncMergedSource
 import karasu.domain.koreader.models.SyncPayload
+import karasu.domain.koreader.models.SyncTrack
+import karasu.domain.koreader.models.SyncTrackerAccount
 import karasu.domain.manga.interactor.GetLibraryManga
 import karasu.domain.manga.interactor.GetManga
 import karasu.domain.manga.interactor.InsertManga
 import karasu.domain.manga.interactor.UpdateManga
 import karasu.domain.manga.merged.interactor.MergedSources
 import karasu.domain.manga.models.MangaUpdate
+import karasu.domain.track.interactor.GetTrack
+import karasu.domain.track.interactor.InsertTrack
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -37,9 +44,11 @@ import kotlinx.coroutines.CancellationException
  *
  * Syncs both directions:
  * - Karasu → Server: favorites, categories, chapter read/bookmark/page state, merged sources,
- *   extension repos, installed extensions, and explicit library removals.
+ *   tracking records, logged-in tracker accounts, extension repos, installed extensions, and
+ *   explicit library removals.
  * - Server → Karasu: new categories, new library manga, remote library removals, chapter progress,
- *   merged sources, extension repos, and missing extensions notice.
+ *   merged sources, tracking records, logged-in tracker accounts, extension repos, and missing
+ *   extensions notice.
  */
 class SyncYatagarasuLibrary(
     private val api: KoreaderApi,
@@ -57,6 +66,10 @@ class SyncYatagarasuLibrary(
     private val getExtensionRepo: GetExtensionRepo,
     private val createExtensionRepo: CreateExtensionRepo,
     private val extensionManager: ExtensionManager,
+    private val getTrack: GetTrack,
+    private val insertTrack: InsertTrack,
+    private val trackManager: TrackManager,
+    private val trackPreferences: TrackPreferences,
 ) {
 
     data class Summary(
@@ -110,6 +123,22 @@ class SyncYatagarasuLibrary(
                     updatedAt = if (hasProgress) maxOf(ch.date_fetch, ch.date_upload) else 0L,
                 )
             }
+            val tracks = getTrack.awaitAllByMangaId(mangaId).map { tr ->
+                SyncTrack(
+                    trackerId = tr.sync_id.toInt(),
+                    remoteId = tr.media_id,
+                    libraryId = tr.library_id ?: 0L,
+                    title = tr.title,
+                    lastChapterRead = tr.last_chapter_read.toDouble(),
+                    totalChapters = tr.total_chapters.toInt(),
+                    score = tr.score.toDouble(),
+                    status = tr.status,
+                    trackingUrl = tr.tracking_url,
+                    startedReadingDate = tr.started_reading_date,
+                    finishedReadingDate = tr.finished_reading_date,
+                    updatedAt = manga.last_update,
+                )
+            }
             syncMangas += SyncManga(
                 sourceId = manga.source,
                 url = manga.url,
@@ -120,6 +149,7 @@ class SyncYatagarasuLibrary(
                 updatedAt = manga.last_update,
                 mergedSources = merges,
                 chapters = chapters,
+                tracks = tracks,
             )
         }
 
@@ -136,6 +166,20 @@ class SyncYatagarasuLibrary(
                 versionCode = it.versionCode,
             )
         }
+        val nowMs = System.currentTimeMillis()
+        val loggedTrackers = trackManager.services
+            .filter { it.isLogged }
+            .map { svc ->
+                SyncTrackerAccount(
+                    trackerId = svc.id.toInt(),
+                    name = svc::class.simpleName.orEmpty(),
+                    username = svc.getUsername(),
+                    password = svc.getPassword(),
+                    token = trackPreferences.trackToken(svc).get(),
+                    authExpired = trackPreferences.trackAuthExpired(svc).get(),
+                    updatedAt = nowMs,
+                )
+            }
 
         val payload = SyncPayload(
             deviceId = "${Build.MANUFACTURER}-${Build.MODEL}",
@@ -147,6 +191,7 @@ class SyncYatagarasuLibrary(
             deletedMangaKeys = deletedKeys,
             extensionRepos = localRepos.map { it.baseUrl },
             installedExtensions = installedExts,
+            trackerAccounts = loggedTrackers,
         )
 
         val merged = api.reconcileSync(payload)
@@ -285,6 +330,62 @@ class SyncYatagarasuLibrary(
                     mergedAdded++
                 }
             }
+
+            // Apply synced tracking records (missing links or further reading progress).
+            if (remoteManga.tracks.isNotEmpty()) {
+                val localTracks = getTrack.awaitAllByMangaId(mangaId)
+                val localTrackByKey = localTracks.associateBy { it.sync_id.toInt() to it.media_id }
+                for (remoteTrack in remoteManga.tracks) {
+                    if (remoteTrack.trackerId <= 0 || remoteTrack.remoteId <= 0L) continue
+                    val existingTrack = localTrackByKey[remoteTrack.trackerId to remoteTrack.remoteId]
+                    try {
+                        if (existingTrack == null) {
+                            val createdTrack = Track.create(remoteTrack.trackerId.toLong()).apply {
+                                manga_id = mangaId
+                                media_id = remoteTrack.remoteId
+                                library_id = remoteTrack.libraryId.takeIf { it > 0L }
+                                title = remoteTrack.title.ifBlank { remoteManga.title.ifBlank { localManga.title } }
+                                last_chapter_read = remoteTrack.lastChapterRead.toFloat()
+                                total_chapters = remoteTrack.totalChapters.toLong()
+                                score = remoteTrack.score.toFloat()
+                                status = remoteTrack.status
+                                tracking_url = remoteTrack.trackingUrl
+                                started_reading_date = remoteTrack.startedReadingDate
+                                finished_reading_date = remoteTrack.finishedReadingDate
+                            }
+                            insertTrack.await(createdTrack)
+                        } else if (remoteTrack.lastChapterRead.toFloat() > existingTrack.last_chapter_read) {
+                            existingTrack.last_chapter_read = remoteTrack.lastChapterRead.toFloat()
+                            if (remoteTrack.totalChapters > 0) {
+                                existingTrack.total_chapters = maxOf(
+                                    existingTrack.total_chapters,
+                                    remoteTrack.totalChapters.toLong(),
+                                )
+                            }
+                            if (remoteTrack.score > 0.0) {
+                                existingTrack.score = remoteTrack.score.toFloat()
+                            }
+                            if (remoteTrack.status > 0) {
+                                existingTrack.status = remoteTrack.status
+                            }
+                            if (remoteTrack.trackingUrl.isNotBlank() && existingTrack.tracking_url.isBlank()) {
+                                existingTrack.tracking_url = remoteTrack.trackingUrl
+                            }
+                            if (remoteTrack.startedReadingDate > 0L && existingTrack.started_reading_date == 0L) {
+                                existingTrack.started_reading_date = remoteTrack.startedReadingDate
+                            }
+                            if (remoteTrack.finishedReadingDate > 0L && existingTrack.finished_reading_date == 0L) {
+                                existingTrack.finished_reading_date = remoteTrack.finishedReadingDate
+                            }
+                            insertTrack.await(existingTrack)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Logger.w(e) { "Failed to apply synced track ${remoteTrack.trackerId}/${remoteTrack.remoteId}" }
+                    }
+                }
+            }
         }
 
         // 3. Apply remote library deletions: previously synced local manga that disappeared from hub.
@@ -312,6 +413,24 @@ class SyncYatagarasuLibrary(
             } catch (e: Exception) {
                 Logger.w(e) { "Failed to add synced extension repo $normalized" }
             }
+        }
+
+        // 5. Restore logged-in tracker accounts from the hub when not logged in locally.
+        for (acc in merged.trackerAccounts) {
+            if (acc.authExpired) continue
+            if (acc.token.isBlank() && acc.username.isBlank()) continue
+            val service = trackManager.getService(acc.trackerId.toLong()) ?: continue
+            if (service.isLogged) continue
+            if (acc.username.isNotBlank()) {
+                trackPreferences.trackUsername(service).set(acc.username)
+            }
+            if (acc.password.isNotBlank()) {
+                trackPreferences.trackPassword(service).set(acc.password)
+            }
+            if (acc.token.isNotBlank()) {
+                trackPreferences.trackToken(service).set(acc.token)
+            }
+            trackPreferences.trackAuthExpired(service).set(false)
         }
 
         val missingLabels = merged.missingExtensions

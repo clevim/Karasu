@@ -10,6 +10,11 @@ The format is simplified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+## [1.14.2]
+
+### Additions
+- Bidirectional **Tracking & Tracker Account sync** with Yatagarasu Companion: syncs per-manga tracking records (MyAnimeList, AniList, Kitsu, MangaUpdates, etc.) and logged-in tracker sessions across devices and Suwayomi
+
 ## [1.14.1]
 
 ### Additions

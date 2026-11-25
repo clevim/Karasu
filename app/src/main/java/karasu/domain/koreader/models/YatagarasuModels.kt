@@ -80,6 +80,33 @@ data class SyncMangaKey(
 )
 
 @Serializable
+data class SyncTrack(
+    val trackerId: Int,
+    val remoteId: Long,
+    val libraryId: Long = 0L,
+    val title: String = "",
+    val lastChapterRead: Double = 0.0,
+    val totalChapters: Int = 0,
+    val score: Double = 0.0,
+    val status: Int = 0,
+    val trackingUrl: String = "",
+    val startedReadingDate: Long = 0L,
+    val finishedReadingDate: Long = 0L,
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
+data class SyncTrackerAccount(
+    val trackerId: Int,
+    val name: String = "",
+    val username: String = "",
+    val password: String = "",
+    val token: String = "",
+    val authExpired: Boolean = false,
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
 data class SyncManga(
     val sourceId: Long,
     val url: String,
@@ -90,6 +117,7 @@ data class SyncManga(
     val updatedAt: Long = 0L,
     val mergedSources: List<SyncMergedSource> = emptyList(),
     val chapters: List<SyncChapter> = emptyList(),
+    val tracks: List<SyncTrack> = emptyList(),
 )
 
 @Serializable
@@ -111,6 +139,7 @@ data class SyncPayload(
     val extensionRepos: List<String> = emptyList(),
     val installedExtensions: List<SyncExtension> = emptyList(),
     val missingExtensions: List<SyncExtension> = emptyList(),
+    val trackerAccounts: List<SyncTrackerAccount> = emptyList(),
 )
 
 @Serializable
